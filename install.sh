@@ -74,6 +74,14 @@ install_commands() {
     cp "$f" "$COMMANDS_DIR/"
     count=$((count + 1))
   done
+
+  # Copy db-engines subdirectory
+  if [ -d "$REPO_DIR/commands/db-engines" ]; then
+    mkdir -p "$COMMANDS_DIR/db-engines"
+    cp "$REPO_DIR/commands/db-engines/"*.md "$COMMANDS_DIR/db-engines/"
+    echo -e "  ${GREEN}→ Copied db-engines/ ($(ls "$REPO_DIR/commands/db-engines/"*.md | wc -l | tr -d ' ') engine files) ✓${NC}"
+  fi
+
   echo -e "  ${GREEN}→ Copied $count commands to ~/.claude/commands/ ✓${NC}"
   echo -e "  ${CYAN}→ Restart Claude Code to load new commands${NC}"
 }

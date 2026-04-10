@@ -73,6 +73,14 @@ for f in "$REPO_DIR/commands/"*.md; do
   cp "$f" "$COMMANDS_DIR/"
   count=$((count + 1))
 done
+
+# Update db-engines subdirectory
+if [ -d "$REPO_DIR/commands/db-engines" ]; then
+  mkdir -p "$COMMANDS_DIR/db-engines"
+  cp "$REPO_DIR/commands/db-engines/"*.md "$COMMANDS_DIR/db-engines/"
+  echo -e "  ${GREEN}→ Updated db-engines/ ($(ls "$REPO_DIR/commands/db-engines/"*.md | wc -l | tr -d ' ') engine files) ✓${NC}"
+fi
+
 echo -e "  ${GREEN}→ Updated $count commands ✓${NC}"
 
 python3 << PYEOF

@@ -6,7 +6,7 @@ Replicate the full Claude Code development environment on any machine in one com
 
 | Component | Contents |
 |-----------|----------|
-| **Commands** | 13 slash commands: `/launch`, `/commit`, `/push`, `/test`, `/security`, `/lint`, `/gate`, `/docs`, `/architect`, `/cloud-security`, `/db`, `/enterprise-design`, `/issue` |
+| **Commands** | 13 slash commands: `/launch`, `/commit`, `/push`, `/test`, `/security`, `/lint`, `/gate`, `/docs`, `/architect`, `/cloud-security`, `/db`, `/enterprise-design`, `/issue` + 7 db engine files |
 | **Plugins** | 14 plugins: superpowers, frontend-design, stripe, hookify, pr-review-toolkit, code-review, playwright, firecrawl, github, remember, skill-creator, code-simplifier, security-guidance, brightdata |
 | **Shell aliases** | `cc`, `ccc`, `claude-update`, `claude-check` |
 | **Templates** | CLAUDE.md starters for node-frontend, node-fullstack, python-api, docker-compose |
@@ -65,6 +65,48 @@ cp ~/claude-templates/node-fullstack.md ./CLAUDE.md
 ```
 
 Available templates: `node-frontend`, `node-fullstack`, `python-api`, `docker-compose`
+
+## /db — Multi-engine database access
+
+The `/db` command supports 7 database engines via a thin router + per-engine files:
+
+| Engine | Connection method |
+|--------|-----------------|
+| `cloud-sql` | GCP Cloud SQL via temporary public IP |
+| `postgres` | Direct TCP — PostgreSQL, Supabase |
+| `snowflake` | Snowflake via snowsql or Python connector |
+| `databricks` | Databricks SQL warehouse via Python connector |
+| `athena` | AWS Athena via boto3 |
+| `presto` | Presto / Trino via Python client |
+| `oracle` | Oracle via cx_Oracle or sqlplus |
+
+### Usage
+
+```bash
+/db                              # Default connectivity check for current project DB
+/db "SELECT count(*) FROM users" # Arbitrary SQL on current project DB
+/db migrate                      # Run pending migrations
+/db prod-snowflake               # Named connection from global registry
+/db prod-snowflake "SELECT ..."  # Named connection + custom SQL
+```
+
+### Configuration
+
+**Project-level** — add a `## Database` section to your project's `CLAUDE.md`:
+
+```markdown
+## Database
+engine: postgres
+host: db.example.supabase.co
+port: 5432
+database: postgres
+user: postgres
+auth: env:DATABASE_URL
+```
+
+**Global registry** — create `~/.claude/db-connections.json` with named connections (see `commands/db-engines/` for examples). This file is personal and never committed to git.
+
+---
 
 ## Adding a new plugin
 
