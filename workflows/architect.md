@@ -238,5 +238,3 @@ OPEN QUESTIONS
 ──────────────
 [any assumptions that need validation before proceeding]
 ```
-
-$ARGUMENTS

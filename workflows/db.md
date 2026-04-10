@@ -18,9 +18,8 @@ cloud-sql | postgres | snowflake | databricks | athena | presto | oracle
 ## Step 0 — Parse arguments
 
 ```bash
-ARGS="$ARGUMENTS"
-
 # If first arg looks like a connection name (no spaces, no SQL keywords), treat as named connection
+ARGS="${1:-}"
 if echo "$ARGS" | grep -qE '^[a-zA-Z0-9_-]+$' && ! echo "$ARGS" | grep -qiE '^(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|SHOW|DESCRIBE|migrate)'; then
   NAMED_CONNECTION=$(echo "$ARGS" | awk '{print $1}')
   SQL=$(echo "$ARGS" | cut -s -d' ' -f2-)
@@ -193,5 +192,3 @@ echo "---"
 
 # Follow the instructions in db-engines/${ENGINE}.md using the variable mappings above
 ```
-
-$ARGUMENTS

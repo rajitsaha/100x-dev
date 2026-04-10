@@ -108,5 +108,3 @@ Staged files: N
 Commit:       <short-hash> <message>
 Status:       COMMITTED ✅
 ```
-
-$ARGUMENTS

@@ -584,5 +584,3 @@ FIGMA MAKE HANDOFF NOTES
 ─────────────────────────
 [Design tokens, spacing system, color palette refs, component naming conventions]
 ```
-
-$ARGUMENTS

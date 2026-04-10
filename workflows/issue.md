@@ -4,9 +4,6 @@ You are a senior engineering lead and product architect. Given an observation, b
 
 ## Do NOT ask for permission — investigate thoroughly, then create the issue.
 
-## Input
-The observation, bug, or problem: `$ARGUMENTS`
-
 ---
 
 ## Phase 1 — Codebase Investigation
@@ -267,5 +264,3 @@ ISSUEEOF
 ```
 
 Print the created issue URL and number.
-
-$ARGUMENTS

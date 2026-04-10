@@ -83,5 +83,3 @@ Push:   main -> origin/main ✅
 CI/CD:  [workflows] ✅
 Status: SHIPPED ✅
 ```
-
-$ARGUMENTS

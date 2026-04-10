@@ -125,5 +125,3 @@ Secrets:        None found ✅ | [findings]
 Auth middleware: ✅ all routes protected | [unprotected routes]
 Status:         PASSED ✅ | BLOCKED ❌ (critical/high remain or real secrets found)
 ```
-
-$ARGUMENTS

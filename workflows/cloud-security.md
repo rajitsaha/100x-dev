@@ -489,5 +489,3 @@ fi
 
 **Gate 5 blocks on:** any CRITICAL or HIGH finding across all sections.
 **Gate 5 passes on:** zero critical + zero high (MEDIUM and LOW are reported but non-blocking).
-
-$ARGUMENTS

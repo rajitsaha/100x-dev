@@ -239,5 +239,3 @@ Failures:    0 ✅
 New files:   [list]
 Status:      COVERAGE MET ✅
 ```
-
-$ARGUMENTS
