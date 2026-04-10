@@ -1,7 +1,7 @@
 # DB — Universal Database Access
 
 Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle.
-Reads connection config from CLAUDE.md (project-level) or ~/.claude/db-connections.json (global registry).
+Reads connection config from the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent) or ~/.claude/db-connections.json (global registry).
 
 ## Supported engines
 cloud-sql | postgres | snowflake | databricks | athena | presto | oracle
@@ -34,7 +34,11 @@ fi
 ## Step 1 — Load connection config
 
 ```bash
-CLAUDE_MD="$(git rev-parse --show-toplevel 2>/dev/null)/CLAUDE.md"
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$(git rev-parse --show-toplevel 2>/dev/null)/$f" ] && INSTRUCTION_FILE="$(git rev-parse --show-toplevel 2>/dev/null)/$f" && break
+done
 DB_CONNECTIONS="$HOME/.claude/db-connections.json"
 
 if [ -n "$NAMED_CONNECTION" ]; then
@@ -42,15 +46,15 @@ if [ -n "$NAMED_CONNECTION" ]; then
   ENGINE=$(python3 -c "import json; d=json.load(open('$DB_CONNECTIONS')); c=d.get('$NAMED_CONNECTION',{}); print(c.get('engine',''))" 2>/dev/null)
   CONFIG_SOURCE="registry:$NAMED_CONNECTION"
 
-elif [ -f "$CLAUDE_MD" ] && grep -q "^engine:" "$CLAUDE_MD" 2>/dev/null; then
-  # Use project-level CLAUDE.md config
-  ENGINE=$(grep "^engine:" "$CLAUDE_MD" | head -1 | cut -d: -f2 | tr -d ' ')
-  CONNECTION_NAME=$(grep "^connection:" "$CLAUDE_MD" | head -1 | cut -d: -f2 | tr -d ' ')
-  CONFIG_SOURCE="claude.md"
+elif [ -n "$INSTRUCTION_FILE" ] && grep -q "^engine:" "$INSTRUCTION_FILE" 2>/dev/null; then
+  # Use project-level instruction file config
+  ENGINE=$(grep "^engine:" "$INSTRUCTION_FILE" | head -1 | cut -d: -f2 | tr -d ' ')
+  CONNECTION_NAME=$(grep "^connection:" "$INSTRUCTION_FILE" | head -1 | cut -d: -f2 | tr -d ' ')
+  CONFIG_SOURCE="instruction-file"
 
 elif [ -f "$DB_CONNECTIONS" ]; then
   # List available connections and prompt
-  echo "No DB config found in CLAUDE.md. Available connections:"
+  echo "No DB config found in project instruction file. Available connections:"
   python3 -c "
 import json
 d = json.load(open('$DB_CONNECTIONS'))
@@ -75,7 +79,7 @@ else:
 
 else
   echo "ERROR: No database config found."
-  echo "  Option 1: Add a '## Database' section to CLAUDE.md"
+  echo "  Option 1: Add a '## Database' section to your project instruction file"
   echo "  Option 2: Create ~/.claude/db-connections.json with named connections"
   exit 1
 fi
@@ -112,12 +116,12 @@ fi
 
 ```bash
 # Determine auth method
-AUTH="${CONN_AUTH:-$(grep '^auth:' "$CLAUDE_MD" 2>/dev/null | head -1 | cut -d: -f2- | tr -d ' ')}"
+AUTH="${CONN_AUTH:-$(grep '^auth:' "$INSTRUCTION_FILE" 2>/dev/null | head -1 | cut -d: -f2- | tr -d ' ')}"
 
 case "$AUTH" in
   gcp-secret:*)
     SECRET_NAME="${AUTH#gcp-secret:}"
-    DB_CRED=$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="${CONN_GCP_PROJECT:-$(grep '^gcp_project:' "$CLAUDE_MD" | cut -d: -f2 | tr -d ' ')}")
+    DB_CRED=$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="${CONN_GCP_PROJECT:-$(grep '^gcp_project:' "$INSTRUCTION_FILE" | cut -d: -f2 | tr -d ' ')}")
     echo "Credential resolved from GCP Secret Manager ✓"
     ;;
   env:*)

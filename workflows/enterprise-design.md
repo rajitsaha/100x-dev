@@ -17,7 +17,12 @@ You are a Senior Platform Architect at a world-class web infrastructure company.
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-cat "$PROJECT_ROOT/CLAUDE.md" 2>/dev/null | head -150
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+[ -n "$INSTRUCTION_FILE" ] && cat "$INSTRUCTION_FILE" 2>/dev/null | head -150
 ```
 
 Establish:

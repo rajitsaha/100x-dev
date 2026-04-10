@@ -69,7 +69,7 @@ Fix the issue, create a new commit, re-run the **gate** workflow, push again.
 ## Phase 4 — Production verification
 
 After all CI/CD workflows succeed:
-- Check health endpoints listed in the project's `CLAUDE.md` or `README`
+- Check health endpoints listed in the project instruction file or `README`
 - Confirm the deployment completed successfully
 
 ---

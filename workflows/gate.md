@@ -113,9 +113,15 @@ Detect whether this project deploys to a cloud provider:
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 IS_CLOUD_PROJECT=false
 
-# GCP: check for gcloud config, Terraform, or CLAUDE.md references
-if grep -qE "gcloud|GCP_PROJECT|GOOGLE_CLOUD_PROJECT|Cloud Run|Cloud SQL|Firebase" \
-  "$PROJECT_ROOT/CLAUDE.md" "$PROJECT_ROOT/.env.example" 2>/dev/null; then
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+
+# GCP: check for gcloud config, Terraform, or project instruction file references
+if [ -n "$INSTRUCTION_FILE" ] && grep -qE "gcloud|GCP_PROJECT|GOOGLE_CLOUD_PROJECT|Cloud Run|Cloud SQL|Firebase" \
+  "$INSTRUCTION_FILE" "$PROJECT_ROOT/.env.example" 2>/dev/null; then
   IS_CLOUD_PROJECT=true
 fi
 

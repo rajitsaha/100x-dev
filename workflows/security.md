@@ -18,9 +18,14 @@ ls package.json api/package.json requirements.txt pyproject.toml 2>/dev/null
 
 ## Step 2 — Load project-specific known exceptions
 
-Read CLAUDE.md for any documented known exceptions before determining what is blocking:
+Read the project instruction file for any documented known exceptions before determining what is blocking:
 ```bash
-grep -A3 -i "known exception\|security exception\|audit exception" "$PROJECT_ROOT/CLAUDE.md" 2>/dev/null | head -30
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+[ -n "$INSTRUCTION_FILE" ] && grep -A3 -i "known exception\|security exception\|audit exception" "$INSTRUCTION_FILE" 2>/dev/null | head -30
 ```
 
 In addition, the following patterns are **universally non-blocking** across all projects (install-time only, not runtime risks):

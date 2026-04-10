@@ -12,9 +12,15 @@ Rigorous security and data privacy scan for cloud deployments. Covers GCP infras
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 cd "$PROJECT_ROOT"
 
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+
 # Detect GCP projects used by this codebase
 GCP_PROJECTS=$(grep -rh "project.*=\|gcloud.*--project\|GCP_PROJECT\|GOOGLE_CLOUD_PROJECT" \
-  CLAUDE.md .env.example terraform/ 2>/dev/null \
+  ${INSTRUCTION_FILE:-/dev/null} .env.example terraform/ 2>/dev/null \
   | grep -oE '[a-z][a-z0-9-]{4,28}' | sort -u | grep -v "^--" || true)
 
 # Detect if Dockerfile present
@@ -24,7 +30,7 @@ HAS_DOCKER=$(ls Dockerfile docker-compose.yml deploy/docker-compose.yml 2>/dev/n
 HAS_TERRAFORM=$(ls terraform/*.tf infra/*.tf 2>/dev/null | head -1 || echo "")
 ```
 
-Also read the project's `CLAUDE.md` to identify all GCP projects. Scan ALL of them.
+Also read the project instruction file to identify all GCP projects. Scan ALL of them.
 
 ---
 

@@ -23,7 +23,7 @@ If no code changes, skip to Step 4.
 
 ## Step 2 — Map changes to docs
 
-Read this project's `CLAUDE.md` (or equivalent) to understand which doc files exist and their purposes. Apply the general mapping:
+Read the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent) to understand which doc files exist and their purposes. Apply the general mapping:
 
 | Changed files | Doc to update |
 |---|---|
@@ -59,10 +59,10 @@ Search all doc files for references to deleted/renamed functions, routes, compon
 
 ```bash
 # Link check — verify internal file references
-grep -rn '\[.*\](\.\.' docs/ README.md CLAUDE.md 2>/dev/null | head -20 || true
+grep -rn '\[.*\](\.\.' docs/ README.md CLAUDE.md AGENTS.md .cursorrules 2>/dev/null | head -20 || true
 
 # Unclosed code blocks
-for f in docs/*.md README.md CLAUDE.md ARCHITECTURE.md 2>/dev/null; do
+for f in docs/*.md README.md CLAUDE.md AGENTS.md .cursorrules ARCHITECTURE.md 2>/dev/null; do
   [ -f "$f" ] || continue
   count=$(grep -c '```' "$f" 2>/dev/null || echo 0)
   if [ $((count % 2)) -ne 0 ]; then echo "WARNING: $f has unclosed code block"; fi
@@ -74,7 +74,7 @@ done
 ## Step 5 — Stage doc files only
 
 ```bash
-git add docs/ README.md CLAUDE.md AGENT.md ROADMAP.md ARCHITECTURE.md 2>/dev/null
+git add docs/ README.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md ROADMAP.md ARCHITECTURE.md 2>/dev/null
 git diff --cached --stat
 ```
 

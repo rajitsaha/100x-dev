@@ -39,13 +39,13 @@ Based on what changed, update corresponding documentation:
 
 | Changed files | Doc to update |
 |---|---|
-| API routes or handlers | API reference doc (README, CLAUDE.md, or `docs/`) |
+| API routes or handlers | API reference doc (README, project instruction file, or `docs/`) |
 | CLI commands or flags | CLI reference doc |
 | New features or config | README.md or project-equivalent |
 | Removed files/features | Remove stale references from all docs |
 | `.claude/commands/**` | No doc update needed |
 
-Read the project's `CLAUDE.md` for specific doc file paths. Skip if no docs are affected.
+Read the project instruction file for specific doc file paths. Skip if no docs are affected.
 
 ---
 

@@ -14,11 +14,16 @@ You are a principal architect with deep expertise in cloud infrastructure (GCP/A
 
 ## Step 1 — Load project context
 
-Read the project's `CLAUDE.md` and relevant source files to understand:
+Read the project instruction file and relevant source files to understand:
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-cat "$PROJECT_ROOT/CLAUDE.md" 2>/dev/null | head -100
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+[ -n "$INSTRUCTION_FILE" ] && cat "$INSTRUCTION_FILE" 2>/dev/null | head -100
 ```
 
 Identify:
@@ -26,7 +31,7 @@ Identify:
 - Data storage tier (Cloud SQL schema, Redis usage, BigQuery, GCS)
 - API and service topology (Cloud Run services, async workers, webhooks)
 - Authentication model (Firebase Auth, JWT, OAuth)
-- Current scale characteristics (users, RPM, data volume — from CLAUDE.md or codebase)
+- Current scale characteristics (users, RPM, data volume — from the project instruction file or codebase)
 - Known bottlenecks or constraints
 
 ---

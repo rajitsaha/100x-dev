@@ -40,7 +40,7 @@ docker compose run --rm migrate 2>/dev/null || true
 ```
 
 ### 0d. Smoke test
-Read `CLAUDE.md` or `README.md` for health endpoint. Fall back to common defaults:
+Read the project instruction file or `README.md` for health endpoint. Fall back to common defaults:
 ```bash
 curl -s http://localhost:8000/health 2>/dev/null || \
 curl -s http://localhost:3000/health 2>/dev/null || \
@@ -109,9 +109,14 @@ Run the **commit** workflow. Stage, write, and create a conventional commit.
 
 Run the **push** workflow. Push to origin main, handle hooks, monitor CI/CD.
 
-After CI/CD completes, verify production. Read `CLAUDE.md` for health endpoint URLs:
+After CI/CD completes, verify production. Read the project instruction file for health endpoint URLs:
 ```bash
-grep -E "https?://[^ ]*/health" "$PROJECT_ROOT/CLAUDE.md" 2>/dev/null | head -3
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+[ -n "$INSTRUCTION_FILE" ] && grep -E "https?://[^ ]*/health" "$INSTRUCTION_FILE" 2>/dev/null | head -3
 ```
 Hit each endpoint and confirm 200 OK.
 
@@ -140,13 +145,13 @@ echo "Open: $OPEN | Closed: $CLOSED"
 ```
 Update the issue count summary line in `ROADMAP.md` if counts changed. Update `Last updated` date.
 
-### 7c. Update CLAUDE.md (if features changed)
+### 7c. Update project instruction file (if features changed)
 If new features were implemented or bugs fixed, update the feature audit table. Update `Last updated` date.
 
 ### 7d. Commit doc updates (if any changed)
 ```bash
-git diff --name-only ROADMAP.md CLAUDE.md AGENT.md 2>/dev/null | grep -q . && \
-  git add ROADMAP.md CLAUDE.md AGENT.md 2>/dev/null && \
+git diff --name-only ROADMAP.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md 2>/dev/null | grep -q . && \
+  git add ROADMAP.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md 2>/dev/null && \
   git commit -m "docs: update issue tracker counts and documentation after launch" && \
   git push origin main || true
 ```
