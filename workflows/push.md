@@ -50,36 +50,112 @@ git push origin main
 
 ---
 
-## Phase 3 — Monitor GitHub Actions
+## Phase 3 — Monitor GitHub Actions & Auto-Fix
 
 ```bash
 gh run list --limit 3
-gh run watch $(gh run list --limit 1 --json databaseId -q '.[0].databaseId')
+RUN_ID=$(gh run list --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN_ID"
 ```
 
-Wait for all triggered workflows to complete. If any fail:
+No timeout — watch until CI completes or fails.
+
+### If CI passes → continue to Phase 4.
+
+### If CI fails → Auto-fix loop (max 3 attempts)
+
 ```bash
-gh run view <run-id> --log | tail -50
+gh run view "$RUN_ID" --log | tail -100
 ```
 
-Fix the issue, create a new commit, re-run the **gate** workflow, push again.
+Read the failure logs and classify the error:
+
+**Auto-fixable failures (language-agnostic):**
+
+| Failure type | Detection signals | Fix strategy |
+|:-------------|:------------------|:-------------|
+| Lint/format | ESLint, Prettier, ruff, black, gofmt, rustfmt, checkstyle, rubocop, swiftlint, ktlint | Run the **lint** workflow, commit fixes |
+| Type errors | TypeScript (`tsc`), mypy, pyright, Go compiler, Rust compiler (`rustc`), Java (`javac`), Kotlin | Read errors, fix types, commit |
+| Test failures | Jest, Vitest, pytest, Go test, cargo test, JUnit, RSpec, PHPUnit, XCTest, ExUnit | Read failing test, fix test or code, commit |
+| Dependency issues | npm/yarn/pnpm lockfile, pip requirements, go.mod, Cargo.lock, Maven/Gradle, Bundler, Composer | Install/update deps, commit lockfile |
+| Build failures | webpack, vite, esbuild, Go build, cargo build, Maven/Gradle build, make, CMake, Swift build | Read build errors, fix, commit |
+
+**Detection logic:**
+1. Read CI log output
+2. Identify the tool/framework from error signatures
+3. Match to the fix strategy above
+4. If no match → classify as unfamiliar → escalate
+
+**For each auto-fix attempt:**
+1. Apply the fix
+2. Create a new commit (never amend)
+3. Re-run the **gate** workflow
+4. Push again
+5. Monitor CI again
+
+```
+CI FAILED — Attempt N/3
+Failure:  [tool/framework] [error type]
+Fix:      [what was done]
+Action:   Committing fix, re-running gate, re-pushing...
+```
+
+**Unfamiliar failures (escalate to human after any attempt):**
+- Infrastructure errors (Docker build fails in CI but not locally)
+- Permission / secrets / environment variable errors
+- Timeout / flaky test patterns (same test passes locally)
+- Network connectivity issues
+- Unknown error codes or tools
+
+```
+╔══════════════════════════════════════════════════════╗
+║            CI FAILED — ESCALATING TO HUMAN            ║
+╠══════════════════════════════════════════════════════╣
+║ Attempts:   N/3 exhausted (or unfamiliar failure)    ║
+║ Last error: [error summary]                          ║
+║ Diagnosis:  [root cause analysis]                    ║
+║ Suggestion: [recommended fix]                        ║
+╠══════════════════════════════════════════════════════╣
+║ This requires human judgment. Auto-fix not possible.  ║
+╚══════════════════════════════════════════════════════╝
+```
+
+**After 3 failed auto-fix attempts → STOP. Report all attempted fixes and escalate.**
 
 ---
 
 ## Phase 4 — Production verification
 
 After all CI/CD workflows succeed:
-- Check health endpoints listed in the project instruction file or `README`
-- Confirm the deployment completed successfully
+
+```bash
+# Detect project instruction file
+INSTRUCTION_FILE=""
+for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
+  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
+done
+```
+
+1. **Health checks** — read health endpoint URLs from the project instruction file or README. Hit each and confirm HTTP 200:
+```bash
+[ -n "$INSTRUCTION_FILE" ] && grep -E "https?://[^ ]*/health" "$INSTRUCTION_FILE" 2>/dev/null | head -3
+# Also try common defaults:
+# /health, /healthz, /api/health, /status
+```
+
+Retry up to 5 times with 10-second intervals (deployment may still be rolling out).
+
+2. **Confirm deployment** — verify the deployed version matches the pushed commit if a version endpoint exists.
 
 ---
 
 ## Output
 
 ```
-=== /push Complete ===
-Gate:   ✅ ALL GATES PASSED
-Push:   main -> origin/main ✅
-CI/CD:  [workflows] ✅
-Status: SHIPPED ✅
+=== Push Complete ===
+Gate:     ✅ ALL GATES PASSED
+Push:     <branch> → origin/<branch> ✅
+CI/CD:    ✅ All workflows passed (N auto-fixes applied)
+Health:   ✅ All endpoints responding
+Status:   SHIPPED ✅
 ```
