@@ -134,3 +134,7 @@ Then add it to `install.sh`'s tool selection. PRs welcome!
 - **Auto-fix first** — lint and security fixes applied automatically
 - **Loop until clean** — tests re-run until all thresholds met
 - **Tool-agnostic** — same workflows, any AI coding tool
+
+---
+
+Built by [Rajit Saha](https://github.com/rajitsaha) in collaboration with [Claude](https://claude.ai)
