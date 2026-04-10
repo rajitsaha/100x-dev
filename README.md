@@ -14,7 +14,7 @@ Replicate the full Claude Code development environment on any machine in one com
 ## Install
 
 ```bash
-git clone https://github.com/[your-username]/claude-dev-setup.git ~/claude-dev-setup
+git clone https://github.com/rajitsaha/claude-dev-setup.git ~/claude-dev-setup
 cd ~/claude-dev-setup
 ./install.sh
 ```
