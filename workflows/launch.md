@@ -105,20 +105,127 @@ Run the **commit** workflow. Stage, write, and create a conventional commit.
 
 ---
 
-## Phase 6 — Push
+## Phase 6 — Push & Deploy
 
-Run the **push** workflow. Push to origin main, handle hooks, monitor CI/CD.
+Run the **push** workflow. Push, handle hooks, monitor CI/CD, auto-fix failures if needed.
 
-After CI/CD completes, verify production. Read the project instruction file for health endpoint URLs:
+---
+
+## Phase 6b — Deployment Verification
+
+After CI/CD passes and deployment completes, run the full verification pipeline.
+
 ```bash
 # Detect project instruction file
 INSTRUCTION_FILE=""
 for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
   [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
 done
-[ -n "$INSTRUCTION_FILE" ] && grep -E "https?://[^ ]*/health" "$INSTRUCTION_FILE" 2>/dev/null | head -3
 ```
-Hit each endpoint and confirm 200 OK.
+
+### Step 1 — Health checks
+
+Read health endpoint URLs from the project instruction file, README, or use common defaults:
+
+```bash
+# From project instruction file
+[ -n "$INSTRUCTION_FILE" ] && grep -E "https?://[^ ]*/health" "$INSTRUCTION_FILE" 2>/dev/null | head -3
+
+# Common defaults to try
+# /health, /healthz, /api/health, /status
+```
+
+Hit each endpoint. Retry up to 5 times with 10-second intervals (deployment may still be rolling out). Confirm HTTP 200 and a healthy response body.
+
+**If health checks fail after 5 retries → trigger rollback (Step 4).**
+
+### Step 2 — Smoke tests
+
+If E2E or smoke tests exist, run a targeted subset against production:
+
+```bash
+# Detect smoke test locations
+ls tests/smoke/ e2e/smoke/ tests/critical/ 2>/dev/null || true
+```
+
+Detection patterns:
+- Directories: `tests/smoke/`, `e2e/smoke/`, `tests/critical/`
+- Tagged tests: `@smoke`, `@critical`, `mark.smoke`
+- If no smoke tests exist, skip this step gracefully
+
+Run detected smoke tests against the production URL configured in the project instruction file:
+
+```bash
+# Look for production URL in project instruction file
+[ -n "$INSTRUCTION_FILE" ] && grep -E "https?://[^ ]+" "$INSTRUCTION_FILE" 2>/dev/null | grep -iE "prod|production|live" | head -1
+```
+
+**If smoke tests fail → trigger rollback (Step 4).**
+
+### Step 3 — Metrics check
+
+If a monitoring URL is configured in the project instruction file:
+
+```bash
+[ -n "$INSTRUCTION_FILE" ] && grep -iE "monitoring|grafana|datadog|newrelic" "$INSTRUCTION_FILE" 2>/dev/null | head -1
+```
+
+If found:
+- Note the monitoring URL for manual review
+- Check for error rate information if accessible via API
+- Flag if error rate appears elevated compared to normal
+
+If no monitoring URL configured, skip this step gracefully.
+
+### Step 4 — Auto-rollback (on failure)
+
+If any verification step fails:
+
+```bash
+echo "Deployment verification FAILED. Rolling back..."
+
+# Revert the last commit (safe — creates a new commit, not destructive)
+git revert HEAD --no-edit
+
+# Push the revert
+git push origin "$(git branch --show-current)"
+```
+
+After rollback:
+1. Re-run health checks to confirm rollback succeeded
+2. Report which verification step failed and why
+3. Provide full diagnosis
+
+```
+╔══════════════════════════════════════════════════════╗
+║           DEPLOYMENT FAILED — ROLLED BACK             ║
+╠══════════════════════════════════════════════════════╣
+║ Health:      ✅ PASSED / ❌ FAILED                    ║
+║ Smoke tests: ✅ PASSED / ❌ FAILED (details)          ║
+║ Metrics:     ✅ NORMAL / ⚠️ ELEVATED / skipped        ║
+║ Action:      Auto-reverted commit <hash>              ║
+║ Rollback:    ✅ Health confirms rollback OK            ║
+╠══════════════════════════════════════════════════════╣
+║ STATUS: ROLLED BACK — human review required           ║
+║ Diagnosis:   [what failed and why]                    ║
+╚══════════════════════════════════════════════════════╝
+```
+
+If rollback is set to `manual` in the project instruction file (`rollback: manual`), report the failure but do NOT auto-revert. Wait for human decision.
+
+### Verification output (on success)
+
+```
+╔══════════════════════════════════════════════════════╗
+║           DEPLOYMENT VERIFIED                         ║
+╠══════════════════════════════════════════════════════╣
+║ Health:      ✅ All endpoints responding (200)        ║
+║ Smoke tests: ✅ N/N passed | skipped                  ║
+║ Metrics:     ✅ Error rate normal | skipped            ║
+╠══════════════════════════════════════════════════════╣
+║ STATUS: DEPLOYED & VERIFIED ✅                        ║
+╚══════════════════════════════════════════════════════╝
+```
 
 ---
 
@@ -168,7 +275,7 @@ Phase 2 lint:       ✅ PASSED
 Phase 3 security:   ✅ PASSED
 Phase 4 Build:      ✅ CLEAN
 Phase 5 commit:     <short-hash> <message>
-Phase 6 push:       main -> origin/main ✅ | CI/CD ✅ | Production ✅
+Phase 6 Push:       ✅ CI/CD passed | Health ✅ | Smoke ✅ | Metrics ✅
 Phase 7 Cleanup:    Issues closed: #N, #M ✅ | Docs updated ✅ | no changes
 Status:             LAUNCHED ✅
 ```
