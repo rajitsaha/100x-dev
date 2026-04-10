@@ -20,7 +20,7 @@ install_project() {
     echo "# Regenerate: run install.sh or adapters/codex.sh <project-path>"
     echo ""
 
-    for f in gate test commit push launch lint security docs issue architect cloud-security enterprise-design db; do
+    for f in gate test commit push pr branch launch lint security docs issue architect cloud-security enterprise-design db; do
       if [ -f "$WORKFLOWS_DIR/$f.md" ]; then
         echo "---"
         echo ""
