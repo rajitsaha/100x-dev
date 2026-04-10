@@ -4,7 +4,7 @@
 
 ### Stop vibe coding. Start shipping production-grade software.
 
-**13 battle-tested AI development workflows that enforce quality gates, security scans, and 95% test coverage — before every single commit.**
+**15 battle-tested AI development workflows that enforce quality gates, security scans, and 95% test coverage — before every single commit.**
 
 One install. Any AI coding tool. Zero excuses.
 
@@ -69,7 +69,7 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 
 ## What You Get
 
-### 13 Production Workflows
+### 15 Production Workflows
 
 | Workflow | What it does |
 |:---------|:-------------|
@@ -77,6 +77,8 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | **test** | Runs all test layers (unit, integration, E2E). Writes missing tests. Loops until 95% coverage. |
 | **commit** | Runs gate first, then stages and creates a conventional commit. |
 | **push** | Re-runs gate, pushes, monitors CI/CD, verifies production health. |
+| **pr** | Gate → push branch → create PR → full AI review → human merges. Never auto-merges. |
+| **branch** | Create conventional feature branches from main — `feat/`, `fix/`, `chore/`, auto-push upstream. |
 | **launch** | Full release pipeline: Docker, test, lint, security, build, commit, push — one command. |
 | **lint** | Auto-detects your linting stack (ESLint, TypeScript, ruff). Fixes everything. Zero errors. |
 | **security** | Scans all package managers for vulnerabilities. Audits for leaked secrets. Auto-fixes what it can. |
