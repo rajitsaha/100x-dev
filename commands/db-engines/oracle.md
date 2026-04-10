@@ -72,9 +72,18 @@ fi
 
 ```bash
 if [ "$USE_CX" = "false" ]; then
-  ORA_PASS="$ORA_PASS" sqlplus -S \
-    "${ORA_USER}/${ORA_PASS}@${ORA_HOST}:${ORA_PORT:-1521}/${ORA_SERVICE}" \
-    <<< "$SQL"
+  # Write connection script to temp file (avoids ps exposure, handles special chars via heredoc)
+  TMPSCRIPT=$(mktemp /tmp/ora_script.XXXXXX.sql)
+  chmod 600 "$TMPSCRIPT"
+  cat > "$TMPSCRIPT" <<SQLEOF
+CONNECT ${ORA_USER}/"${ORA_PASS}"@${ORA_HOST}:${ORA_PORT:-1521}/${ORA_SERVICE}
+SET PAGESIZE 50000
+SET LINESIZE 200
+$SQL
+EXIT
+SQLEOF
+  sqlplus -S /nolog @"$TMPSCRIPT"
+  rm -f "$TMPSCRIPT"
 fi
 ```
 
@@ -83,3 +92,4 @@ fi
 - Never log $ORA_PASS
 - Always add FETCH FIRST N ROWS ONLY or ROWNUM limit to SELECT queries
 - tabulate is optional — falls back to tab-separated output
+- For sqlplus: credentials written to temp file (chmod 600), never on command line — avoids ps aux exposure

@@ -97,12 +97,12 @@ echo "Engine: $ENGINE | Config: $CONFIG_SOURCE"
 if [ -n "$NAMED_CONNECTION" ]; then
   # Extract all fields from the named connection into shell variables
   eval "$(python3 -c "
-import json, sys
+import json, shlex
 d = json.load(open('$HOME/.claude/db-connections.json'))
 cfg = d.get('$NAMED_CONNECTION', {})
 for k, v in cfg.items():
     if k != 'engine':
-        print(f'CONN_{k.upper()}=\"{v}\"')
+        print(f'CONN_{k.upper()}={shlex.quote(str(v))}')
 " 2>/dev/null)"
 fi
 ```
