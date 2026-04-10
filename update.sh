@@ -3,7 +3,7 @@ set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
-COMMANDS_DIR="$CLAUDE_DIR/commands"
+WORKFLOWS_DIR="$CLAUDE_DIR/commands"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 CHECK_ONLY=false
 
@@ -44,7 +44,7 @@ echo "$CHANGES" | sed 's/^/  • /'
 echo ""
 
 if [ "$CHECK_ONLY" = true ]; then
-  echo -e "${CYAN}Run '~/claude-dev-setup/update.sh' to apply updates.${NC}"
+  echo -e "${CYAN}Run '~/100x-dev/update.sh' to apply updates.${NC}"
   echo ""
   exit 0
 fi
@@ -62,26 +62,26 @@ echo ""
 git pull origin main --quiet
 echo -e "  ${GREEN}→ Pulled latest ✓${NC}"
 
-if [ -d "$COMMANDS_DIR" ] && [ "$(ls -A "$COMMANDS_DIR" 2>/dev/null)" ]; then
+if [ -d "$WORKFLOWS_DIR" ] && [ "$(ls -A "$WORKFLOWS_DIR" 2>/dev/null)" ]; then
   BACKUP="$CLAUDE_DIR/commands.bak.$(date +%Y%m%d_%H%M%S)"
-  cp -r "$COMMANDS_DIR" "$BACKUP"
-  echo -e "  ${YELLOW}→ Backed up commands to $(basename "$BACKUP")${NC}"
+  cp -r "$WORKFLOWS_DIR" "$BACKUP"
+  echo -e "  ${YELLOW}→ Backed up workflows to $(basename "$BACKUP")${NC}"
 fi
 
 count=0
-for f in "$REPO_DIR/commands/"*.md; do
-  cp "$f" "$COMMANDS_DIR/"
+for f in "$REPO_DIR/workflows/"*.md; do
+  cp "$f" "$WORKFLOWS_DIR/"
   count=$((count + 1))
 done
 
 # Update db-engines subdirectory
-if [ -d "$REPO_DIR/commands/db-engines" ]; then
-  mkdir -p "$COMMANDS_DIR/db-engines"
-  cp "$REPO_DIR/commands/db-engines/"*.md "$COMMANDS_DIR/db-engines/"
-  echo -e "  ${GREEN}→ Updated db-engines/ ($(ls "$REPO_DIR/commands/db-engines/"*.md | wc -l | tr -d ' ') engine files) ✓${NC}"
+if [ -d "$REPO_DIR/workflows/db-engines" ]; then
+  mkdir -p "$WORKFLOWS_DIR/db-engines"
+  cp "$REPO_DIR/workflows/db-engines/"*.md "$WORKFLOWS_DIR/db-engines/"
+  echo -e "  ${GREEN}→ Updated db-engines/ ($(ls "$REPO_DIR/workflows/db-engines/"*.md | wc -l | tr -d ' ') engine files) ✓${NC}"
 fi
 
-echo -e "  ${GREEN}→ Updated $count commands ✓${NC}"
+echo -e "  ${GREEN}→ Updated $count workflows ✓${NC}"
 
 python3 << PYEOF
 import json, os
@@ -119,7 +119,7 @@ PYEOF
 
 echo -e "  ${CYAN}→ Shell aliases auto-updated (sourced file)${NC}"
 echo ""
-echo -e "${GREEN}✓ Updated! Run /reload-plugins in Claude Code to activate new plugins.${NC}"
+echo -e "${GREEN}✓ 100x Dev updated! Note: if using Claude Code, run /reload-plugins to activate new plugins.${NC}"
 echo ""
 echo -e "${CYAN}Tip: Add this to your crontab to get notified weekly:${NC}"
 echo "  0 9 * * 1 $REPO_DIR/update.sh --check-only"
