@@ -16,7 +16,7 @@ One install. Any AI coding tool. Zero excuses.
 [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-supported-red?style=flat-square)](https://cloud.google.com/gemini)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-[Quick Start](#quick-start) | [Workflows](#what-you-get) | [Supported Tools](#supported-tools) | [Templates](#templates) | [Contributing](#add-your-own-tool)
+[Quick Start](#quick-start) | [Workflows](#what-you-get) | [Supported Tools](#supported-tools) | [How to Use](docs/USAGE.md) | [Templates](#templates) | [Contributing](#add-your-own-tool)
 
 </div>
 
@@ -43,6 +43,8 @@ cd ~/100x-dev && ./install.sh
 ```
 
 That's it. Your AI coding tool now has production-grade discipline.
+
+> **New here?** Read the full **[How to Use guide](docs/USAGE.md)** — covers installation by tool, propagating workflows to all your projects, team onboarding, and daily usage patterns.
 
 ---
 
