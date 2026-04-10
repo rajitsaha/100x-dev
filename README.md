@@ -163,9 +163,9 @@ cp ~/100x-templates/node-fullstack.md ./AGENTS.md       # Codex
 
 ## Plugins (Claude Code Bonus)
 
-12 curated plugins auto-installed into Claude Code:
+13 curated plugins auto-installed into Claude Code:
 
-**superpowers** | **frontend-design** | **stripe** | **hookify** | **pr-review-toolkit** | **code-review** | **playwright** | **firecrawl** | **github** | **skill-creator** | **code-simplifier** | **security-guidance**
+**superpowers** | **frontend-design** | **stripe** | **hookify** | **pr-review-toolkit** | **code-review** | **playwright** | **firecrawl** | **github** | **skill-creator** | **code-simplifier** | **security-guidance** | **claude-mem**
 
 Only installed when you select Claude Code + Plugins during setup.
 
