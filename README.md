@@ -239,7 +239,7 @@ This project was built in collaboration with [Claude](https://claude.ai) — usi
 
 ### Built by [Rajit Saha](https://www.linkedin.com/in/rajsaha/)
 
-Tech executive | 20+ years building enterprise data platforms | Udemy, LendingClub, VMware, Yahoo
+Tech leader | 20+ years building enterprise data platforms | Udemy, Experian, LendingClub, VMware, Yahoo
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/rajsaha/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=for-the-badge&logo=github)](https://github.com/rajitsaha)
