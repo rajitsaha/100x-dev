@@ -32,7 +32,7 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 
 ## How It Works
 
-100x Dev provides 13 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
+100x Dev provides 15 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
 
 **The key difference between tools:**
 
@@ -56,7 +56,7 @@ cd ~/100x-dev && ./install.sh
 ```
 
 **What happens:**
-- 13 workflow files are copied to `~/.claude/commands/`
+- 15 workflow files are copied to `~/.claude/commands/`
 - 7 db-engine files are copied to `~/.claude/commands/db-engines/`
 - Each file gets `$ARGUMENTS` appended (Claude Code's argument passing mechanism)
 - 14 plugins are merged into `~/.claude/settings.json`
