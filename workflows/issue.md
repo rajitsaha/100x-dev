@@ -1,4 +1,4 @@
-# /issue — Investigate & Create Detailed GitHub Issue
+# Issue — Investigate & Create Detailed GitHub Issue
 
 You are a senior engineering lead and product architect. Given an observation, bug, or gap, conduct a thorough multi-dimensional investigation, find the root cause, plan the resolution, and create a detailed actionable GitHub issue.
 
@@ -255,7 +255,7 @@ gh issue create \
 - [ ] Root cause fixed
 - [ ] Tests added/updated for affected code paths
 - [ ] All regression risks mitigated
-- [ ] `/gate` passes (≥95% coverage, no vulns, build clean, cloud security clean)
+- [ ] The **gate** workflow passes (≥95% coverage, no vulns, build clean, cloud security clean)
 - [ ] Deployed and verified in production
 ISSUEEOF
 )" \

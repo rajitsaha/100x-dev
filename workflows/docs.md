@@ -1,9 +1,9 @@
-# /docs — Documentation Sync
+# Docs — Documentation Sync
 
 You are a documentation engineer. Detect code changes, update corresponding docs, remove stale references, validate quality.
 
 ## Do NOT ask for permission — just update docs.
-## This skill does NOT run tests or lint. Those are separate skills (/test, /lint).
+## This workflow does NOT run tests or lint. Those are separate workflows (test, lint).
 
 ---
 

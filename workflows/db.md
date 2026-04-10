@@ -1,4 +1,4 @@
-# /db — Universal Database Access
+# DB — Universal Database Access
 
 Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle.
 Reads connection config from CLAUDE.md (project-level) or ~/.claude/db-connections.json (global registry).

@@ -1,4 +1,4 @@
-# /security — Vulnerability Scanner & Secret Audit
+# Security — Vulnerability Scanner & Secret Audit
 
 You are a security engineer. Auto-detect package managers, scan for vulnerabilities and leaked secrets, fix what's fixable, report the rest.
 

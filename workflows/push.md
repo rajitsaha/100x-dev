@@ -1,4 +1,4 @@
-# /push — Gate → Push → Monitor CI/CD
+# Push — Gate → Push → Monitor CI/CD
 
 Quality gate re-runs before pushing. **Do NOT push if any gate fails.**
 
@@ -8,14 +8,14 @@ Quality gate re-runs before pushing. **Do NOT push if any gate fails.**
 
 ## Phase 0 — Quality Gate (MANDATORY)
 
-Invoke `/gate`. All four gates must pass before pushing:
+Run the **gate** workflow. All four gates must pass before pushing:
 
 1. **Tests** — ≥ 95% coverage, zero failures
 2. **Security** — zero critical, zero high vulnerabilities
 3. **Local build** — zero compiler errors
 4. **Docker build** — passes (or skipped if no Dockerfile)
 
-**If `/gate` reports ANY failure → STOP. Do not push. Fix the issue, create a new commit, then push.**
+**If the gate workflow reports ANY failure → STOP. Do not push. Fix the issue, create a new commit, then push.**
 
 Only continue when gate shows: `✅ ALL GATES PASSED`
 
@@ -39,7 +39,7 @@ If the hook fails:
 1. Read the failure output carefully
 2. Fix the root cause — never bypass
 3. Create a **NEW commit** with the fix (never `--amend` over a pushed commit)
-4. Re-run `/gate` to confirm fixes pass
+4. Re-run the **gate** workflow to confirm fixes pass
 5. Push again
 
 If push is rejected (non-fast-forward):
@@ -62,7 +62,7 @@ Wait for all triggered workflows to complete. If any fail:
 gh run view <run-id> --log | tail -50
 ```
 
-Fix the issue, create a new commit, re-run `/gate`, push again.
+Fix the issue, create a new commit, re-run the **gate** workflow, push again.
 
 ---
 

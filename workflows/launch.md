@@ -1,4 +1,4 @@
-# /launch — Pre-flight Pipeline: Docker → Test → Lint → Security → Build → Commit → Push → Cleanup
+# Launch — Pre-flight Pipeline: Docker → Test → Lint → Security → Build → Commit → Push → Cleanup
 
 You are a release engineer. Execute each phase in order. Each must fully complete before advancing. Do NOT ask for permission. Stop only if something is truly unfixable.
 
@@ -56,26 +56,26 @@ docker compose down 2>/dev/null || true
 
 ---
 
-## Phase 1 — Tests (invoke `/test`)
+## Phase 1 — Tests
 
-Run `/test`. Loop until all thresholds are met with zero failures:
+Run the **test** workflow. Loop until all thresholds are met with zero failures:
 - Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches ≥ 90%
 
-**GATE: `/test` reports "COVERAGE MET ✅" with zero failures.**
+**GATE: The test workflow reports "COVERAGE MET ✅" with zero failures.**
 
 ---
 
-## Phase 2 — Lint (invoke `/lint`)
+## Phase 2 — Lint
 
-Run `/lint`. Fix all errors across frontend, backend, and type checks.
+Run the **lint** workflow. Fix all errors across frontend, backend, and type checks.
 
 **GATE: Zero lint errors remaining.**
 
 ---
 
-## Phase 3 — Security (invoke `/security`)
+## Phase 3 — Security
 
-Run `/security`. Fix critical/high vulnerabilities. Confirm no real secrets in source.
+Run the **security** workflow. Fix critical/high vulnerabilities. Confirm no real secrets in source.
 
 **GATE: No critical/high vulns (outside documented known exceptions) AND no real secrets.**
 
@@ -99,15 +99,15 @@ Fix any compiler errors. Re-build only the failing target.
 
 ---
 
-## Phase 5 — Commit (invoke `/commit`)
+## Phase 5 — Commit
 
-Run `/commit`. Stage, write, and create a conventional commit.
+Run the **commit** workflow. Stage, write, and create a conventional commit.
 
 ---
 
-## Phase 6 — Push (invoke `/push`)
+## Phase 6 — Push
 
-Run `/push`. Push to origin main, handle hooks, monitor CI/CD.
+Run the **push** workflow. Push to origin main, handle hooks, monitor CI/CD.
 
 After CI/CD completes, verify production. Read `CLAUDE.md` for health endpoint URLs:
 ```bash
@@ -158,12 +158,12 @@ git diff --name-only ROADMAP.md CLAUDE.md AGENT.md 2>/dev/null | grep -q . && \
 ```
 === Launch Summary ===
 Phase 0 Docker:     ✅ Built + healthy | skipped (no Dockerfile)
-Phase 1 /test:      ✅ COVERAGE MET (XX%)
-Phase 2 /lint:      ✅ PASSED
-Phase 3 /security:  ✅ PASSED
+Phase 1 test:       ✅ COVERAGE MET (XX%)
+Phase 2 lint:       ✅ PASSED
+Phase 3 security:   ✅ PASSED
 Phase 4 Build:      ✅ CLEAN
-Phase 5 /commit:    <short-hash> <message>
-Phase 6 /push:      main -> origin/main ✅ | CI/CD ✅ | Production ✅
+Phase 5 commit:     <short-hash> <message>
+Phase 6 push:       main -> origin/main ✅ | CI/CD ✅ | Production ✅
 Phase 7 Cleanup:    Issues closed: #N, #M ✅ | Docs updated ✅ | no changes
 Status:             LAUNCHED ✅
 ```

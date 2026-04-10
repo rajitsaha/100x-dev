@@ -1,4 +1,4 @@
-# /commit — Gate → Stage → Commit
+# Commit — Gate → Stage → Commit
 
 Quality gate runs FIRST. **Do NOT commit if any gate fails.**
 
@@ -8,14 +8,14 @@ Quality gate runs FIRST. **Do NOT commit if any gate fails.**
 
 ## Phase 0 — Quality Gate (MANDATORY)
 
-Invoke `/gate`. All four gates must pass before proceeding:
+Run the **gate** workflow. All four gates must pass before proceeding:
 
 1. **Tests** — ≥ 95% coverage, zero failures
 2. **Security** — zero critical, zero high vulnerabilities
 3. **Local build** — zero compiler errors
 4. **Docker build** — passes (or skipped if no Dockerfile)
 
-**If `/gate` reports ANY failure → STOP. Do not stage. Do not commit. Fix the issue and re-run `/gate`.**
+**If the gate workflow reports ANY failure → STOP. Do not stage. Do not commit. Fix the issue and re-run the gate workflow.**
 
 Only continue to Phase 1 when the gate summary shows: `✅ ALL GATES PASSED`
 

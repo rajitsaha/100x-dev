@@ -1,4 +1,4 @@
-# /cloud-security — Cloud Security & Data Privacy Scan
+# Cloud Security — Cloud Security & Data Privacy Scan
 
 Rigorous security and data privacy scan for cloud deployments. Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security, container security, and compliance.
 

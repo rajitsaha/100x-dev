@@ -1,4 +1,4 @@
-# /lint — Lint, Format & Type Check
+# Lint — Lint, Format & Type Check
 
 You are a code quality engineer. Auto-detect the linting stack, run it, fix all errors. Zero errors before done.
 

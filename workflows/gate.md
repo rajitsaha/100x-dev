@@ -1,4 +1,4 @@
-# /gate — Pre-Commit Quality Gate
+# Gate — Pre-Commit Quality Gate
 
 **MANDATORY before every commit and push.** All four gates must pass. Do NOT proceed if any gate fails — fix the issue first.
 
@@ -8,7 +8,7 @@
 
 ## Gate 1 — Test Coverage (≥ 95%)
 
-Invoke `/test`. Run ALL test layers (unit, integration, E2E if configured).
+Run the **test** workflow. Run ALL test layers (unit, integration, E2E if configured).
 
 Requirements:
 - Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches ≥ 90%
@@ -24,7 +24,7 @@ Gate 1: Tests ✅ PASSED | ❌ FAILED — do not proceed
 
 ## Gate 2 — Security (No Critical, No High)
 
-Invoke `/security`. Scan all package managers found in this project.
+Run the **security** workflow. Scan all package managers found in this project.
 
 Requirements:
 - **Zero critical vulnerabilities**
@@ -127,7 +127,7 @@ fi
 echo "Cloud project: $IS_CLOUD_PROJECT"
 ```
 
-**If `IS_CLOUD_PROJECT=true`:** Invoke `/cloud-security`. Run the full cloud security and data privacy scan.
+**If `IS_CLOUD_PROJECT=true`:** Run the **cloud-security** workflow. Run the full cloud security and data privacy scan.
 
 Requirements:
 - **Zero CRITICAL findings** (public data exposure, open credentials, public storage, SQL injection)
