@@ -81,7 +81,7 @@ cd ~/100x-dev && ./install.sh
 bash ~/100x-dev/adapters/cursor.sh /path/to/your/project
 ```
 
-**What happens:** A `.cursorrules` file is generated in your project root containing all 13 workflows.
+**What happens:** A `.cursorrules` file is generated in your project root containing all 15 workflows.
 
 **After install:**
 1. Open the project in Cursor
@@ -292,6 +292,8 @@ Workflows are available as slash commands. Use them directly:
 /test --e2e        E2E tests only
 /commit            Run gate → stage → conventional commit
 /push              Run gate → push → monitor CI/CD
+/branch            Create a feature branch from main with auto-naming
+/pr                Create a PR with AI review (human merges)
 /launch            Full release pipeline (Docker → test → lint → security → build → ship)
 /lint              Fix all lint errors
 /security          Scan for vulnerabilities and secrets
@@ -321,6 +323,15 @@ cc                          # alias for 'claude'
 /launch                     # the whole pipeline, one command
 ```
 
+```
+# PR-based workflow (recommended for teams)
+/branch                     # create feature branch
+# ... make changes ...
+/test                       # run tests
+/pr                         # runs gate, pushes, creates PR, AI review
+# → human reviews and merges on GitHub
+```
+
 ### In Other Tools (Cursor, Codex, Windsurf, Copilot, Gemini)
 
 These tools don't have slash commands. Instead, reference workflows by name in your prompts:
@@ -331,6 +342,8 @@ These tools don't have slash commands. Instead, reference workflows by name in y
 "Follow the commit workflow"
 "Run the security workflow on this project"
 "Use the launch workflow to ship this release"
+"Run the branch workflow — I need a feature branch for user auth"
+"Run the pr workflow — create a PR with AI review"
 ```
 
 The AI reads the instruction file, finds the workflow, and follows it step by step — running the same bash commands, enforcing the same thresholds.
