@@ -1,141 +1,197 @@
-# /db — Cloud SQL Database Access
+# /db — Universal Database Access
 
-Temporarily expose Cloud SQL to a public IP, run database operations, then restore private-only access.
+Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle.
+Reads connection config from CLAUDE.md (project-level) or ~/.claude/db-connections.json (global registry).
 
-## Works for any project using GCP Cloud SQL.
+## Supported engines
+cloud-sql | postgres | snowflake | databricks | athena | presto | oracle
+
+## Usage
+- `/db` — default audit query for current project DB
+- `/db "SELECT count(*) FROM users"` — arbitrary SQL on current project DB
+- `/db migrate` — run pending migrations
+- `/db prod-snowflake` — named connection from global registry
+- `/db prod-snowflake "SELECT ..."` — named connection + custom SQL
 
 ---
 
-## Step 0 — Detect project config
+## Step 0 — Parse arguments
 
-Read the project's `CLAUDE.md` to find:
-- **Instance name** — the Cloud SQL instance (e.g. `reinvestiq-postgres`, `bong-ops-postgres`)
-- **GCP project ID** — the GCP project (e.g. `reinvestiq`, `bong-realty-command-center`)
-- **DB name** — the database name
-- **DB user** — the application DB user
-- **Secret name** — the Secret Manager secret holding the DB password
-
-If the project has a project-level `/db` override with these hardcoded, use those values. Otherwise read from `CLAUDE.md`.
-
-Set shell variables:
 ```bash
-INSTANCE=<detected-instance>
-GCP_PROJECT=<detected-project>
-DB_NAME=<detected-db-name>
-DB_USER=<detected-db-user>
-SECRET_NAME=<detected-secret-name>
+ARGS="$ARGUMENTS"
+
+# If first arg looks like a connection name (no spaces, no SQL keywords), treat as named connection
+if echo "$ARGS" | grep -qE '^[a-zA-Z0-9_-]+$' && ! echo "$ARGS" | grep -qiE '^(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|SHOW|DESCRIBE|migrate)'; then
+  NAMED_CONNECTION=$(echo "$ARGS" | awk '{print $1}')
+  SQL=$(echo "$ARGS" | cut -s -d' ' -f2-)
+else
+  NAMED_CONNECTION=""
+  SQL="$ARGS"
+fi
 ```
 
 ---
 
-## Step 1 — Enable public IP + authorize your current IP
+## Step 1 — Load connection config
 
 ```bash
-MY_IP=$(curl -s https://api.ipify.org)
-echo "Your IP: $MY_IP"
+CLAUDE_MD="$(git rev-parse --show-toplevel 2>/dev/null)/CLAUDE.md"
+DB_CONNECTIONS="$HOME/.claude/db-connections.json"
 
-gcloud sql instances patch "$INSTANCE" \
-  --project="$GCP_PROJECT" \
-  --assign-ip \
-  --authorized-networks="$MY_IP/32" \
-  --quiet
-```
+if [ -n "$NAMED_CONNECTION" ]; then
+  # Use named connection from global registry
+  ENGINE=$(python3 -c "import json; d=json.load(open('$DB_CONNECTIONS')); c=d.get('$NAMED_CONNECTION',{}); print(c.get('engine',''))" 2>/dev/null)
+  CONFIG_SOURCE="registry:$NAMED_CONNECTION"
 
----
+elif [ -f "$CLAUDE_MD" ] && grep -q "^engine:" "$CLAUDE_MD" 2>/dev/null; then
+  # Use project-level CLAUDE.md config
+  ENGINE=$(grep "^engine:" "$CLAUDE_MD" | head -1 | cut -d: -f2 | tr -d ' ')
+  CONNECTION_NAME=$(grep "^connection:" "$CLAUDE_MD" | head -1 | cut -d: -f2 | tr -d ' ')
+  CONFIG_SOURCE="claude.md"
 
-## Step 2 — Wait for patch and capture public IP
-
-```bash
-echo "Waiting for Cloud SQL public IP..."
-for i in $(seq 1 20); do
-  PUBLIC_IP=$(gcloud sql instances describe "$INSTANCE" \
-    --project="$GCP_PROJECT" \
-    --format="json" 2>/dev/null \
-    | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); \
-               const pub=d.ipAddresses?.find(a=>a.type==='PRIMARY'); \
-               if(pub)process.stdout.write(pub.ipAddress);" 2>/dev/null)
-  if [ -n "$PUBLIC_IP" ]; then
-    echo "Public IP: $PUBLIC_IP"
-    break
-  fi
-  echo "  attempt $i — not ready, waiting 10s..."
-  sleep 10
-done
-```
-
----
-
-## Step 3 — Fetch password and run queries
-
-**CRITICAL**: Always pass the password as an env variable — never interpolate it into the script string. Special characters (`!`, `"`, `$`, `\`) in the password will corrupt the value if interpolated.
-
-```bash
-DB_PASS=$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="$GCP_PROJECT")
-
-PROJECT_ROOT=$(git rev-parse --show-toplevel)
-cd "$PROJECT_ROOT" && \
-PUBLIC_IP="$PUBLIC_IP" DB_PASS="$DB_PASS" DB_USER="$DB_USER" DB_NAME="$DB_NAME" node -e "
-const { Pool } = require('pg');
-const pool = new Pool({
-  host: process.env.PUBLIC_IP,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  ssl: { rejectUnauthorized: false },
-});
-(async () => {
-  const client = await pool.connect();
-  try {
-    const r = await client.query(\`<SQL_HERE>\`);
-    console.table(r.rows);
-  } finally {
-    client.release();
-    await pool.end();
-  }
-})().catch(e => { console.error('ERROR:', e.message); process.exit(1); });
+elif [ -f "$DB_CONNECTIONS" ]; then
+  # List available connections and prompt
+  echo "No DB config found in CLAUDE.md. Available connections:"
+  python3 -c "
+import json
+d = json.load(open('$DB_CONNECTIONS'))
+for i, (name, cfg) in enumerate(d.items(), 1):
+    print(f'  {i}) {name} ({cfg.get(\"engine\",\"unknown\")})')
 "
+  read -rp "Select connection (number or name): " SELECTION
+  NAMED_CONNECTION=$(python3 -c "
+import json, sys
+d = json.load(open('$DB_CONNECTIONS'))
+keys = list(d.keys())
+sel = '$SELECTION'
+if sel.isdigit() and 1 <= int(sel) <= len(keys):
+    print(keys[int(sel)-1])
+elif sel in d:
+    print(sel)
+else:
+    print('', end='')
+" 2>/dev/null)
+  ENGINE=$(python3 -c "import json; d=json.load(open('$DB_CONNECTIONS')); print(d.get('$NAMED_CONNECTION',{}).get('engine',''))" 2>/dev/null)
+  CONFIG_SOURCE="registry:$NAMED_CONNECTION"
+
+else
+  echo "ERROR: No database config found."
+  echo "  Option 1: Add a '## Database' section to CLAUDE.md"
+  echo "  Option 2: Create ~/.claude/db-connections.json with named connections"
+  exit 1
+fi
+
+if [ -z "$ENGINE" ]; then
+  echo "ERROR: Could not determine database engine from config."
+  exit 1
+fi
+
+echo "Engine: $ENGINE | Config: $CONFIG_SOURCE"
 ```
 
 ---
 
-## Step 4 — ALWAYS revert to private-only (run even if queries fail)
+## Step 2 — Load connection details from registry (if using named connection)
 
 ```bash
-gcloud sql instances patch "$INSTANCE" \
-  --project="$GCP_PROJECT" \
-  --no-assign-ip \
-  --clear-authorized-networks \
-  --quiet
-
-echo "✔ Public IP disabled — instance is private-only again"
-```
-
-Verify:
-```bash
-gcloud sql instances describe "$INSTANCE" --project="$GCP_PROJECT" --format="value(ipAddresses)"
-```
-
----
-
-## Usage variants
-
-### `/db` — default audit query
-Replace `<SQL_HERE>` with the project's standard audit query (subscriptions, users, etc.).
-
-### `/db <custom SQL>` — arbitrary query
-Replace `<SQL_HERE>` with the SQL from `$ARGUMENTS`.
-
-### `/db migrate` — run pending migration scripts
-```bash
-# Replace with project's migration pattern (Alembic, raw SQL scripts, etc.)
+if [ -n "$NAMED_CONNECTION" ]; then
+  # Extract all fields from the named connection into shell variables
+  eval "$(python3 -c "
+import json, sys
+d = json.load(open('$HOME/.claude/db-connections.json'))
+cfg = d.get('$NAMED_CONNECTION', {})
+for k, v in cfg.items():
+    if k != 'engine':
+        print(f'CONN_{k.upper()}=\"{v}\"')
+" 2>/dev/null)"
+fi
 ```
 
 ---
 
-## Safety rules
-- **ALWAYS run Step 4** (revert) even if Step 3 fails
-- **Never interpolate `$DB_PASS`** into the node/python script string — always pass as env var
-- Never commit the public IP or credentials to git
-- Authorized network is scoped to your single IP (`/32`), never `0.0.0.0/0`
+## Step 3 — Resolve credentials
+
+```bash
+# Determine auth method
+AUTH="${CONN_AUTH:-$(grep '^auth:' "$CLAUDE_MD" 2>/dev/null | head -1 | cut -d: -f2- | tr -d ' ')}"
+
+case "$AUTH" in
+  gcp-secret:*)
+    SECRET_NAME="${AUTH#gcp-secret:}"
+    DB_CRED=$(gcloud secrets versions access latest --secret="$SECRET_NAME" --project="${CONN_GCP_PROJECT:-$(grep '^gcp_project:' "$CLAUDE_MD" | cut -d: -f2 | tr -d ' ')}")
+    echo "Credential resolved from GCP Secret Manager ✓"
+    ;;
+  env:*)
+    VAR_NAME="${AUTH#env:}"
+    DB_CRED="${!VAR_NAME}"
+    # Fall back to .env file
+    if [ -z "$DB_CRED" ] && [ -f "$(git rev-parse --show-toplevel 2>/dev/null)/.env" ]; then
+      DB_CRED=$(grep "^${VAR_NAME}=" "$(git rev-parse --show-toplevel)/.env" | cut -d= -f2-)
+    fi
+    [ -z "$DB_CRED" ] && { echo "ERROR: Env var $VAR_NAME not set and not in .env"; exit 1; }
+    echo "Credential resolved from env var $VAR_NAME ✓"
+    ;;
+  sso)
+    DB_CRED=""
+    echo "Using SSO auth — browser window will open ✓"
+    ;;
+  keychain:*)
+    KEY_NAME="${AUTH#keychain:}"
+    DB_CRED=$(security find-generic-password -a "$KEY_NAME" -w 2>/dev/null)
+    [ -z "$DB_CRED" ] && { echo "ERROR: Keychain key '$KEY_NAME' not found"; exit 1; }
+    echo "Credential resolved from macOS keychain ✓"
+    ;;
+  databricks-token)
+    DB_CRED="${DATABRICKS_TOKEN:-$(grep -A5 '\[DEFAULT\]' "$HOME/.databrickscfg" 2>/dev/null | grep '^token' | cut -d= -f2 | tr -d ' ')}"
+    [ -z "$DB_CRED" ] && { echo "ERROR: No Databricks token found"; exit 1; }
+    echo "Credential resolved from Databricks config ✓"
+    ;;
+  *)
+    DB_CRED=""
+    echo "WARNING: No auth method specified — proceeding without credentials"
+    ;;
+esac
+```
+
+---
+
+## Step 4 — Set default SQL if not provided
+
+```bash
+if [ -z "$SQL" ]; then
+  SQL="SELECT 'connected' AS status, current_timestamp AS at"
+  echo "No SQL provided — running default connectivity check"
+fi
+```
+
+---
+
+## Step 5 — Delegate to engine file
+
+```bash
+ENGINE_FILE="$HOME/.claude/commands/db-engines/${ENGINE}.md"
+
+if [ ! -f "$ENGINE_FILE" ]; then
+  echo "ERROR: No engine file found at $ENGINE_FILE"
+  echo "Supported engines: cloud-sql, postgres, snowflake, databricks, athena, presto, oracle"
+  exit 1
+fi
+
+echo "Delegating to db-engines/${ENGINE}.md..."
+echo "---"
+
+# Pass all resolved variables to the engine skill
+# The engine file will use these pre-resolved values:
+# - For cloud-sql:   INSTANCE=$CONN_INSTANCE, GCP_PROJECT=$CONN_GCP_PROJECT, DB_NAME=$CONN_DB_NAME, DB_USER=$CONN_DB_USER, DB_PASS=$DB_CRED
+# - For postgres:    DB_HOST=$CONN_HOST, DB_PORT=$CONN_PORT, DB_NAME=$CONN_DATABASE, DB_USER=$CONN_USER, DB_PASS=$DB_CRED
+# - For snowflake:   SF_ACCOUNT=$CONN_ACCOUNT, SF_WAREHOUSE=$CONN_WAREHOUSE, SF_DATABASE=$CONN_DATABASE, SF_ROLE=$CONN_ROLE, SF_USER=$CONN_USER, SF_TOKEN=$DB_CRED, SF_AUTH=$AUTH
+# - For databricks:  DBX_HOST=$CONN_HOST, DBX_HTTP_PATH=$CONN_HTTP_PATH, DBX_TOKEN=$DB_CRED, DBX_CATALOG=$CONN_CATALOG, DBX_SCHEMA=$CONN_SCHEMA
+# - For athena:      ATHENA_REGION=$CONN_REGION, ATHENA_DATABASE=$CONN_DATABASE, ATHENA_WORKGROUP=$CONN_WORKGROUP, ATHENA_S3_OUTPUT=$CONN_S3_OUTPUT
+# - For presto:      PRESTO_HOST=$CONN_HOST, PRESTO_PORT=$CONN_PORT, PRESTO_USER=$CONN_USER, PRESTO_CATALOG=$CONN_CATALOG, PRESTO_SCHEMA=$CONN_SCHEMA, PRESTO_TOKEN=$DB_CRED, PRESTO_ENGINE=$CONN_ENGINE
+# - For oracle:      ORA_HOST=$CONN_HOST, ORA_PORT=$CONN_PORT, ORA_SERVICE=$CONN_SERVICE, ORA_USER=$CONN_USER, ORA_PASS=$DB_CRED
+# SQL=$SQL is passed to all engines
+
+# Follow the instructions in db-engines/${ENGINE}.md using the variable mappings above
+```
 
 $ARGUMENTS
