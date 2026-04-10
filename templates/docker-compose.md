@@ -1,4 +1,4 @@
-# CLAUDE.md — [Project Name]
+# [Project Name] — Project Instructions
 Last updated: YYYY-MM-DD
 
 ## Project Overview
