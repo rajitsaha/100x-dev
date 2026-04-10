@@ -4,7 +4,6 @@
     "superpowers@claude-plugins-official",
     "playwright@claude-plugins-official",
     "code-review@claude-plugins-official",
-    "remember@claude-plugins-official",
     "firecrawl@claude-plugins-official",
     "github@claude-plugins-official",
     "security-guidance@claude-code-plugins",
@@ -12,8 +11,7 @@
     "code-simplifier@claude-plugins-official",
     "pr-review-toolkit@claude-plugins-official",
     "hookify@claude-plugins-official",
-    "stripe@claude-plugins-official",
-    "brightdata-plugin@claude-plugins-official"
+    "stripe@claude-plugins-official"
   ],
   "extraKnownMarketplaces": {
     "claude-code-plugins": {

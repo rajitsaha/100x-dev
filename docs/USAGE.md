@@ -59,7 +59,7 @@ cd ~/100x-dev && ./install.sh
 - 15 workflow files are copied to `~/.claude/commands/`
 - 7 db-engine files are copied to `~/.claude/commands/db-engines/`
 - Each file gets `$ARGUMENTS` appended (Claude Code's argument passing mechanism)
-- 14 plugins are merged into `~/.claude/settings.json`
+- 12 plugins are merged into `~/.claude/settings.json`
 
 **After install:**
 1. Restart Claude Code (or start a new session)
