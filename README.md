@@ -1,115 +1,136 @@
-# Claude Dev Setup
+# 100x Dev
 
-Replicate the full Claude Code development environment on any machine in one command.
+Production-grade AI development workflows for every coding tool.
 
-## What's included
+Works with **Claude Code**, **Cursor**, **Codex**, **Windsurf**, **Copilot CLI**, **Gemini CLI**, and **Antigravity**.
 
-| Component | Contents |
-|-----------|----------|
-| **Commands** | 13 slash commands: `/launch`, `/commit`, `/push`, `/test`, `/security`, `/lint`, `/gate`, `/docs`, `/architect`, `/cloud-security`, `/db`, `/enterprise-design`, `/issue` + 7 db engine files |
-| **Plugins** | 14 plugins: superpowers, frontend-design, stripe, hookify, pr-review-toolkit, code-review, playwright, firecrawl, github, remember, skill-creator, code-simplifier, security-guidance, brightdata |
-| **Shell aliases** | `cc`, `ccc`, `claude-update`, `claude-check` |
-| **Templates** | CLAUDE.md starters for node-frontend, node-fullstack, python-api, docker-compose |
-
-## Install
+## Quick Start
 
 ```bash
-git clone https://github.com/rajitsaha/claude-dev-setup.git ~/claude-dev-setup
-cd ~/claude-dev-setup
+git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
+cd ~/100x-dev
 ./install.sh
 ```
 
-The installer will ask which components to install (all selected by default).
+The installer asks which tools you use and which components to install.
 
-After installing:
-1. Restart Claude Code (or run `source ~/.zshrc`)
-2. Run `/reload-plugins` inside Claude Code to activate plugins
+## What You Get
 
-## Update
+| Workflow | What it does |
+|----------|-------------|
+| **gate** | Pre-commit quality gate — tests, security, build, Docker, cloud security |
+| **test** | Run all test layers (unit → integration → E2E), loop until ≥95% coverage |
+| **commit** | Gate → stage → conventional commit |
+| **push** | Gate → push → monitor CI/CD → verify production |
+| **launch** | Full release pipeline: Docker → test → lint → security → build → commit → push |
+| **lint** | Auto-detect linting stack, fix all errors, zero tolerance |
+| **security** | Vulnerability scanner + secret audit |
+| **docs** | Detect code changes, update corresponding docs |
+| **issue** | Investigate and create detailed GitHub issues |
+| **architect** | Cloud, data & SaaS architecture advisor |
+| **cloud-security** | Cloud security & data privacy scan |
+| **enterprise-design** | Enterprise design & systems architecture |
+| **db** | Universal database access — 7 engines |
 
-Check for updates:
-```bash
-claude-check
-# or
-~/claude-dev-setup/update.sh --check-only
-```
-
-Apply updates:
-```bash
-claude-update
-# or
-~/claude-dev-setup/update.sh
-```
-
-Auto-notify weekly (add to crontab with `crontab -e`):
-```
-0 9 * * 1 ~/claude-dev-setup/update.sh --check-only
-```
-
-## Shell aliases
-
-| Alias | What it does |
-|-------|-------------|
-| `cc` | `claude` — launch Claude in current directory |
-| `ccc` | `claude --continue` — continue last session |
-| `claude-update` | Pull and apply latest setup |
-| `claude-check` | Check for updates without applying |
-
-## CLAUDE.md templates
-
-Copy a template into any new project as `CLAUDE.md`:
-
-```bash
-cp ~/claude-templates/node-fullstack.md ./CLAUDE.md
-# Edit with your project's specific details
-```
-
-Available templates: `node-frontend`, `node-fullstack`, `python-api`, `docker-compose`
-
-## /db — Multi-engine database access
-
-The `/db` command supports 7 database engines via a thin router + per-engine files:
+### Database Engines
 
 | Engine | Connection method |
 |--------|-----------------|
 | `cloud-sql` | GCP Cloud SQL via temporary public IP |
 | `postgres` | Direct TCP — PostgreSQL, Supabase |
 | `snowflake` | Snowflake via snowsql or Python connector |
-| `databricks` | Databricks SQL warehouse via Python connector |
+| `databricks` | Databricks SQL warehouse |
 | `athena` | AWS Athena via boto3 |
 | `presto` | Presto / Trino via Python client |
 | `oracle` | Oracle via cx_Oracle or sqlplus |
 
-### Usage
+## Supported Tools
+
+| Tool | Install type | Project file |
+|------|-------------|-------------|
+| Claude Code | Global (`~/.claude/commands/`) | CLAUDE.md |
+| Cursor | Project | .cursorrules |
+| Codex (OpenAI) | Project | AGENTS.md |
+| Windsurf | Project | .windsurfrules |
+| Copilot CLI | Project | .github/copilot-instructions.md |
+| Gemini CLI | Project | GEMINI.md |
+| Antigravity | Project | ANTIGRAVITY.md |
+
+**Global install** copies each workflow as a separate file — available in all your projects.
+
+**Project install** generates a single instruction file containing all workflows — add it to your project repo.
+
+## Templates
+
+Project instruction file starters for common stacks:
 
 ```bash
-/db                              # Default connectivity check for current project DB
-/db "SELECT count(*) FROM users" # Arbitrary SQL on current project DB
-/db migrate                      # Run pending migrations
-/db prod-snowflake               # Named connection from global registry
-/db prod-snowflake "SELECT ..."  # Named connection + custom SQL
+# Copy a template and rename for your tool
+cp ~/100x-templates/node-fullstack.md ./CLAUDE.md      # Claude Code
+cp ~/100x-templates/node-fullstack.md ./.cursorrules    # Cursor
+cp ~/100x-templates/node-fullstack.md ./AGENTS.md       # Codex
 ```
 
-### Configuration
+Available: `node-fullstack`, `node-frontend`, `python-api`, `docker-compose`
 
-**Project-level** — add a `## Database` section to your project's `CLAUDE.md`:
+## Plugins (Claude Code)
 
-```markdown
-## Database
-engine: postgres
-host: db.example.supabase.co
-port: 5432
-database: postgres
-user: postgres
-auth: env:DATABASE_URL
+14 curated plugins installed into Claude Code's settings:
+
+superpowers, frontend-design, stripe, hookify, pr-review-toolkit, code-review, playwright, firecrawl, github, remember, skill-creator, code-simplifier, security-guidance, brightdata
+
+Only installed when you select Claude Code + Plugins during setup.
+
+## Shell Aliases
+
+| Alias | What it does |
+|-------|-------------|
+| `cc` | Launch Claude Code in current directory |
+| `ccc` | Continue last Claude Code session |
+| `100x-update` | Pull and apply latest setup |
+| `100x-check` | Check for updates without applying |
+
+## Update
+
+```bash
+100x-check        # Check for updates
+100x-update       # Pull and apply
 ```
 
-**Global registry** — create `~/.claude/db-connections.json` with named connections (see `commands/db-engines/` for examples). This file is personal and never committed to git.
+## Add Your Own Tool
 
----
+Write an adapter script in `adapters/`:
 
-## Adding a new plugin
+```bash
+#!/usr/bin/env bash
+# adapters/my-tool.sh
+set -e
 
-1. Add the plugin identifier to `plugins.json`
-2. Commit and push
-3. Teammates run `claude-update` to get it
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKFLOWS_DIR="$REPO_DIR/workflows"
+
+install_project() {
+  local project_path="${1:-.}"
+  local output_file="$project_path/.my-tool-config"
+
+  {
+    echo "# 100x Dev Workflows"
+    for f in "$WORKFLOWS_DIR/"*.md; do
+      echo "---"
+      cat "$f"
+    done
+  } > "$output_file"
+}
+
+install_project "${1:-.}"
+```
+
+Then add it to `install.sh`'s tool selection. PRs welcome!
+
+## Philosophy
+
+- **No skips** — quality gates are mandatory
+- **95% coverage** — not aspirational, enforced
+- **Auto-fix first** — lint and security fixes applied automatically
+- **Loop until clean** — tests re-run until all thresholds met
+- **Tool-agnostic** — same workflows, any AI coding tool
