@@ -150,9 +150,22 @@ Verify the bump applied by printing the new version from each file.
 
 ## Phase 6 — Update CHANGELOG
 
-If `CHANGELOG.md` exists: rename the `[Unreleased]` section to `[$NEW_VERSION] - $(date +%Y-%m-%d)` and add a new empty `[Unreleased]` section above it.
-
-If no `CHANGELOG.md` exists, skip this phase.
+```bash
+if [ -f CHANGELOG.md ]; then
+  TODAY=$(date +%Y-%m-%d)
+  # Rename [Unreleased] header to versioned header
+  sed -i.bak "s/^## \[Unreleased\]/## [$NEW_VERSION] - $TODAY/" CHANGELOG.md
+  # Insert new [Unreleased] section above the versioned header
+  sed -i.bak "/^## \[$NEW_VERSION\]/i\\
+## [Unreleased]\\
+\\
+" CHANGELOG.md
+  rm -f CHANGELOG.md.bak
+  echo "CHANGELOG.md updated for v$NEW_VERSION"
+else
+  echo "No CHANGELOG.md — skipping"
+fi
+```
 
 ---
 
