@@ -4,7 +4,7 @@
 
 ### Stop vibe coding. Start shipping production-grade software.
 
-**15 battle-tested AI development workflows that enforce quality gates, security scans, and 95% test coverage — before every single commit.**
+**16 battle-tested AI development workflows that enforce quality gates, security scans, and 95% test coverage — before every single commit.**
 
 One install. Any AI coding tool. Zero excuses.
 
@@ -69,7 +69,7 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 
 ## What You Get
 
-### 15 Production Workflows
+### 16 Production Workflows
 
 | Workflow | What it does |
 |:---------|:-------------|
