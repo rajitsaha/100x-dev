@@ -538,6 +538,67 @@ The `/test` workflow automatically:
 
 For E2E tests, `/test --e2e` builds and starts your **full application stack** via Docker Compose, then runs Playwright or pytest-e2e against `http://localhost:PORT`. No stubs, no test doubles, no fake HTTP servers — the real thing.
 
+### E2E test setup
+
+The `/test` workflow enforces a structured E2E pattern when Playwright is present:
+
+**Split Playwright configs** — keep component/unit browser tests separate from full-stack E2E:
+- `playwright.config.ts` — component tests, starts dev server only
+- `playwright.e2e.config.ts` — full-stack E2E, requires `docker compose up`
+
+**`docker-compose.e2e.yml` override file** — extend your base compose for E2E with test credentials, ephemeral DB, and seeded data:
+```yaml
+services:
+  api:
+    environment:
+      - NODE_ENV=test
+      - JWT_SECRET=e2e-test-secret
+      - SEED_TEST_DATA=true
+  db:
+    tmpfs:
+      - /var/lib/postgresql/data   # fast, discarded after tests
+```
+
+**Real auth fixture** — E2E tests create real users via the API and log in with real credentials. No hardcoded tokens, no mocked JWTs:
+```typescript
+// e2e/fixtures/auth.ts
+export const test = base.extend({
+  testUser: async ({ request }, use) => {
+    const user = await createTestUser(request)  // real API call
+    await use(user)
+  },
+  authenticatedPage: async ({ page, authToken }, use) => {
+    await page.goto('/')
+    await page.evaluate((token) => localStorage.setItem('authToken', token), authToken)
+    await page.reload()
+    await use(page)
+  },
+})
+```
+
+**Smoke tests run first** (fast gate before full suite):
+- `GET /health` → 200 + `{ status: "ok" }`
+- `GET /health/db` → confirms DB connected
+- Frontend loads without JS errors
+- Login page renders
+
+**CRUD E2E tests verify DB persistence** — browser creates entity → API confirms it's in the DB:
+```typescript
+test('create agent via UI and verify persistence', async ({ authenticatedPage: page, request, authToken }) => {
+  await page.goto('/dashboard/agents')
+  await page.getByRole('button', { name: /new agent/i }).click()
+  await page.getByLabel('Name').fill('My Agent')
+  await page.getByRole('button', { name: /create/i }).click()
+  await expect(page.getByText('My Agent')).toBeVisible()
+
+  // Confirm it's actually in the DB — not just UI state
+  const agents = await (await request.get('/api/agents', {
+    headers: { Authorization: `Bearer ${authToken}` }
+  })).json()
+  expect(agents.find(a => a.name === 'My Agent')).toBeDefined()
+})
+```
+
 ### What to mock (and what not to)
 
 ```python
@@ -553,7 +614,20 @@ monkeypatch.setattr("redis_client.get", MagicMock())     # wrong
 
 ### GitHub Actions setup
 
-The `github-actions/release.yml` template starts real PostgreSQL 16 and Redis 7 containers as GitHub Actions services — the same philosophy applied to CI. Integration tests run against `localhost:5432` and `localhost:6379`, not mocks.
+Two templates are provided:
+
+**`github-actions/ci.yml`** — copy to `.github/workflows/ci.yml` for every PR/push:
+- Lint (ESLint, TypeScript, ruff)
+- Unit + integration tests against real Docker Postgres 16 + Redis 7 (95% coverage enforced)
+- Full-stack Docker Compose E2E with Playwright (smoke gate → full suite)
+- Playwright reports + traces uploaded as artifacts on failure
+
+**`github-actions/release.yml`** — copy to `.github/workflows/release.yml` for version tag releases:
+- All CI checks + version consistency validation
+- Build Python wheel (smoke test in fresh venv) / npm pack / multi-arch Docker
+- Publish to PyPI (OIDC, no API key) / npm / Docker Hub + GHCR
+- Post-publish verification with retry loop
+- Homebrew tap update
 
 ---
 

@@ -270,29 +270,402 @@ DATABASE_URL="${TEST_DATABASE_URL:-postgresql+asyncpg://test:test@localhost:5432
 
 Run after unit + integration pass. Spins up the complete application stack via Docker and runs real browser or API tests against it. **Zero mocks.**
 
-### Start full stack
+### 4a. Split Playwright configs
 
+Use **two separate Playwright config files** — one for component/browser-unit tests that don't need the full stack, and one for true E2E against docker compose:
+
+```
+playwright.config.ts          ← component tests (no server required)
+playwright.e2e.config.ts      ← full-stack E2E (requires docker compose)
+e2e/
+  fixtures/
+    auth.ts                   ← real auth fixture (creates user, gets JWT)
+    api.ts                    ← API helper (authenticated HTTP client)
+  smoke/
+    health.spec.ts            ← health + smoke tests
+  auth/
+    login.spec.ts             ← real browser login flow
+  agents/
+    crud.spec.ts              ← real CRUD tests via browser
+```
+
+**`playwright.config.ts`** (component tests — no docker required):
+```typescript
+import { defineConfig } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './src',
+  testMatch: '**/*.spec.ts',
+  use: { baseURL: 'http://localhost:5173' },
+  webServer: {
+    command: 'npm run dev',
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+  },
+})
+```
+
+**`playwright.e2e.config.ts`** (full-stack E2E — requires `docker compose up`):
+```typescript
+import { defineConfig } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './e2e',
+  testMatch: '**/*.spec.ts',
+  timeout: 60_000,
+  retries: process.env.CI ? 2 : 0,
+  reporter: [['html', { open: 'never' }], ['list']],
+  use: {
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+})
+```
+
+### 4b. Docker Compose E2E override file
+
+Create `docker-compose.e2e.yml` to override production compose settings for E2E testing (seed data, test credentials, exposed ports):
+
+```yaml
+# docker-compose.e2e.yml
+# Extend your base docker-compose.yml for E2E tests
+# Usage: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+
+services:
+  api:
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test:test@db:5432/testdb
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=e2e-test-secret-not-for-production
+      - SEED_TEST_DATA=true          # trigger seed on startup
+    ports:
+      - "8000:8000"
+
+  web:
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+    ports:
+      - "5432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data   # ephemeral — fast, discarded after tests
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+```
+
+**Detection and start:**
 ```bash
 cd "$PROJECT_ROOT"
 
-# Prefer a test-specific compose file, fall back to main
-COMPOSE_FILE=""
-for f in docker-compose.test.yml docker-compose.testing.yml docker-compose.yml compose.yml; do
-  [ -f "$f" ] && COMPOSE_FILE="$f" && break
-done
-
-if [ -n "$COMPOSE_FILE" ]; then
-  echo "Starting full stack for E2E: $COMPOSE_FILE"
-  docker compose -f "$COMPOSE_FILE" up -d --build --wait
-  docker compose -f "$COMPOSE_FILE" ps
+# Prefer e2e override, fall back to test compose, fall back to main
+if [ -f docker-compose.e2e.yml ] && [ -f docker-compose.yml ]; then
+  COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.e2e.yml"
+  echo "Starting E2E stack with override: docker-compose.e2e.yml"
+elif [ -f docker-compose.test.yml ]; then
+  COMPOSE_CMD="docker compose -f docker-compose.test.yml"
 else
-  echo "No compose file found — E2E tests skipped (add docker-compose.test.yml to enable)"
+  COMPOSE_CMD="docker compose"
 fi
+
+$COMPOSE_CMD up -d --build --wait
+$COMPOSE_CMD ps
+```
+
+### 4c. API helper + real auth fixture
+
+E2E tests need an authenticated browser page. **Create test users via the real API — never hardcode credentials or mock auth.**
+
+**`e2e/fixtures/api.ts`** — authenticated HTTP client:
+```typescript
+import { APIRequestContext } from '@playwright/test'
+
+export async function createTestUser(
+  request: APIRequestContext,
+  overrides?: Partial<{ email: string; password: string; name: string }>
+) {
+  const email = overrides?.email ?? `test-${Date.now()}@example.com`
+  const password = overrides?.password ?? 'TestPass123!'
+  const name = overrides?.name ?? 'Test User'
+
+  const res = await request.post('/api/auth/register', {
+    data: { email, password, name },
+  })
+  if (!res.ok()) throw new Error(`User creation failed: ${await res.text()}`)
+  return { email, password, name, id: (await res.json()).id }
+}
+
+export async function getAuthToken(
+  request: APIRequestContext,
+  email: string,
+  password: string
+): Promise<string> {
+  const res = await request.post('/api/auth/login', {
+    data: { email, password },
+  })
+  if (!res.ok()) throw new Error(`Login failed: ${await res.text()}`)
+  return (await res.json()).token
+}
+```
+
+**`e2e/fixtures/auth.ts`** — real auth fixture (actual login, not mocked JWT):
+```typescript
+import { test as base, expect } from '@playwright/test'
+import { createTestUser, getAuthToken } from './api'
+
+type AuthFixtures = {
+  authToken: string
+  authenticatedPage: import('@playwright/test').Page
+  testUser: { email: string; password: string; name: string; id: string }
+}
+
+export const test = base.extend<AuthFixtures>({
+  testUser: async ({ request }, use) => {
+    const user = await createTestUser(request)
+    await use(user)
+    // Cleanup: delete user after test (or let DB reset handle it)
+  },
+
+  authToken: async ({ request, testUser }, use) => {
+    const token = await getAuthToken(request, testUser.email, testUser.password)
+    await use(token)
+  },
+
+  authenticatedPage: async ({ page, authToken }, use) => {
+    // Inject real token into browser storage (not mocked)
+    await page.goto('/')
+    await page.evaluate(
+      (token) => localStorage.setItem('authToken', token),
+      authToken
+    )
+    await page.reload()
+    await use(page)
+  },
+})
+
+export { expect }
+```
+
+### 4d. Smoke + health tests
+
+Smoke tests verify the stack is up and critical paths respond before running full E2E. Run these first.
+
+**`e2e/smoke/health.spec.ts`**:
+```typescript
+import { test, expect } from '@playwright/test'
+
+test.describe('Health checks', () => {
+  test('API /health returns 200', async ({ request }) => {
+    const res = await request.get('/health')
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+  })
+
+  test('API /health/db confirms DB connection', async ({ request }) => {
+    const res = await request.get('/health/db')
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(body.database).toBe('connected')
+  })
+
+  test('frontend loads without JS errors', async ({ page }) => {
+    const errors: string[] = []
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text())
+    })
+    await page.goto('/')
+    await expect(page).toHaveTitle(/your app name/i)
+    expect(errors).toHaveLength(0)
+  })
+
+  test('login page renders', async ({ page }) => {
+    await page.goto('/login')
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
+  })
+})
+```
+
+**Run smoke tests first, gate on them:**
+```bash
+# Run smoke only — fast check before full suite
+BASE_URL="${E2E_BASE_URL:-http://localhost:3000}" \
+npx playwright test e2e/smoke/ --config=playwright.e2e.config.ts
+```
+
+### 4e. Real auth E2E tests
+
+Browser flows that use the real auth fixture — **no mocked JWT, no bypassed login**.
+
+**`e2e/auth/login.spec.ts`**:
+```typescript
+import { test, expect } from '../fixtures/auth'
+
+test.describe('Authentication — real browser flow', () => {
+  test('user can register and land on dashboard', async ({ page, request }) => {
+    const email = `e2e-${Date.now()}@example.com`
+    const password = 'TestPass123!'
+
+    // Register via UI
+    await page.goto('/register')
+    await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Password').fill(password)
+    await page.getByRole('button', { name: /create account/i }).click()
+
+    // Assert redirect to dashboard after real registration
+    await expect(page).toHaveURL(/\/dashboard/)
+    await expect(page.getByText(/welcome/i)).toBeVisible()
+
+    // Confirm user actually exists in DB (via API)
+    const token = await (
+      await request.post('/api/auth/login', { data: { email, password } })
+    ).json()
+    expect(token.token).toBeTruthy()
+  })
+
+  test('user can log in with real credentials', async ({ page, testUser }) => {
+    await page.goto('/login')
+    await page.getByLabel('Email').fill(testUser.email)
+    await page.getByLabel('Password').fill(testUser.password)
+    await page.getByRole('button', { name: /sign in/i }).click()
+
+    await expect(page).toHaveURL(/\/dashboard/)
+    await expect(page.getByText(testUser.name)).toBeVisible()
+  })
+
+  test('invalid credentials show error', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel('Email').fill('nobody@example.com')
+    await page.getByLabel('Password').fill('wrongpassword')
+    await page.getByRole('button', { name: /sign in/i }).click()
+
+    await expect(page.getByRole('alert')).toContainText(/invalid/i)
+    await expect(page).toHaveURL(/\/login/)  // stays on login
+  })
+})
+```
+
+### 4f. Real CRUD E2E tests
+
+Browser creates an entity → API confirms it actually persisted. **No mock return values.**
+
+**`e2e/agents/crud.spec.ts`** (example — adapt to your entity):
+```typescript
+import { test, expect } from '../fixtures/auth'
+
+test.describe('Agent CRUD — real browser + DB', () => {
+  test('create agent via UI and verify persistence', async ({
+    authenticatedPage: page,
+    request,
+    authToken,
+  }) => {
+    await page.goto('/dashboard/agents')
+    await page.getByRole('button', { name: /new agent/i }).click()
+
+    const agentName = `Test Agent ${Date.now()}`
+    await page.getByLabel('Name').fill(agentName)
+    await page.getByLabel('Description').fill('Created by E2E test')
+    await page.getByRole('button', { name: /create/i }).click()
+
+    // UI confirms creation
+    await expect(page.getByText(agentName)).toBeVisible()
+
+    // API confirms it actually persisted — not just UI state
+    const res = await request.get('/api/agents', {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+    const agents = await res.json()
+    const created = agents.find((a: { name: string }) => a.name === agentName)
+    expect(created).toBeDefined()
+    expect(created.description).toBe('Created by E2E test')
+  })
+
+  test('edit agent updates DB record', async ({
+    authenticatedPage: page,
+    request,
+    authToken,
+    testUser,
+  }) => {
+    // Create agent via API (not UI — faster setup)
+    const createRes = await request.post('/api/agents', {
+      headers: { Authorization: `Bearer ${authToken}` },
+      data: { name: 'Original Name', description: 'Original' },
+    })
+    const agent = await createRes.json()
+
+    // Edit via UI
+    await page.goto(`/dashboard/agents/${agent.id}`)
+    await page.getByLabel('Name').clear()
+    await page.getByLabel('Name').fill('Updated Name')
+    await page.getByRole('button', { name: /save/i }).click()
+
+    await expect(page.getByText('Updated Name')).toBeVisible()
+
+    // Confirm DB was updated
+    const fetchRes = await request.get(`/api/agents/${agent.id}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+    expect((await fetchRes.json()).name).toBe('Updated Name')
+  })
+
+  test('delete agent removes from DB', async ({
+    authenticatedPage: page,
+    request,
+    authToken,
+  }) => {
+    const createRes = await request.post('/api/agents', {
+      headers: { Authorization: `Bearer ${authToken}` },
+      data: { name: 'To Be Deleted', description: 'Temp' },
+    })
+    const agent = await createRes.json()
+
+    await page.goto('/dashboard/agents')
+    await page.getByTestId(`agent-row-${agent.id}`).getByRole('button', { name: /delete/i }).click()
+    await page.getByRole('button', { name: /confirm/i }).click()
+
+    await expect(page.getByText('To Be Deleted')).not.toBeVisible()
+
+    // Confirm gone from DB
+    const fetchRes = await request.get(`/api/agents/${agent.id}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+    expect(fetchRes.status()).toBe(404)
+  })
+})
+```
+
+### 4g. Running E2E
+
+**Start full stack:**
+```bash
+cd "$PROJECT_ROOT"
+
+if [ -f docker-compose.e2e.yml ] && [ -f docker-compose.yml ]; then
+  COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.e2e.yml"
+elif [ -f docker-compose.test.yml ]; then
+  COMPOSE_CMD="docker compose -f docker-compose.test.yml"
+else
+  COMPOSE_CMD="docker compose"
+fi
+
+$COMPOSE_CMD up -d --build --wait
 ```
 
 **Wait for app health:**
 ```bash
-# Try common health endpoints until one responds 200
 for i in $(seq 1 12); do
   curl -sf http://localhost:8000/health 2>/dev/null && echo "API healthy ✅" && break || \
   curl -sf http://localhost:3000/health 2>/dev/null && echo "App healthy ✅" && break || \
@@ -302,26 +675,28 @@ for i in $(seq 1 12); do
 done
 ```
 
-### Playwright E2E (JS/TS projects):
+**Run in order — smoke first, then full suite:**
 ```bash
-cd "$PROJECT_ROOT"
+# 1. Smoke tests (fast gate)
 BASE_URL="${E2E_BASE_URL:-http://localhost:3000}" \
-npx playwright test --config=e2e/playwright.config.ts 2>/dev/null \
-  || npx playwright test 2>/dev/null \
-  || echo "No Playwright config found — skipping"
+npx playwright test e2e/smoke/ --config=playwright.e2e.config.ts
+
+# 2. Full E2E suite
+BASE_URL="${E2E_BASE_URL:-http://localhost:3000}" \
+npx playwright test --config=playwright.e2e.config.ts
 ```
 
 With `--e2e staging`:
 ```bash
-BASE_URL=<staging-url> npx playwright test --config=e2e/playwright.config.ts
+BASE_URL=<staging-url> npx playwright test --config=playwright.e2e.config.ts
 ```
 
 With `--e2e prod`:
 ```bash
-BASE_URL=<prod-url> npx playwright test --config=e2e/playwright.config.ts
+BASE_URL=<prod-url> npx playwright test --config=playwright.e2e.config.ts
 ```
 
-### pytest E2E (Python projects):
+**pytest E2E (Python projects):**
 ```bash
 cd "$PROJECT_ROOT"
 BASE_URL="${E2E_BASE_URL:-http://localhost:8000}" \
@@ -329,16 +704,17 @@ BASE_URL="${E2E_BASE_URL:-http://localhost:8000}" \
   || echo "No E2E tests found — skipping"
 ```
 
-### Teardown full stack after E2E:
+**Teardown full stack after E2E:**
 ```bash
-[ -n "$COMPOSE_FILE" ] && docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+$COMPOSE_CMD down -v 2>/dev/null || true
 ```
 
 **If E2E fails:**
-1. Capture logs: `docker compose -f "$COMPOSE_FILE" logs --tail=50`
-2. Read the error output and diagnose the issue
-3. Report which tests failed and why with container logs
-4. Suggest fixes — but do NOT block the overall `/test` pass if unit + integration coverage is met
+1. Capture logs: `$COMPOSE_CMD logs --tail=100`
+2. Check Playwright artifacts: `playwright-report/index.html` (screenshots, traces, videos)
+3. Read the error output and diagnose the issue
+4. Report which tests failed and why with container logs
+5. Suggest fixes — but do NOT block the overall `/test` pass if unit + integration coverage is met
 
 ---
 

@@ -164,16 +164,23 @@ cp ~/100x-templates/node-fullstack.md ./AGENTS.md       # Codex
 
 ---
 
-## GitHub Actions Template
+## GitHub Actions Templates
 
-A production-ready release pipeline — copy it into any project:
+Two production-ready pipeline templates — copy them into any project:
 
 ```bash
 mkdir -p .github/workflows
+
+# CI pipeline: lint + unit/integration (real DB) + full-stack Docker E2E
+cp ~/100x-dev/github-actions/ci.yml .github/workflows/ci.yml
+
+# Release pipeline: version checks → build → publish → verify
 cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
 ```
 
-Covers: pre-release checks (lint, tests, 95% coverage, version consistency), build + local smoke test, publish to PyPI/npm/Docker Hub/GHCR, post-release verification from live registry, Homebrew tap update.
+**`ci.yml`** covers: ESLint/TypeScript/ruff lint, unit + integration tests against real Docker Postgres/Redis (95% coverage enforced), full-stack `docker compose` E2E with Playwright (split configs, smoke gate first), artifact upload on failure.
+
+**`release.yml`** covers: pre-release checks (lint, tests, 95% coverage, version consistency), build + local smoke test, publish to PyPI/npm/Docker Hub/GHCR, post-release verification from live registry, Homebrew tap update.
 
 ---
 
