@@ -30,6 +30,30 @@ jobs:
   pre-release-checks:
     name: Pre-release Checks
     runs-on: ubuntu-latest
+    # Real services for integration tests — no mocks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
     steps:
       - uses: actions/checkout@v4
 
@@ -48,13 +72,21 @@ jobs:
         if: hashFiles('pyproject.toml', 'setup.py') != ''
         run: pip install ruff --quiet && ruff check . && ruff format --check .
 
-      - name: Run unit tests
+      - name: Run unit + integration tests (real DB — no mocks)
         if: hashFiles('pyproject.toml', 'setup.py') != ''
-        run: pytest tests/unit/ -v
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+        run: pytest tests/unit/ tests/integration/ -v
 
-      - name: Enforce 95% test coverage
+      - name: Enforce 95% test coverage (unit + integration)
         if: hashFiles('pyproject.toml', 'setup.py') != ''
-        run: pip install pytest-cov --quiet && pytest tests/unit/ --cov --cov-fail-under=95 -q
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          pip install pytest-cov --quiet
+          pytest tests/unit/ tests/integration/ --cov --cov-fail-under=95 -q
 
       - name: Set up Node 22
         if: hashFiles('package.json') != ''
@@ -63,8 +95,11 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - name: Node lint and test
+      - name: Node lint and test (real DB — no mocks)
         if: hashFiles('package.json') != ''
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
         run: npm ci && npm run lint && npm test
 
       - name: Version consistency check (pyproject.toml)

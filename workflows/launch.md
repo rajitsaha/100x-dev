@@ -58,8 +58,14 @@ docker compose down 2>/dev/null || true
 
 ## Phase 1 — Tests
 
-Run the **test** workflow. Loop until all thresholds are met with zero failures:
-- Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches ≥ 90%
+Run the **test** workflow. The test workflow will:
+1. Auto-start required Docker services (DB, Redis, etc.) for integration tests
+2. Run unit tests against real services — no DB mocks
+3. Run integration tests against a real Docker DB
+4. Run E2E tests against the full docker compose stack
+5. Loop until all thresholds are met with zero failures
+
+Thresholds: Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches ≥ 90%
 
 **GATE: The test workflow reports "COVERAGE MET ✅" with zero failures.**
 

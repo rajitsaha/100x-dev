@@ -32,7 +32,7 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 
 ## How It Works
 
-100x Dev provides 15 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
+100x Dev provides 16 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
 
 **The key difference between tools:**
 
@@ -56,7 +56,7 @@ cd ~/100x-dev && ./install.sh
 ```
 
 **What happens:**
-- 15 workflow files are copied to `~/.claude/commands/`
+- 16 workflow files are copied to `~/.claude/commands/`
 - 7 db-engine files are copied to `~/.claude/commands/db-engines/`
 - Each file gets `$ARGUMENTS` appended (Claude Code's argument passing mechanism)
 - 13 plugins are merged into `~/.claude/settings.json`
@@ -81,7 +81,7 @@ cd ~/100x-dev && ./install.sh
 bash ~/100x-dev/adapters/cursor.sh /path/to/your/project
 ```
 
-**What happens:** A `.cursorrules` file is generated in your project root containing all 15 workflows.
+**What happens:** A `.cursorrules` file is generated in your project root containing all 16 workflows.
 
 **After install:**
 1. Open the project in Cursor
@@ -498,6 +498,56 @@ git commit -m "chore: add AI coding quality workflows (100x-dev)"
 ```
 
 Contributors using Cursor or Codex automatically get enforced quality gates on their AI-generated code.
+
+---
+
+## Testing Philosophy
+
+100x Dev enforces a **real-over-mocked** testing strategy. This is the most important part of the testing approach.
+
+### The rule: mock as little as possible
+
+| Layer | Environment | What gets mocked |
+|---|---|---|
+| **Unit** | In-process | Only external APIs that genuinely cannot run locally (Stripe, Firebase Auth, Twilio, Resend) |
+| **Integration** | Real DB + real app via Docker | Only payment gateways and third-party SaaS APIs |
+| **E2E / System** | Full stack via `docker compose up` | Nothing — zero mocks |
+
+### Why no DB mocks?
+
+Mocking the database in integration tests is one of the most common causes of "tests pass, production breaks." The mock returns what you told it to return — it doesn't enforce schema constraints, foreign keys, or transaction semantics. A real Docker DB catches:
+- Schema migrations that break existing queries
+- Race conditions in concurrent writes
+- Constraint violations that only surface at the DB layer
+- Index behavior differences
+
+### Docker test environment
+
+The `/test` workflow automatically:
+1. Detects if your project needs DB/Redis services
+2. Starts a real PostgreSQL + Redis via Docker (or your `docker-compose.test.yml` if present)
+3. Runs migrations against the test DB
+4. Runs all tests against real services
+5. Tears down containers after tests complete
+
+For E2E tests, `/test --e2e` builds and starts your **full application stack** via Docker Compose, then runs Playwright or pytest-e2e against `http://localhost:PORT`. No stubs, no test doubles, no fake HTTP servers — the real thing.
+
+### What to mock (and what not to)
+
+```python
+# ✅ Mock this — genuinely unreachable locally
+monkeypatch.setattr("stripe.PaymentIntent.create", AsyncMock(return_value={"id": "pi_test"}))
+monkeypatch.setattr("sendgrid.send", AsyncMock(return_value=None))
+
+# ❌ Never mock this — use a real Docker DB instead
+monkeypatch.setattr("db.session.add", MagicMock())       # wrong
+monkeypatch.setattr("db.session.commit", MagicMock())    # wrong
+monkeypatch.setattr("redis_client.get", MagicMock())     # wrong
+```
+
+### GitHub Actions setup
+
+The `github-actions/release.yml` template starts real PostgreSQL 16 and Redis 7 containers as GitHub Actions services — the same philosophy applied to CI. Integration tests run against `localhost:5432` and `localhost:6379`, not mocks.
 
 ---
 
