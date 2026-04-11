@@ -80,6 +80,7 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | **pr** | Gate → push branch → create PR → full AI review → human merges. Never auto-merges. |
 | **branch** | Create conventional feature branches from main — `feat/`, `fix/`, `chore/`, auto-push upstream. |
 | **launch** | Full release pipeline: Docker, test, lint, security, build, commit, push — one command. |
+| **release** | Full release pipeline: local install smoke test → version bump → tag → publish to PyPI/npm/Docker Hub → verify from live registry. Auto-detects registries from repo contents. |
 | **lint** | Auto-detects your linting stack (ESLint, TypeScript, ruff). Fixes everything. Zero errors. |
 | **security** | Scans all package managers for vulnerabilities. Audits for leaked secrets. Auto-fixes what it can. |
 | **docs** | Detects code changes and updates corresponding documentation automatically. |
@@ -158,6 +159,19 @@ cp ~/100x-templates/node-fullstack.md ./AGENTS.md       # Codex
 | `node-frontend` | React + Vite + TypeScript + Vitest + Playwright |
 | `python-api` | FastAPI / Flask + PostgreSQL + pytest |
 | `docker-compose` | Multi-service: API + frontend + DB + cache |
+
+---
+
+## GitHub Actions Template
+
+A production-ready release pipeline — copy it into any project:
+
+```bash
+mkdir -p .github/workflows
+cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
+```
+
+Covers: pre-release checks (lint, tests, 95% coverage, version consistency), build + local smoke test, publish to PyPI/npm/Docker Hub/GHCR, post-release verification from live registry, Homebrew tap update.
 
 ---
 
