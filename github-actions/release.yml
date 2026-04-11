@@ -183,7 +183,7 @@ jobs:
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-python, build-npm, build-docker]
+    needs: [pre-release-checks, build-python, build-npm, build-docker]
     if: always() && needs.pre-release-checks.result == 'success'
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +213,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ steps.version.outputs.version }}"
-          body: ${{ steps.changelog.outputs.notes }}
+          body: "${{ steps.changelog.outputs.notes }}"
           files: |
             dist/*
             *.tgz
@@ -264,7 +264,7 @@ jobs:
   verify-releases:
     name: Verify Releases
     runs-on: ubuntu-latest
-    needs: [publish-pypi, publish-npm]
+    needs: [github-release, build-docker, publish-pypi, publish-npm]
     if: always() && needs.github-release.result == 'success'
     steps:
       - name: Extract version from tag
