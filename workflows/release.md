@@ -21,7 +21,7 @@ If no argument is given, ask: `patch, minor, or major?`
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 cd "$PROJECT_ROOT"
 
-[ -f pyproject.toml ] || [ -f setup.py ] && PYPI=true || PYPI=false
+{ [ -f pyproject.toml ] || [ -f setup.py ]; } && PYPI=true || PYPI=false
 [ -f package.json ] && node -e "const d=require('./package.json'); process.exit(d.private ? 1 : 0)" 2>/dev/null && NPM=true || NPM=false
 [ -f Dockerfile ] && DOCKER=true || DOCKER=false
 ```
@@ -85,7 +85,7 @@ GATE: must complete with no errors. If it fails → STOP.
 ### Docker (if DOCKER=true)
 
 ```bash
-docker build -t "$(basename $PROJECT_ROOT):release-candidate" .
+docker build -t "$(basename "$PROJECT_ROOT"):release-candidate" .
 ```
 
 GATE: build must succeed. If it fails → STOP.
@@ -111,7 +111,7 @@ rm -rf /tmp/release-test-venv
 ### Docker smoke test (if DOCKER=true)
 
 ```bash
-IMAGE="$(basename $PROJECT_ROOT):release-candidate"
+IMAGE="$(basename "$PROJECT_ROOT"):release-candidate"
 docker run --rm "$IMAGE" --version 2>/dev/null || \
 docker run --rm "$IMAGE" --help 2>/dev/null || \
 docker run --rm "$IMAGE" echo "container starts OK"
@@ -153,14 +153,12 @@ Verify the bump applied by printing the new version from each file.
 ```bash
 if [ -f CHANGELOG.md ]; then
   TODAY=$(date +%Y-%m-%d)
-  # Rename [Unreleased] header to versioned header
-  sed -i.bak "s/^## \[Unreleased\]/## [$NEW_VERSION] - $TODAY/" CHANGELOG.md
-  # Insert new [Unreleased] section above the versioned header
-  sed -i.bak "/^## \[$NEW_VERSION\]/i\\
-## [Unreleased]\\
-\\
-" CHANGELOG.md
-  rm -f CHANGELOG.md.bak
+  sed -i.bak "s/^## \[Unreleased\]/## [$NEW_VERSION] - $TODAY/" CHANGELOG.md && rm -f CHANGELOG.md.bak
+  python3 -c "
+content = open('CHANGELOG.md').read()
+content = content.replace('## [$NEW_VERSION]', '## [Unreleased]\n\n## [$NEW_VERSION]', 1)
+open('CHANGELOG.md', 'w').write(content)
+"
   echo "CHANGELOG.md updated for v$NEW_VERSION"
 else
   echo "No CHANGELOG.md — skipping"
@@ -174,7 +172,7 @@ fi
 ```bash
 git add pyproject.toml package.json CHANGELOG.md 2>/dev/null || true
 git add -u
-git commit -m "$(cat <<'EOF'
+git commit -m "$(cat <<EOF
 chore(release): bump version to $NEW_VERSION
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
@@ -189,7 +187,8 @@ git log --oneline -2
 ## Phase 8 — Push tag
 
 ```bash
-git push origin main
+DEFAULT_BRANCH=$(git symbolic-ref --short HEAD)
+git push origin "$DEFAULT_BRANCH"
 git push origin "v$NEW_VERSION"
 ```
 
@@ -238,9 +237,13 @@ After CI passes, verify packages are installable from the live registry.
 ### PyPI (if PYPI=true)
 
 ```bash
-sleep 60
 python3 -m venv /tmp/pypi-verify-venv
-/tmp/pypi-verify-venv/bin/pip install "$PACKAGE_NAME==$NEW_VERSION" --quiet
+echo "Waiting for PyPI propagation..."
+for i in 1 2 3 4 5; do
+  sleep 20
+  /tmp/pypi-verify-venv/bin/pip install "$PACKAGE_NAME==$NEW_VERSION" --quiet 2>/dev/null && break
+  echo "Attempt $i/5 — not yet available, retrying..."
+done
 /tmp/pypi-verify-venv/bin/python -c "import $PACKAGE_NAME; print('PyPI install verified OK')"
 rm -rf /tmp/pypi-verify-venv
 ```
@@ -257,21 +260,17 @@ DOCKER_REPO=$(grep -m1 'DOCKERHUB_REPO' .env.release 2>/dev/null | cut -d= -f2 |
 ## Output
 
 ```
-╔══════════════════════════════════════════════════════╗
-║              RELEASE COMPLETE                        ║
-╠══════════════════════════════════════════════════════╣
-║ Version:       v$NEW_VERSION                         ║
-║ Tag:           ✅ pushed                             ║
-║ CI:            ✅ release.yml passed                 ║
-╠══════════════════════════════════════════════════════╣
-║ Registries published:                                ║
-║   PyPI:        ✅ verified installable               ║
-║   npm:         ✅ verified | ⬜ skipped               ║
-║   Docker Hub:  ✅ verified | ⬜ skipped               ║
-║   Homebrew:    ✅ tap updated | ⬜ skipped            ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: RELEASED ✅                                  ║
-╚══════════════════════════════════════════════════════╝
+=== Release Complete ===
+Version:    v$NEW_VERSION
+Tag:        ✅ pushed
+CI:         ✅ release.yml passed
+
+Registries:
+  PyPI:       ✅ verified installable | ⬜ skipped
+  npm:        ✅ verified | ⬜ skipped
+  Docker Hub: ✅ verified | ⬜ skipped
+
+Status:     RELEASED ✅
 ```
 
 ---
