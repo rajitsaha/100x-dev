@@ -34,6 +34,8 @@ Most developers using Claude Code, Cursor, or Codex have no guardrails. No enfor
 
 - Every commit passes a **5-point quality gate** (tests, security, build, Docker, cloud security)
 - Test coverage **loops until 95%** — not aspirational, enforced
+- Integration tests run against **real Docker services** — no DB mocks, no false positives
+- E2E tests run against the **full stack via docker compose** — zero stubs
 - Security vulnerabilities are **scanned and auto-fixed** before code leaves your machine
 - Works with **7 AI coding tools** — same workflows, same standards, any tool
 
@@ -58,7 +60,7 @@ git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
 cd ~/100x-dev && ./install.sh
 
 # 3. Use
-# In Claude Code:  /gate, /test, /commit, /push, /launch
+# In Claude Code:  /gate, /test, /commit, /push, /launch, /release
 # In Cursor:       workflows embedded in .cursorrules
 # In Codex:        workflows embedded in AGENTS.md
 ```
@@ -74,7 +76,7 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | Workflow | What it does |
 |:---------|:-------------|
 | **gate** | 5-point pre-commit quality gate — tests, security, build, Docker, cloud security. Nothing ships without passing. |
-| **test** | Runs all test layers (unit, integration, E2E). Writes missing tests. Loops until 95% coverage. |
+| **test** | Runs all test layers against real Docker services — no DB mocks. Auto-starts Postgres/Redis, runs integration tests against real DB, E2E via full `docker compose up`. Writes missing tests. Loops until 95% coverage. |
 | **commit** | Runs gate first, then stages and creates a conventional commit. |
 | **push** | Re-runs gate, pushes, monitors CI/CD, verifies production health. |
 | **pr** | Gate → push branch → create PR → full AI review → human merges. Never auto-merges. |
@@ -233,6 +235,7 @@ Add it to `install.sh` and open a PR. That's it.
 |:----------|:-------------|
 | **No skips** | Quality gates are mandatory. No `--no-verify`. No exceptions. |
 | **95% coverage** | Not a target. A requirement. The test workflow loops until it's met. |
+| **Real over mocked** | Integration tests run against a real Docker DB. E2E tests run against the full stack. Only external APIs (Stripe, Firebase) get mocked. |
 | **Auto-fix first** | Lint errors, security vulnerabilities — fixed automatically where possible. |
 | **Loop until clean** | Tests re-run, coverage re-checked, until every threshold passes. |
 | **Tool-agnostic** | Same workflows, same standards, regardless of which AI tool you use. |

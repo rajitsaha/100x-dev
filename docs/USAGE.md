@@ -26,6 +26,7 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 - [Keeping Workflows Updated](#keeping-workflows-updated)
 - [Multi-Tool Setup](#multi-tool-setup)
 - [Team Onboarding](#team-onboarding)
+- [Testing Philosophy](#testing-philosophy)
 - [FAQ](#faq)
 
 ---
@@ -287,14 +288,16 @@ Workflows are available as slash commands. Use them directly:
 
 ```
 /gate              Run the 5-point quality gate
-/test              Run all tests, loop until 95% coverage
+/test              Run all tests against real Docker services — loops until 95% coverage
 /test --all        Full test pass across entire codebase
-/test --e2e        E2E tests only
+/test --integration Integration tests only (spins up Docker DB)
+/test --e2e        E2E tests only — full docker compose stack, zero mocks
 /commit            Run gate → stage → conventional commit
-/push              Run gate → push → monitor CI/CD
+/push              Run gate → push → monitor CI/CD → auto-fix failures
 /branch            Create a feature branch from main with auto-naming
 /pr                Create a PR with AI review (human merges)
 /launch            Full release pipeline (Docker → test → lint → security → build → ship)
+/release           Publish to PyPI/npm/Docker Hub — smoke test before tag, verify after publish
 /lint              Fix all lint errors
 /security          Scan for vulnerabilities and secrets
 /docs              Update docs to match code changes
@@ -319,8 +322,11 @@ cc                          # alias for 'claude'
 # Ready to ship?
 /push                       # runs gate, pushes, monitors CI
 
-# Full release?
-/launch                     # the whole pipeline, one command
+# Full pipeline?
+/launch                     # Docker → test → lint → security → build → ship
+
+# Publish a package?
+/release patch              # bump version, smoke test, tag, publish to PyPI/npm/Docker Hub, verify
 ```
 
 ```
