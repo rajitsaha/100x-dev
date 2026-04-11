@@ -27,6 +27,7 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 - [Multi-Tool Setup](#multi-tool-setup)
 - [Team Onboarding](#team-onboarding)
 - [Testing Philosophy](#testing-philosophy)
+- [GitHub Actions Templates](#github-actions-templates)
 - [FAQ](#faq)
 
 ---
@@ -287,26 +288,31 @@ Best for: Engineering teams that want consistent quality standards across all de
 Workflows are available as slash commands. Use them directly:
 
 ```
-/gate              Run the 5-point quality gate
-/test              Run all tests against real Docker services — loops until 95% coverage
-/test --all        Full test pass across entire codebase
-/test --integration Integration tests only (spins up Docker DB)
-/test --e2e        E2E tests only — full docker compose stack, zero mocks
-/commit            Run gate → stage → conventional commit
-/push              Run gate → push → monitor CI/CD → auto-fix failures
-/branch            Create a feature branch from main with auto-naming
-/pr                Create a PR with AI review (human merges)
-/launch            Full release pipeline (Docker → test → lint → security → build → ship)
-/release           Publish to PyPI/npm/Docker Hub — smoke test before tag, verify after publish
-/lint              Fix all lint errors
-/security          Scan for vulnerabilities and secrets
-/docs              Update docs to match code changes
-/issue             Investigate and create a GitHub issue
-/architect         Get architecture advice
-/cloud-security    Run cloud security & data privacy scan
-/enterprise-design Generate enterprise design blueprint
-/db                Query your database
-/db "SELECT ..."   Run a specific SQL query
+/gate                  Run the 5-point quality gate
+/test                  Run all tests against real Docker services — loops until 95% coverage
+/test --all            Full test pass across entire codebase
+/test --unit           Unit tests only
+/test --integration    Integration tests only (spins up Docker DB)
+/test --e2e            E2E tests only — full docker compose stack, zero mocks
+/test --e2e staging    E2E against your staging environment
+/test --e2e prod       E2E against production
+/commit                Run gate → stage → conventional commit
+/push                  Run gate → push → monitor CI/CD → auto-fix failures
+/branch                Create a feature branch from main with auto-naming
+/pr                    Create a PR with AI review (human merges)
+/launch                Full release pipeline (Docker → test → lint → security → build → ship)
+/release patch         Bump patch version, smoke test, tag, publish, verify from live registry
+/release minor         Bump minor version and publish
+/release major         Bump major version and publish
+/lint                  Fix all lint errors across ESLint, TypeScript, ruff
+/security              Scan for vulnerabilities and secrets, auto-fix where possible
+/docs                  Update docs to match code changes
+/issue                 Investigate and create a GitHub issue
+/architect             Get architecture advice (GCP/AWS/distributed systems)
+/cloud-security        Run cloud security & data privacy scan (IAM, PII, GDPR)
+/enterprise-design     Generate enterprise design blueprint
+/db                    Query your database (auto-detects engine)
+/db "SELECT ..."       Run a specific SQL query
 ```
 
 **Typical daily workflow:**
@@ -612,22 +618,77 @@ monkeypatch.setattr("db.session.commit", MagicMock())    # wrong
 monkeypatch.setattr("redis_client.get", MagicMock())     # wrong
 ```
 
-### GitHub Actions setup
+---
 
-Two templates are provided:
+## GitHub Actions Templates
 
-**`github-actions/ci.yml`** — copy to `.github/workflows/ci.yml` for every PR/push:
-- Lint (ESLint, TypeScript, ruff)
-- Unit + integration tests against real Docker Postgres 16 + Redis 7 (95% coverage enforced)
-- Full-stack Docker Compose E2E with Playwright (smoke gate → full suite)
-- Playwright reports + traces uploaded as artifacts on failure
+Two production-ready pipeline templates live in `github-actions/`. Copy them into any project:
 
-**`github-actions/release.yml`** — copy to `.github/workflows/release.yml` for version tag releases:
-- All CI checks + version consistency validation
-- Build Python wheel (smoke test in fresh venv) / npm pack / multi-arch Docker
-- Publish to PyPI (OIDC, no API key) / npm / Docker Hub + GHCR
-- Post-publish verification with retry loop
-- Homebrew tap update
+```bash
+mkdir -p .github/workflows
+cp ~/100x-dev/github-actions/ci.yml .github/workflows/ci.yml
+cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
+```
+
+### `ci.yml` — runs on every push and pull request
+
+Three jobs, each gated on the previous:
+
+| Job | What it does |
+|:----|:-------------|
+| **lint** | ESLint, TypeScript `tsc --noEmit`, ruff lint + format check. Auto-detected — only runs steps that apply to your stack. |
+| **unit-tests** | Unit + integration tests against real Docker Postgres 16 + Redis 7. 95% coverage enforced. No DB mocks. |
+| **e2e-tests** | Builds full `docker compose` stack, waits for health, runs smoke tests first (fast gate), then full Playwright suite. Uploads HTML report + traces as artifacts on failure. |
+
+**Required secrets** (GitHub repo Settings → Secrets): none for CI — it only runs tests.
+
+**`e2e-tests` job skips automatically** if your repo has no `playwright.e2e.config.ts`, `e2e/` directory, or `docker-compose.e2e.yml` — zero noise for projects that don't need it yet.
+
+### `release.yml` — runs on version tags (`v*.*.*`)
+
+Nine jobs: pre-release checks → build → GitHub Release → publish → verify → Homebrew tap update.
+
+| Job | What it does |
+|:----|:-------------|
+| **pre-release-checks** | Full lint, tests (real Docker services), 95% coverage, version tag ↔ `pyproject.toml`/`package.json` consistency |
+| **build-python** | `python -m build`, `twine check`, wheel smoke test in fresh venv |
+| **build-npm** | `npm ci && npm run build && npm pack --dry-run` |
+| **build-docker** | Multi-arch build (`linux/amd64,linux/arm64`), push to Docker Hub + GHCR |
+| **github-release** | Creates GitHub Release with changelog section, attaches all artifacts |
+| **publish-pypi** | OIDC trusted publishing — no API key needed |
+| **publish-npm** | `npm publish --access public` |
+| **verify-releases** | Installs from live PyPI/npm/Docker Hub with retry loop — confirms it actually works |
+| **update-homebrew** | Bumps formula in your Homebrew tap |
+
+**Required secrets:**
+```
+DOCKERHUB_USERNAME   — Docker Hub username
+DOCKERHUB_TOKEN      — Docker Hub access token
+NPM_TOKEN            — npm access token
+HOMEBREW_TAP_TOKEN   — PAT with repo scope (optional)
+```
+
+**PyPI** uses OIDC trusted publishing — configure at pypi.org, no `PYPI_TOKEN` secret needed.
+
+**Jobs that don't apply to your stack are skipped automatically** via `hashFiles()` detection — a Python-only project won't attempt npm publish steps.
+
+### E2E job file detection
+
+The `e2e-tests` job in `ci.yml` auto-selects the right compose file:
+
+```
+docker-compose.yml + docker-compose.e2e.yml  →  use both (override pattern)
+docker-compose.test.yml                       →  use test compose
+docker-compose.yml                            →  use base compose
+```
+
+It also auto-detects the Playwright config:
+
+```
+playwright.e2e.config.ts   →  preferred
+playwright.e2e.config.js   →  fallback
+e2e/playwright.config.ts   →  legacy fallback
+```
 
 ---
 

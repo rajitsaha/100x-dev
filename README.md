@@ -16,7 +16,7 @@ One install. Any AI coding tool. Zero excuses.
 [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-supported-red?style=flat-square)](https://cloud.google.com/gemini)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-[Quick Start](#quick-start) | [Workflows](#what-you-get) | [Supported Tools](#supported-tools) | [How to Use](docs/USAGE.md) | [Templates](#templates) | [Contributing](#add-your-own-tool)
+[Quick Start](#quick-start) | [Workflows](#what-you-get) | [Supported Tools](#supported-tools) | [How to Use](docs/USAGE.md) | [Templates](#templates) | [GitHub Actions](#github-actions-templates) | [Contributing](#add-your-own-tool)
 
 </div>
 
@@ -76,7 +76,7 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | Workflow | What it does |
 |:---------|:-------------|
 | **gate** | 5-point pre-commit quality gate — tests, security, build, Docker, cloud security. Nothing ships without passing. |
-| **test** | Runs all test layers against real Docker services — no DB mocks. Auto-starts Postgres/Redis, runs integration tests against real DB, E2E via full `docker compose up`. Writes missing tests. Loops until 95% coverage. |
+| **test** | Runs all test layers against real Docker services — no DB mocks. Auto-starts Postgres/Redis, runs integration tests against real DB, E2E via full `docker compose up` with split Playwright configs, real auth fixtures, smoke gate, and DB-verified CRUD assertions. Writes missing tests. Loops until 95% coverage. |
 | **commit** | Runs gate first, then stages and creates a conventional commit. |
 | **push** | Re-runs gate, pushes, monitors CI/CD, verifies production health. |
 | **pr** | Gate → push branch → create PR → full AI review → human merges. Never auto-merges. |
