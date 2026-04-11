@@ -44,10 +44,37 @@ install_global() {
   echo -e "  ${CYAN}→ Restart Claude Code to load new commands${NC}"
 }
 
+check_bun() {
+  if ! command -v bun &>/dev/null; then
+    echo ""
+    echo -e "  ${YELLOW}⚠ Bun is required by the claude-mem plugin but is not installed.${NC}"
+    echo ""
+    read -rp "  Install Bun now? (recommended) [Y/n]: " install_bun
+    install_bun="${install_bun:-Y}"
+    if [[ "$install_bun" =~ ^[Yy]$ ]]; then
+      echo "  Installing Bun..."
+      curl -fsSL https://bun.sh/install | bash
+      # Reload PATH so bun is available immediately
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+      if command -v bun &>/dev/null; then
+        echo -e "  ${GREEN}→ Bun installed ✓${NC}"
+      else
+        echo -e "  ${YELLOW}→ Bun installed — restart your terminal to activate it${NC}"
+      fi
+    else
+      echo -e "  ${YELLOW}→ Skipping Bun install. claude-mem hooks will show errors until Bun is available.${NC}"
+    fi
+  fi
+}
+
 install_plugins() {
   echo ""
   echo "Installing plugins for Claude Code..."
   mkdir -p "$CLAUDE_DIR"
+
+  # claude-mem requires Bun — check before installing plugins
+  check_bun
 
   PLUGINS_FILE="$REPO_DIR/plugins/plugins.json"
 

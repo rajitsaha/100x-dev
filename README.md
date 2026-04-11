@@ -192,6 +192,8 @@ cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
 
 Only installed when you select Claude Code + Plugins during setup.
 
+> **Note:** The `claude-mem` plugin requires [Bun](https://bun.sh). The installer will detect if Bun is missing and offer to install it automatically.
+
 ---
 
 ## Shell Aliases
