@@ -134,7 +134,44 @@ do_install_plugins() {
   if [ "$TOOL_CLAUDE" = true ]; then
     source "$REPO_DIR/adapters/claude-code.sh"
     install_plugins
+    _install_session_hook
   fi
+}
+
+_install_session_hook() {
+  local settings_file="$HOME/.claude/settings.json"
+  [[ -f "$settings_file" ]] || return 0
+
+python3 << PYEOF
+import json, os
+
+settings_file = os.path.expanduser('$settings_file')
+hook_cmd = os.path.expanduser('~/100x-dev/shell/check-update.sh') + ' --claude-hook'
+
+with open(settings_file) as f:
+    settings = json.load(f)
+
+hooks = settings.setdefault('hooks', {})
+session_start = hooks.setdefault('SessionStart', [])
+
+already_exists = any(
+    h.get('command') == hook_cmd
+    for entry in session_start
+    for h in entry.get('hooks', [])
+)
+
+if not already_exists:
+    session_start.append({
+        'matcher': '',
+        'hooks': [{'type': 'command', 'command': hook_cmd}]
+    })
+    print('  Added SessionStart update-check hook ✓')
+else:
+    print('  SessionStart hook: already configured ✓')
+
+with open(settings_file, 'w') as f:
+    json.dump(settings, f, indent=2)
+PYEOF
 }
 
 # ── Install shell aliases ───────────────────────────────────────────────────
