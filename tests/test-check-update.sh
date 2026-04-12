@@ -147,6 +147,33 @@ test_invalid_flag_exits_nonzero() {
   _teardown
 }
 
+test_aliases_sources_cleanly() {
+  _setup
+  local fake_script="$HOME/100x-dev/shell/check-update.sh"
+  mkdir -p "$(dirname "$fake_script")"
+  cat > "$fake_script" << 'STUB'
+#!/usr/bin/env bash
+# fake stub — records calls, exits cleanly
+echo "called: $1" >> "$HOME/.100x-dev/calls.log" 2>/dev/null || true
+STUB
+  chmod +x "$fake_script"
+
+  # Source aliases in a subshell with fake HOME — should produce no error output
+  local alias_file
+  alias_file="$REPO_DIR/shell/aliases.sh"
+  local err_output
+  err_output=$(cd /tmp && HOME="$HOME" bash -c "source '$alias_file'" 2>&1) || true
+
+  if [[ -z "$err_output" ]]; then
+    echo "  PASS: aliases.sh sources without errors"
+    (( PASS++ )) || true
+  else
+    echo "  FAIL: aliases.sh produced unexpected stderr"
+    echo "    output: $err_output"
+    (( FAIL++ )) || true
+  fi
+}
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -159,6 +186,7 @@ test_claude_hook_outputs_notice_when_update_available
 test_snoozed_suppresses_claude_hook
 test_silent_creates_cache_file
 test_invalid_flag_exits_nonzero
+test_aliases_sources_cleanly
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

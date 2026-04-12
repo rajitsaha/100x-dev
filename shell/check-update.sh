@@ -110,8 +110,45 @@ _do_silent() {
 }
 
 _do_notify() {
-  # Stub — implemented in Task 3
-  :
+  # Read from cache only — no network call (that's _do_silent's job)
+  local has_update
+  has_update="$(_cache_get has_update)"
+  [[ "$has_update" == "true" ]] || return 0
+  _is_snoozed && return 0
+
+  # Only show prompt if stdin is a terminal
+  [[ -t 0 ]] || return 0
+
+  local local_sha remote_sha changelog
+  local_sha="$(_cache_get local_sha)"
+  remote_sha="$(_cache_get remote_sha)"
+  changelog="$(_cache_get changelog)"
+
+  local short_local="${local_sha:0:7}"
+  local short_remote="${remote_sha:0:7}"
+
+  echo ""
+  printf "${YELLOW}╔══════════════════════════════════════════════════════╗${NC}\n"
+  printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "100x Dev update available: $short_local → $short_remote"
+
+  IFS='|' read -ra _lines <<< "$changelog"
+  for _line in "${_lines[@]}"; do
+    [[ -z "$_line" ]] && continue
+    local _msg="${_line#* }"
+    printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "• $_msg"
+  done
+
+  printf "${YELLOW}╚══════════════════════════════════════════════════════╝${NC}\n"
+  echo ""
+
+  read -rp "Update now? (Y/n): " _confirm
+  _confirm="${_confirm:-Y}"
+  if [[ "$_confirm" =~ ^[Yy]$ ]]; then
+    bash "$REPO_DIR/update.sh"
+  else
+    _snooze
+    echo -e "${CYAN}Reminder snoozed for 24h. Run \`100x-update\` when ready.${NC}"
+  fi
 }
 
 _do_claude_hook() {

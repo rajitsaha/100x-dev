@@ -9,3 +9,11 @@ alias ccc='claude --continue'
 # Setup management
 alias 100x-update="$HOME/100x-dev/update.sh"
 alias 100x-check="$HOME/100x-dev/update.sh --check-only"
+
+# ── Version check ─────────────────────────────────────────────────────────────
+# On shell startup: read cached update status (no network) + prompt if available.
+# Then kick off a background cache refresh for next session.
+if [[ -x "$HOME/100x-dev/shell/check-update.sh" ]]; then
+  bash "$HOME/100x-dev/shell/check-update.sh" --notify
+  ("$HOME/100x-dev/shell/check-update.sh" --silent &) 2>/dev/null
+fi
