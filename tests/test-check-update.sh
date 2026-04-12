@@ -14,6 +14,7 @@ _setup() {
   export HOME
   HOME="$(mktemp -d)"
   mkdir -p "$HOME/.100x-dev"
+  trap '_teardown' EXIT
 }
 
 _teardown() {
@@ -35,13 +36,29 @@ _assert_eq() {
 
 _assert_file_contains() {
   local label="$1" file="$2" pattern="$3"
-  if grep -q "$pattern" "$file" 2>/dev/null; then
+  if grep -qF "$pattern" "$file" 2>/dev/null; then
     echo "  PASS: $label"
     (( PASS++ )) || true
   else
     echo "  FAIL: $label — pattern '$pattern' not found in $file"
     (( FAIL++ )) || true
   fi
+}
+
+_make_cache() {
+  # _make_cache <home_dir> [has_update] [snoozed_until]
+  local home_dir="${1:-$HOME}"
+  local has_update="${2:-false}"
+  local snoozed_until="${3:-0}"
+  mkdir -p "$home_dir/.100x-dev"
+  cat > "$home_dir/.100x-dev/update-cache" << EOF
+last_check=9999999999
+has_update=$has_update
+local_sha=abc1234abc
+remote_sha=def5678def
+changelog=abc1234 fix: detect Bun|def5678 feat: shared lib
+snoozed_until=$snoozed_until
+EOF
 }
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -62,14 +79,7 @@ test_creates_state_dir() {
 
 test_no_output_when_no_update() {
   _setup
-  cat > "$HOME/.100x-dev/update-cache" << 'EOF'
-last_check=9999999999
-has_update=false
-local_sha=abc1234
-remote_sha=abc1234
-changelog=
-snoozed_until=0
-EOF
+  _make_cache "$HOME" false
   local output
   output=$(bash "$SCRIPT" --claude-hook 2>/dev/null)
   _assert_eq "no output when no update (--claude-hook)" "" "$output"
@@ -78,14 +88,7 @@ EOF
 
 test_claude_hook_outputs_notice_when_update_available() {
   _setup
-  cat > "$HOME/.100x-dev/update-cache" << 'EOF'
-last_check=9999999999
-has_update=true
-local_sha=abc1234abc
-remote_sha=def5678def
-changelog=abc1234 fix: detect Bun|def5678 feat: shared lib
-snoozed_until=0
-EOF
+  _make_cache "$HOME" true
   local output
   output=$(bash "$SCRIPT" --claude-hook 2>/dev/null)
   if echo "$output" | grep -q "100x Dev update available"; then
@@ -101,15 +104,7 @@ EOF
 
 test_snoozed_suppresses_claude_hook() {
   _setup
-  local future=$(( $(date +%s) + 86400 ))
-  cat > "$HOME/.100x-dev/update-cache" << EOF
-last_check=9999999999
-has_update=true
-local_sha=abc1234abc
-remote_sha=def5678def
-changelog=abc1234 fix: something
-snoozed_until=$future
-EOF
+  _make_cache "$HOME" true "$(( $(date +%s) + 86400 ))"
   local output
   output=$(bash "$SCRIPT" --claude-hook 2>/dev/null)
   _assert_eq "snoozed suppresses --claude-hook output" "" "$output"
@@ -138,6 +133,20 @@ test_silent_creates_cache_file() {
   _teardown
 }
 
+test_invalid_flag_exits_nonzero() {
+  _setup
+  local exit_code=0
+  bash "$SCRIPT" --invalid-flag 2>/dev/null || exit_code=$?
+  if (( exit_code != 0 )); then
+    echo "  PASS: invalid flag exits non-zero"
+    (( PASS++ )) || true
+  else
+    echo "  FAIL: invalid flag should exit non-zero"
+    (( FAIL++ )) || true
+  fi
+  _teardown
+}
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -149,6 +158,7 @@ test_no_output_when_no_update
 test_claude_hook_outputs_notice_when_update_available
 test_snoozed_suppresses_claude_hook
 test_silent_creates_cache_file
+test_invalid_flag_exits_nonzero
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
