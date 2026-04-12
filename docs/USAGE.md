@@ -36,6 +36,8 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 
 100x Dev provides 16 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
 
+Adapter scripts for Cursor, Codex, Windsurf, Copilot, Gemini, and Antigravity all share a common library (`adapters/lib/shared.sh`) — so adding a new tool is a handful of lines.
+
 **The key difference between tools:**
 
 | Approach | Tools | How it works |
@@ -437,6 +439,39 @@ git pull origin main
 ./install.sh      # Re-run to copy updated workflows
 ```
 
+### Automatic Version Notifications
+
+After install, 100x Dev checks for updates once per day in the background. When a new version is available:
+
+**In your terminal** — a banner appears on the next shell open:
+
+```
+╔══════════════════════════════════════════════════════╗
+║  100x Dev update available: abc1234 → def5678        ║
+║  • fix: detect Bun before enabling claude-mem        ║
+╚══════════════════════════════════════════════════════╝
+Update now? (Y/n):
+```
+
+Answer `Y` to update immediately. Answer `N` to snooze for 24 hours.
+
+**In Claude Code** — a notice appears at the top of your session:
+
+```
+> 100x Dev update available (abc1234 → def5678)
+> Changes: • fix: detect Bun before enabling claude-mem
+> Run `100x-update` in your terminal to upgrade.
+```
+
+After running `100x-update`, instruction files (`.cursorrules`, `AGENTS.md`, etc.) in all your tracked projects are automatically regenerated.
+
+Update state is stored in `~/.100x-dev/update-cache`. To force an immediate check:
+
+```bash
+~/100x-dev/shell/check-update.sh --silent   # refresh cache now
+~/100x-dev/shell/check-update.sh --notify   # check + prompt now
+```
+
 ### For Per-Project Files
 
 After updating 100x Dev, re-generate the instruction files in your projects:
@@ -733,4 +768,4 @@ done
 
 ### Can I contribute a new adapter?
 
-Yes. See the [Add Your Own Tool](../README.md#add-your-own-tool) section in the README. Write an adapter script in `adapters/`, add it to `install.sh`, and open a PR.
+Yes. See the [Add Your Own Tool](../README.md#add-your-own-tool) section in the README. Source `adapters/lib/shared.sh`, call `_run_generate` with your output filename and tool name, add it to `install.sh`, and open a PR. Most adapters are under 15 lines.
