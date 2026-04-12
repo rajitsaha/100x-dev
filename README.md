@@ -204,37 +204,46 @@ Only installed when you select Claude Code + Plugins during setup.
 | `ccc` | Continue last Claude Code session |
 | `100x-update` | Pull latest workflows and apply |
 | `100x-check` | Check for updates without applying |
+| `bash ~/100x-dev/scripts/changelog.sh` | Preview unreleased changes since last tag |
+
+---
+
+## Changelog
+
+Release history is in [CHANGELOG.md](CHANGELOG.md).
+
+To see what's changed since the last release:
+```bash
+bash ~/100x-dev/scripts/changelog.sh
+```
+
+To create a new release entry and tag:
+```bash
+bash ~/100x-dev/scripts/changelog.sh --release
+```
 
 ---
 
 ## Add Your Own Tool
 
-Write one adapter script in `adapters/`:
+Write one adapter script in `adapters/`. Adapters share a common library — your script sources it and calls one function:
 
 ```bash
 #!/usr/bin/env bash
 set -e
-
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOWS_DIR="$REPO_DIR/workflows"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/shared.sh"
 
 install_project() {
   local project_path="${1:-.}"
-  local output_file="$project_path/.my-tool-config"
-
-  {
-    echo "# 100x Dev Workflows"
-    for f in "$WORKFLOWS_DIR/"*.md; do
-      echo "---"
-      cat "$f"
-    done
-  } > "$output_file"
+  _run_generate "$project_path" ".my-tool-config" "My Tool"
 }
 
-install_project "${1:-.}"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  install_project "${1:-.}"
+fi
 ```
 
-Add it to `install.sh` and open a PR. That's it.
+`_run_generate` handles workflow concatenation, directory creation, and output formatting. Add your adapter to `install.sh` and open a PR. That's it.
 
 ---
 
