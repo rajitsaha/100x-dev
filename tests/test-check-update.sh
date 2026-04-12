@@ -174,6 +174,40 @@ STUB
   fi
 }
 
+test_adapter_writes_tracked_projects() {
+  _setup
+  local fake_repo
+  fake_repo="$(mktemp -d)"
+
+  # Minimal fake workflows dir so _run_generate has something to loop over
+  mkdir -p "$fake_repo/workflows"
+  echo "# test workflow" > "$fake_repo/workflows/gate.md"
+
+  local project_dir="$HOME/myproject"
+  mkdir -p "$project_dir"
+
+  (
+    export HOME
+    export HUNDRED_X_REPO_OVERRIDE="$fake_repo"
+    bash -c "
+      source '$REPO_DIR/adapters/lib/shared.sh'
+      _run_generate '$project_dir' '.cursorrules' 'TestTool'
+    "
+  ) 2>/dev/null || true
+
+  local tracked="$HOME/.100x-dev/tracked-projects"
+  if grep -qxF "$project_dir" "$tracked" 2>/dev/null; then
+    echo "  PASS: _run_generate writes project path to tracked-projects"
+    (( PASS++ )) || true
+  else
+    echo "  FAIL: project path not found in tracked-projects"
+    echo "    tracked file contents: $(cat "$tracked" 2>/dev/null || echo '(missing)')"
+    (( FAIL++ )) || true
+  fi
+
+  rm -rf "$fake_repo"
+}
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -187,6 +221,7 @@ test_snoozed_suppresses_claude_hook
 test_silent_creates_cache_file
 test_invalid_flag_exits_nonzero
 test_aliases_sources_cleanly
+test_adapter_writes_tracked_projects
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
