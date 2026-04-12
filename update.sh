@@ -108,6 +108,26 @@ settings['enabledPlugins'] = enabled
 extra = repo_data.get('extraKnownMarketplaces', {})
 settings.setdefault('extraKnownMarketplaces', {}).update(extra)
 
+# Merge SessionStart hook for version check
+hook_cmd = os.path.expanduser('~/100x-dev/shell/check-update.sh') + ' --claude-hook'
+hooks = settings.setdefault('hooks', {})
+session_start = hooks.setdefault('SessionStart', [])
+
+already_exists = any(
+    h.get('command') == hook_cmd
+    for entry in session_start
+    for h in entry.get('hooks', [])
+)
+
+if not already_exists:
+    session_start.append({
+        'matcher': '',
+        'hooks': [{'type': 'command', 'command': hook_cmd}]
+    })
+    print('  Added SessionStart update-check hook ✓')
+else:
+    print('  SessionStart hook: already configured ✓')
+
 with open(settings_file, 'w') as f:
     json.dump(settings, f, indent=2)
 
@@ -118,6 +138,47 @@ else:
 PYEOF
 
 echo -e "  ${CYAN}→ Shell aliases auto-updated (sourced file)${NC}"
+
+# ── Regenerate tracked project instruction files ────────────────────────────
+
+regenerate_tracked_projects() {
+  local tracked="$HOME/.100x-dev/tracked-projects"
+  [[ -f "$tracked" ]] || return 0
+
+  local count=0
+  while IFS= read -r project_path; do
+    [[ -z "$project_path" ]] && continue
+    [[ -d "$project_path" ]] || continue  # skip deleted projects
+
+    local regenerated=false
+
+    [[ -f "$project_path/.cursorrules" ]]                    && bash "$REPO_DIR/adapters/cursor.sh"      "$project_path" && regenerated=true
+    [[ -f "$project_path/AGENTS.md" ]]                       && bash "$REPO_DIR/adapters/codex.sh"       "$project_path" && regenerated=true
+    [[ -f "$project_path/.windsurfrules" ]]                  && bash "$REPO_DIR/adapters/windsurf.sh"    "$project_path" && regenerated=true
+    [[ -f "$project_path/.github/copilot-instructions.md" ]] && bash "$REPO_DIR/adapters/copilot.sh"    "$project_path" && regenerated=true
+    [[ -f "$project_path/GEMINI.md" ]]                       && bash "$REPO_DIR/adapters/gemini.sh"      "$project_path" && regenerated=true
+    [[ -f "$project_path/ANTIGRAVITY.md" ]]                  && bash "$REPO_DIR/adapters/antigravity.sh" "$project_path" && regenerated=true
+
+    "$regenerated" && (( count++ )) || true
+  done < "$tracked"
+
+  if (( count > 0 )); then
+    echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
+  fi
+}
+
+# Clear update-available flag from cache so banner stops showing
+if [[ -f "$HOME/.100x-dev/update-cache" ]]; then
+  _tmp="$(mktemp)"
+  grep -v '^has_update=' "$HOME/.100x-dev/update-cache" > "$_tmp" 2>/dev/null || true
+  grep -v '^snoozed_until=' "$_tmp" >> /dev/null || true
+  mv "$_tmp" "$HOME/.100x-dev/update-cache"
+  echo "has_update=false"  >> "$HOME/.100x-dev/update-cache"
+  echo "snoozed_until=0"   >> "$HOME/.100x-dev/update-cache"
+fi
+
+regenerate_tracked_projects
+
 echo ""
 echo -e "${GREEN}✓ 100x Dev updated! Note: if using Claude Code, run /reload-plugins to activate new plugins.${NC}"
 echo ""
