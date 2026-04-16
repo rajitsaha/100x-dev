@@ -193,9 +193,9 @@ cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
 
 ## Plugins (Claude Code Bonus)
 
-13 curated plugins auto-installed into Claude Code:
+12 curated plugins auto-installed into Claude Code:
 
-**superpowers** | **frontend-design** | **stripe** | **hookify** | **pr-review-toolkit** | **code-review** | **playwright** | **firecrawl** | **github** | **skill-creator** | **code-simplifier** | **security-guidance** | **claude-mem**
+**superpowers** | **frontend-design** | **hookify** | **pr-review-toolkit** | **code-review** | **playwright** | **github** | **skill-creator** | **code-simplifier** | **security-guidance** | **remember** | **claude-mem**
 
 Only installed when you select Claude Code + Plugins during setup.
 
