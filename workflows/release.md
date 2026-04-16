@@ -39,9 +39,7 @@ Detected registries:
 
 ## Phase 1 — Quality Gate (MANDATORY)
 
-Run the **gate** workflow. All gates must pass. **If any gate fails → STOP. Do not continue.**
-
-Only continue when gate shows: `✅ ALL GATES PASSED`
+Run the **gate** workflow. Do NOT continue until it reports `✅ ALL GATES PASSED`.
 
 ---
 

@@ -35,10 +35,7 @@ fi
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=""
-for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
-  [ -f "$(git rev-parse --show-toplevel 2>/dev/null)/$f" ] && INSTRUCTION_FILE="$(git rev-parse --show-toplevel 2>/dev/null)/$f" && break
-done
+INSTRUCTION_FILE=$(ROOT=$(git rev-parse --show-toplevel 2>/dev/null); for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$ROOT/$f" ] && echo "$ROOT/$f" && break; done)
 DB_CONNECTIONS="$HOME/.claude/db-connections.json"
 
 if [ -n "$NAMED_CONNECTION" ]; then

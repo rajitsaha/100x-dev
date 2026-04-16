@@ -123,10 +123,7 @@ After CI/CD passes and deployment completes, run the full verification pipeline.
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=""
-for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
-  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
-done
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 ```
 
 ### Step 1 — Health checks

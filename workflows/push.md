@@ -8,16 +8,7 @@ Quality gate re-runs before pushing. **Do NOT push if any gate fails.**
 
 ## Phase 0 — Quality Gate (MANDATORY)
 
-Run the **gate** workflow. All four gates must pass before pushing:
-
-1. **Tests** — ≥ 95% coverage, zero failures
-2. **Security** — zero critical, zero high vulnerabilities
-3. **Local build** — zero compiler errors
-4. **Docker build** — passes (or skipped if no Dockerfile)
-
-**If the gate workflow reports ANY failure → STOP. Do not push. Fix the issue, create a new commit, then push.**
-
-Only continue when gate shows: `✅ ALL GATES PASSED`
+Run the **gate** workflow. Do NOT push until it reports `✅ ALL GATES PASSED`. If any gate fails → STOP, fix the issue, create a new commit, then re-run gate.
 
 ---
 
@@ -130,10 +121,7 @@ After all CI/CD workflows succeed:
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=""
-for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
-  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
-done
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 ```
 
 1. **Health checks** — read health endpoint URLs from the project instruction file or README. Hit each and confirm HTTP 200:

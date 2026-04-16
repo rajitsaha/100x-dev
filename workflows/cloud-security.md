@@ -13,10 +13,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 cd "$PROJECT_ROOT"
 
 # Detect project instruction file
-INSTRUCTION_FILE=""
-for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do
-  [ -f "$PROJECT_ROOT/$f" ] && INSTRUCTION_FILE="$PROJECT_ROOT/$f" && break
-done
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 
 # Detect GCP projects used by this codebase
 GCP_PROJECTS=$(grep -rh "project.*=\|gcloud.*--project\|GCP_PROJECT\|GOOGLE_CLOUD_PROJECT" \
