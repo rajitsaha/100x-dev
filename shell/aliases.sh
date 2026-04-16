@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # 100x Dev shortcuts
 # Source this file from ~/.zshrc or ~/.bashrc:
 #   source ~/100x-dev/shell/aliases.sh
@@ -7,7 +8,9 @@ alias cc='claude'
 alias ccc='claude --continue'
 
 # Setup management
+# shellcheck disable=SC2139
 alias 100x-update="$HOME/100x-dev/update.sh"
+# shellcheck disable=SC2139
 alias 100x-check="$HOME/100x-dev/update.sh --check-only"
 
 # ── Version check ─────────────────────────────────────────────────────────────

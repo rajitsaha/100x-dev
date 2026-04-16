@@ -13,7 +13,6 @@ STATE_DIR="$HOME/.100x-dev"
 CACHE_FILE="$STATE_DIR/update-cache"
 FLAG="${1:-}"
 
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
@@ -128,16 +127,20 @@ _do_notify() {
   local short_remote="${remote_sha:0:7}"
 
   echo ""
+  # shellcheck disable=SC2059
   printf "${YELLOW}╔══════════════════════════════════════════════════════╗${NC}\n"
+  # shellcheck disable=SC2059
   printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "100x Dev update available: $short_local → $short_remote"
 
   IFS='|' read -ra _lines <<< "$changelog"
   for _line in "${_lines[@]}"; do
     [[ -z "$_line" ]] && continue
     local _msg="${_line#* }"
+    # shellcheck disable=SC2059
     printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "• $_msg"
   done
 
+  # shellcheck disable=SC2059
   printf "${YELLOW}╚══════════════════════════════════════════════════════╝${NC}\n"
   echo ""
 

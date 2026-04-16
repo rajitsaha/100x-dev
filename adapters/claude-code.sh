@@ -27,6 +27,7 @@ install_global() {
   for f in "$WORKFLOWS_DIR/"*.md; do
     cp "$f" "$COMMANDS_DIR/$(basename "$f")"
     echo "" >> "$COMMANDS_DIR/$(basename "$f")"
+    # shellcheck disable=SC2016
     echo '$ARGUMENTS' >> "$COMMANDS_DIR/$(basename "$f")"
     count=$((count + 1))
   done
@@ -36,7 +37,7 @@ install_global() {
     for f in "$WORKFLOWS_DIR/db-engines/"*.md; do
       cp "$f" "$COMMANDS_DIR/db-engines/"
     done
-    engine_count=$(ls "$WORKFLOWS_DIR/db-engines/"*.md 2>/dev/null | wc -l | tr -d ' ')
+    engine_count=$(find "$WORKFLOWS_DIR/db-engines/" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     echo -e "  ${GREEN}→ Copied db-engines/ ($engine_count engine files) ✓${NC}"
   fi
 

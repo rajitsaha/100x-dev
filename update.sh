@@ -40,7 +40,7 @@ echo "  Current version:  $LOCAL_SHORT ($(git log -1 --format='%ar' HEAD))"
 echo "  Latest version:   $REMOTE_SHORT ($(git log -1 --format='%ar' origin/main))"
 echo ""
 echo "Changes:"
-echo "$CHANGES" | sed 's/^/  • /'
+while IFS= read -r line; do echo "  • $line"; done <<< "$CHANGES"
 echo ""
 
 if [ "$CHECK_ONLY" = true ]; then
@@ -78,7 +78,7 @@ done
 if [ -d "$REPO_DIR/workflows/db-engines" ]; then
   mkdir -p "$WORKFLOWS_DIR/db-engines"
   cp "$REPO_DIR/workflows/db-engines/"*.md "$WORKFLOWS_DIR/db-engines/"
-  echo -e "  ${GREEN}→ Updated db-engines/ ($(ls "$REPO_DIR/workflows/db-engines/"*.md | wc -l | tr -d ' ') engine files) ✓${NC}"
+  echo -e "  ${GREEN}→ Updated db-engines/ ($(find "$REPO_DIR/workflows/db-engines/" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ') engine files) ✓${NC}"
 fi
 
 echo -e "  ${GREEN}→ Updated $count workflows ✓${NC}"

@@ -111,6 +111,7 @@ install_workflows() {
   local need_project_path=false
   for tool in CURSOR CODEX WINDSURF COPILOT GEMINI ANTIGRAVITY; do
     eval "val=\$TOOL_$tool"
+    # shellcheck disable=SC2154
     [ "$val" = true ] && need_project_path=true && break
   done
 
@@ -203,9 +204,7 @@ install_shell() {
   if grep -qF "$SOURCE_LINE" "$RC_FILE" 2>/dev/null; then
     echo -e "  ${YELLOW}→ Already sourced in ~/${RC_FILE##*/} (no change)${NC}"
   else
-    echo "" >> "$RC_FILE"
-    echo "# 100x Dev aliases" >> "$RC_FILE"
-    echo "$SOURCE_LINE" >> "$RC_FILE"
+    { echo ""; echo "# 100x Dev aliases"; echo "$SOURCE_LINE"; } >> "$RC_FILE"
     echo -e "  ${GREEN}→ Added source line to ~/${RC_FILE##*/} ($SHELL_NAME) ✓${NC}"
   fi
 

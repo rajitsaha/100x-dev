@@ -1,6 +1,10 @@
 <div align="center">
 
+<img src="assets/100x-dev-blogo.png" alt="100x Dev Logo" width="120" />
+
 # 100x Dev
+
+<img src="assets/100x-dev-banner.png" alt="100x Dev Banner" width="800" />
 
 ### Stop vibe coding. Start shipping production-grade software.
 
