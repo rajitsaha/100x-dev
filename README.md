@@ -12,6 +12,7 @@
 
 One install. Any AI coding tool. Zero excuses.
 
+[![Version](https://img.shields.io/github/v/release/rajitsaha/100x-dev?style=flat-square&label=version&color=brightgreen)](https://github.com/rajitsaha/100x-dev/releases/latest)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-supported-blue?style=flat-square)](https://claude.ai)
 [![Cursor](https://img.shields.io/badge/Cursor-supported-purple?style=flat-square)](https://cursor.com)
 [![Codex](https://img.shields.io/badge/Codex-supported-green?style=flat-square)](https://openai.com)
@@ -49,6 +50,8 @@ cd ~/100x-dev && ./install.sh
 ```
 
 That's it. Your AI coding tool now has production-grade discipline.
+
+> **Latest release:** [v1.1.0](https://github.com/rajitsaha/100x-dev/releases/latest) — token optimization, update notifications, banner. See [What's new](https://github.com/rajitsaha/100x-dev/releases/latest).
 
 > **New here?** Read the full **[How to Use guide](docs/USAGE.md)** — covers installation by tool, propagating workflows to all your projects, team onboarding, and daily usage patterns.
 

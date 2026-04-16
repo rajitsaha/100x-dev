@@ -3,6 +3,7 @@ set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES_DIR="$HOME/100x-templates"
+VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
 
 # Colors
 GREEN='\033[0;32m'
@@ -13,6 +14,7 @@ NC='\033[0m'
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║      100x Dev Setup — Installer      ║"
+[ -n "$VERSION" ] && printf "║  %-36s║\n" "version v$VERSION"
 echo "╚══════════════════════════════════════╝"
 echo ""
 

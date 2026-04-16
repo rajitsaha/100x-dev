@@ -180,7 +180,8 @@ fi
 regenerate_tracked_projects
 
 echo ""
-echo -e "${GREEN}✓ 100x Dev updated! Note: if using Claude Code, run /reload-plugins to activate new plugins.${NC}"
+NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
+echo -e "${GREEN}✓ 100x Dev updated to v${NEW_VERSION}! Note: if using Claude Code, run /reload-plugins to activate new plugins.${NC}"
 echo ""
 echo -e "${CYAN}Tip: Add this to your crontab to get notified weekly:${NC}"
 echo "  0 9 * * 1 $REPO_DIR/update.sh --check-only"
