@@ -86,7 +86,7 @@ echo -e "  ${GREEN}→ Updated $count workflows ✓${NC}"
 python3 << PYEOF
 import json, os
 
-plugins_file = os.path.join('$REPO_DIR', 'plugins.json')
+plugins_file = os.path.join('$REPO_DIR', 'plugins', 'plugins.json')
 settings_file = '$SETTINGS_FILE'
 
 with open(plugins_file) as f:
