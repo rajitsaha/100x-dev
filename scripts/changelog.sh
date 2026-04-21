@@ -87,7 +87,16 @@ _do_release() {
 
   git -C "$REPO_DIR" tag -a "$tag" -m "Release $tag"
   echo -e "${GREEN}Tagged $tag and updated CHANGELOG.md${NC}"
-  echo -e "${CYAN}  Next: git push origin $tag${NC}"
+
+  read -rp "Push tag $tag now to trigger GitHub Release? (Y/n): " _push
+  _push="${_push:-Y}"
+  if [[ "$_push" =~ ^[Yy]$ ]]; then
+    git -C "$REPO_DIR" push origin "$tag"
+    echo -e "${GREEN}Tag $tag pushed — GitHub Release will be created automatically.${NC}"
+    echo -e "${CYAN}Watch: https://github.com/rajitsaha/100x-dev/releases${NC}"
+  else
+    echo -e "${CYAN}  Push when ready: git push origin $tag${NC}"
+  fi
 }
 
 case "${1:-}" in
