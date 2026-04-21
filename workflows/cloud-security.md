@@ -10,24 +10,11 @@ Rigorous security and data privacy scan for cloud deployments. Covers GCP infras
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-cd "$PROJECT_ROOT"
-
-# Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
-
-# Detect GCP projects used by this codebase
-GCP_PROJECTS=$(grep -rh "project.*=\|gcloud.*--project\|GCP_PROJECT\|GOOGLE_CLOUD_PROJECT" \
-  ${INSTRUCTION_FILE:-/dev/null} .env.example terraform/ 2>/dev/null \
-  | grep -oE '[a-z][a-z0-9-]{4,28}' | sort -u | grep -v "^--" || true)
-
-# Detect if Dockerfile present
-HAS_DOCKER=$(ls Dockerfile docker-compose.yml deploy/docker-compose.yml 2>/dev/null | head -1 || echo "")
-
-# Detect Terraform
-HAS_TERRAFORM=$(ls terraform/*.tf infra/*.tf 2>/dev/null | head -1 || echo "")
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+GCP_PROJECTS=$(grep -rh "GCP_PROJECT\|GOOGLE_CLOUD_PROJECT\|gcloud.*--project" ${INSTRUCTION_FILE:-/dev/null} .env.example terraform/ 2>/dev/null | grep -oE '[a-z][a-z0-9-]{4,28}' | sort -u | grep -v "^--" || true)
+HAS_DOCKER=$(ls Dockerfile docker-compose.yml 2>/dev/null | head -1 || true)
+HAS_TERRAFORM=$(ls terraform/*.tf infra/*.tf 2>/dev/null | head -1 || true)
 ```
-
-Also read the project instruction file to identify all GCP projects. Scan ALL of them.
 
 ---
 
@@ -38,41 +25,20 @@ For each GCP project detected:
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== IAM: $PROJECT ==="
-
-  # 1a. Check for overprivileged IAM bindings
   gcloud projects get-iam-policy "$PROJECT" --format=json 2>/dev/null \
     | python3 -c "
-import sys, json
-policy = json.load(sys.stdin)
-dangerous = ['roles/editor', 'roles/owner', 'roles/iam.securityAdmin', 'roles/storage.admin']
-for binding in policy.get('bindings', []):
-    if binding['role'] in dangerous:
-        for member in binding['members']:
-            if 'serviceAccount' in member or 'allUsers' in member:
-                print(f'[HIGH] Overprivileged: {binding[\"role\"]} → {member}')
-"
-
-  # 1b. User-managed service account keys (should use Workload Identity instead)
+import sys,json
+p=json.load(sys.stdin)
+bad=['roles/editor','roles/owner','roles/iam.securityAdmin','roles/storage.admin']
+[print('[HIGH]',b['role'],m) for b in p.get('bindings',[]) for m in b['members'] if b['role'] in bad and ('serviceAccount' in m or 'allUsers' in m)]"
   gcloud iam service-accounts list --project="$PROJECT" --format="value(email)" 2>/dev/null \
-  | while read SA; do
-    KEYS=$(gcloud iam service-accounts keys list --iam-account="$SA" \
-      --filter="keyType=USER_MANAGED" --format="value(KEY_ID)" 2>/dev/null | wc -l)
-    if [ "$KEYS" -gt 0 ]; then
-      echo "[HIGH] $SA has $KEYS user-managed key(s) — use Workload Identity Federation instead"
-    fi
-  done
-
-  # 1c. allUsers / allAuthenticatedUsers in project IAM
-  gcloud projects get-iam-policy "$PROJECT" --format=json 2>/dev/null \
-    | grep -E "allUsers|allAuthenticatedUsers" \
-    && echo "[CRITICAL] Project IAM has public (allUsers) binding" || true
+    | while read SA; do
+        n=$(gcloud iam service-accounts keys list --iam-account="$SA" --filter="keyType=USER_MANAGED" --format="value(KEY_ID)" 2>/dev/null | wc -l)
+        [ "$n" -gt 0 ] && echo "[HIGH] $SA: $n user-managed key(s) — use Workload Identity instead"
+      done
+  gcloud projects get-iam-policy "$PROJECT" --format=json 2>/dev/null | grep -E "allUsers|allAuthenticatedUsers" && echo "[CRITICAL] Public IAM binding found" || true
 done
 ```
-
-**Findings required to pass:**
-- No `roles/editor` or `roles/owner` assigned to service accounts
-- No user-managed SA keys (prefer Workload Identity)
-- No `allUsers` bindings in project IAM
 
 ---
 
@@ -81,53 +47,19 @@ done
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== Network: $PROJECT ==="
-
-  # 2a. Firewall rules open to 0.0.0.0/0 on sensitive ports
   gcloud compute firewall-rules list --project="$PROJECT" --format=json 2>/dev/null \
     | python3 -c "
-import sys, json
-rules = json.load(sys.stdin)
-sensitive_ports = {'22', '3389', '5432', '6379', '3306', '27017', '6443'}
-for rule in rules:
-    sources = rule.get('sourceRanges', [])
-    if '0.0.0.0/0' in sources or '::/0' in sources:
-        for allowed in rule.get('allowed', []):
-            ports = allowed.get('ports', [])
-            for port in ports:
-                if str(port) in sensitive_ports:
-                    print(f'[CRITICAL] Firewall {rule[\"name\"]}: port {port} open to 0.0.0.0/0')
-"
-
-  # 2b. Cloud SQL — public IP and SSL
+import sys,json
+sp={'22','3389','5432','6379','3306','27017','6443'}
+[print('[CRITICAL] Firewall',r['name'],'port',p,'open to 0.0.0.0/0') for r in json.load(sys.stdin) if '0.0.0.0/0' in r.get('sourceRanges',[]) or '::/0' in r.get('sourceRanges',[]) for a in r.get('allowed',[]) for p in a.get('ports',[]) if str(p) in sp]"
   gcloud sql instances list --project="$PROJECT" --format=json 2>/dev/null \
     | python3 -c "
-import sys, json
-instances = json.load(sys.stdin)
-for inst in instances:
-    name = inst['name']
-    settings = inst.get('settings', {})
-    ip_config = settings.get('ipConfiguration', {})
-
-    # Public IP check
-    if ip_config.get('ipv4Enabled', False):
-        auth_nets = ip_config.get('authorizedNetworks', [])
-        for net in auth_nets:
-            if net.get('value') in ('0.0.0.0/0', '::/0'):
-                print(f'[CRITICAL] Cloud SQL {name}: public IP open to 0.0.0.0/0')
-            else:
-                print(f'[MEDIUM] Cloud SQL {name}: public IP enabled (authorized: {net.get(\"value\")})')
-
-    # SSL check
-    if not ip_config.get('requireSsl', False) and not ip_config.get('sslMode', '') == 'ENCRYPTED_ONLY':
-        print(f'[HIGH] Cloud SQL {name}: SSL not required for connections')
-    else:
-        print(f'[PASS] Cloud SQL {name}: SSL enforced')
-
-    # Backup check
-    backup = settings.get('backupConfiguration', {})
-    if not backup.get('enabled', False):
-        print(f'[HIGH] Cloud SQL {name}: automated backups disabled')
-"
+import sys,json
+for i in json.load(sys.stdin):
+  n,ip=i['name'],i.get('settings',{}).get('ipConfiguration',{})
+  [print('[CRITICAL] Cloud SQL',n,'public IP open to',net['value']) if net.get('value') in ('0.0.0.0/0','::/0') else print('[MEDIUM] Cloud SQL',n,'public IP enabled') for net in ip.get('authorizedNetworks',[])] if ip.get('ipv4Enabled') else None
+  print('[HIGH] Cloud SQL',n,'SSL not required') if not ip.get('requireSsl') and ip.get('sslMode','')!='ENCRYPTED_ONLY' else print('[PASS] Cloud SQL',n,'SSL enforced')
+  print('[HIGH] Cloud SQL',n,'backups disabled') if not i.get('settings',{}).get('backupConfiguration',{}).get('enabled') else None"
 done
 ```
 
@@ -138,28 +70,13 @@ done
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== Storage: $PROJECT ==="
-
-  gcloud storage buckets list --project="$PROJECT" --format="value(name)" 2>/dev/null \
-  | while read BUCKET; do
-    # Public access check
-    IAM=$(gcloud storage buckets get-iam-policy "gs://$BUCKET" --format=json 2>/dev/null || echo "{}")
-    if echo "$IAM" | grep -qE "allUsers|allAuthenticatedUsers"; then
-      echo "[CRITICAL] Bucket gs://$BUCKET is publicly accessible"
-    fi
-
-    # Uniform bucket-level access (prevents per-object ACLs)
-    UNIFORM=$(gcloud storage buckets describe "gs://$BUCKET" \
-      --format="value(iamConfiguration.uniformBucketLevelAccess.enabled)" 2>/dev/null || echo "False")
-    if [ "$UNIFORM" != "True" ]; then
-      echo "[MEDIUM] Bucket gs://$BUCKET: uniform bucket-level access not enabled (per-object ACLs allowed)"
-    fi
-
-    # Versioning (for critical data buckets)
-    VERSIONING=$(gcloud storage buckets describe "gs://$BUCKET" \
-      --format="value(versioning.enabled)" 2>/dev/null || echo "False")
-    if [ "$VERSIONING" != "True" ]; then
-      echo "[LOW] Bucket gs://$BUCKET: versioning not enabled"
-    fi
+  gcloud storage buckets list --project="$PROJECT" --format="value(name)" 2>/dev/null | while read BUCKET; do
+    gcloud storage buckets get-iam-policy "gs://$BUCKET" --format=json 2>/dev/null \
+      | grep -qE "allUsers|allAuthenticatedUsers" && echo "[CRITICAL] Bucket gs://$BUCKET is public" || true
+    [ "$(gcloud storage buckets describe "gs://$BUCKET" --format="value(iamConfiguration.uniformBucketLevelAccess.enabled)" 2>/dev/null)" != "True" ] \
+      && echo "[MEDIUM] Bucket gs://$BUCKET: uniform access not enabled" || true
+    [ "$(gcloud storage buckets describe "gs://$BUCKET" --format="value(versioning.enabled)" 2>/dev/null)" != "True" ] \
+      && echo "[LOW] Bucket gs://$BUCKET: versioning not enabled" || true
   done
 done
 ```
@@ -171,36 +88,15 @@ done
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== Cloud Run: $PROJECT ==="
-
-  gcloud run services list --project="$PROJECT" --format=json \
-    --region=us-central1 2>/dev/null \
+  gcloud run services list --project="$PROJECT" --format=json --region=us-central1 2>/dev/null \
     | python3 -c "
-import sys, json
-services = json.load(sys.stdin)
-for svc in services:
-    name = svc['metadata']['name']
-    annotations = svc['metadata'].get('annotations', {})
-
-    # Check for secrets in env vars
-    containers = svc.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
-    for container in containers:
-        for env in container.get('env', []):
-            val = env.get('value', '')
-            # Flag values that look like actual secrets (not references)
-            if len(val) > 20 and not val.startswith('$(') and 'secretKeyRef' not in str(env):
-                print(f'[HIGH] Cloud Run {name}: env var \"{env[\"name\"]}\" may contain hardcoded secret')
-" 2>/dev/null || true
-
-  # Check each service IAM — allUsers means public internet access
-  gcloud run services list --project="$PROJECT" --region=us-central1 \
-    --format="value(SERVICE)" 2>/dev/null \
-  | while read SVC; do
-    IAM=$(gcloud run services get-iam-policy "$SVC" \
-      --project="$PROJECT" --region=us-central1 --format=json 2>/dev/null || echo "{}")
-    if echo "$IAM" | grep -q "allUsers"; then
-      echo "[INFO] Cloud Run $SVC: public (allUsers) — verify app-level auth is enforced"
-    fi
-  done
+import sys,json
+[print('[HIGH] Cloud Run',s['metadata']['name'],'env',e['name'],'may contain hardcoded secret') for s in json.load(sys.stdin) for c in s.get('spec',{}).get('template',{}).get('spec',{}).get('containers',[]) for e in c.get('env',[]) if len(e.get('value',''))>20 and not e.get('value','').startswith('\$(') and 'secretKeyRef' not in str(e)]" 2>/dev/null || true
+  gcloud run services list --project="$PROJECT" --region=us-central1 --format="value(SERVICE)" 2>/dev/null \
+    | while read SVC; do
+        gcloud run services get-iam-policy "$SVC" --project="$PROJECT" --region=us-central1 --format=json 2>/dev/null \
+          | grep -q "allUsers" && echo "[INFO] Cloud Run $SVC: public — verify app-level auth" || true
+      done
 done
 ```
 
@@ -211,26 +107,12 @@ done
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== Audit Logging: $PROJECT ==="
-
-  # Check data access audit logs are enabled for key services
   gcloud projects get-iam-policy "$PROJECT" --format=json 2>/dev/null \
     | python3 -c "
-import sys, json
-policy = json.load(sys.stdin)
-audit_configs = policy.get('auditConfigs', [])
-services_with_data_access = set()
-for config in audit_configs:
-    for log_config in config.get('auditLogConfigs', []):
-        if log_config.get('logType') == 'DATA_READ' or log_config.get('logType') == 'DATA_WRITE':
-            services_with_data_access.add(config.get('service', ''))
-
-critical_services = ['cloudsql.googleapis.com', 'storage.googleapis.com', 'secretmanager.googleapis.com']
-for svc in critical_services:
-    if svc not in services_with_data_access:
-        print(f'[MEDIUM] Audit logging (DATA_READ/DATA_WRITE) not enabled for {svc}')
-    else:
-        print(f'[PASS] Audit logging enabled for {svc}')
-"
+import sys,json
+p=json.load(sys.stdin)
+svcs={c['service'] for c in p.get('auditConfigs',[]) for l in c.get('auditLogConfigs',[]) if l.get('logType') in ('DATA_READ','DATA_WRITE')}
+[print('[PASS] Audit logging:',s) if s in svcs else print('[MEDIUM] Audit logging not enabled:',s) for s in ['cloudsql.googleapis.com','storage.googleapis.com','secretmanager.googleapis.com']]"
 done
 ```
 
@@ -241,23 +123,10 @@ done
 ```bash
 for PROJECT in $GCP_PROJECTS; do
   echo "=== Secrets: $PROJECT ==="
-
-  # List all secrets and check for ones without recent rotation
   gcloud secrets list --project="$PROJECT" --format=json 2>/dev/null \
     | python3 -c "
-import sys, json
-from datetime import datetime, timezone
-secrets = json.load(sys.stdin)
-now = datetime.now(timezone.utc)
-for secret in secrets:
-    name = secret['name'].split('/')[-1]
-    create_time = secret.get('createTime', '')
-    # Flag secrets older than 1 year without rotation config
-    labels = secret.get('labels', {})
-    rotation = secret.get('rotation', {})
-    if not rotation:
-        print(f'[LOW] Secret {name}: no rotation policy configured')
-"
+import sys,json
+[print('[LOW] Secret',s['name'].split('/')[-1],'no rotation policy') for s in json.load(sys.stdin) if not s.get('rotation')]"
 done
 ```
 
@@ -268,35 +137,13 @@ done
 ```bash
 if [ -n "$HAS_DOCKER" ]; then
   echo "=== Container Security ==="
-
-  # 7a. Running as root
-  if grep -rq "^USER root\|^RUN.*adduser\|USER 0" Dockerfile 2>/dev/null; then
-    echo "[HIGH] Dockerfile: container runs as root — add non-root USER"
-  elif ! grep -q "^USER" Dockerfile 2>/dev/null; then
-    echo "[HIGH] Dockerfile: no USER directive — defaults to root"
-  else
-    echo "[PASS] Dockerfile: non-root user configured"
-  fi
-
-  # 7b. Secrets in Dockerfile (ARG/ENV with values)
-  if grep -E "^(ARG|ENV)\s+\w+(KEY|SECRET|PASSWORD|TOKEN|PASS)=\S+" Dockerfile 2>/dev/null; then
-    echo "[CRITICAL] Dockerfile: hardcoded secret in ARG/ENV"
-  else
-    echo "[PASS] Dockerfile: no hardcoded secrets"
-  fi
-
-  # 7c. Pinned base image (no :latest)
-  BASE=$(grep "^FROM" Dockerfile 2>/dev/null | head -1)
-  if echo "$BASE" | grep -q ":latest\b"; then
-    echo "[MEDIUM] Dockerfile: base image uses :latest tag — pin to a specific digest or version"
-  else
-    echo "[PASS] Dockerfile: base image pinned: $BASE"
-  fi
-
-  # 7d. COPY --chown instead of RUN chown (performance + security)
-  if grep -q "^RUN chown" Dockerfile 2>/dev/null; then
-    echo "[LOW] Dockerfile: use COPY --chown instead of RUN chown"
-  fi
+  grep -rq "^USER root\|USER 0" Dockerfile 2>/dev/null && echo "[HIGH] Dockerfile: runs as root" || \
+    { grep -q "^USER" Dockerfile 2>/dev/null && echo "[PASS] non-root USER set" || echo "[HIGH] Dockerfile: no USER directive (defaults to root)"; }
+  grep -qE "^(ARG|ENV)\s+\w+(KEY|SECRET|PASSWORD|TOKEN|PASS)=\S+" Dockerfile 2>/dev/null \
+    && echo "[CRITICAL] Dockerfile: hardcoded secret in ARG/ENV" || echo "[PASS] No hardcoded secrets"
+  grep "^FROM" Dockerfile 2>/dev/null | head -1 | grep -q ":latest" \
+    && echo "[MEDIUM] Dockerfile: base image uses :latest — pin version" || echo "[PASS] Base image pinned"
+  grep -q "^RUN chown" Dockerfile 2>/dev/null && echo "[LOW] Dockerfile: use COPY --chown instead of RUN chown" || true
 fi
 ```
 
@@ -308,94 +155,36 @@ Scan for PII patterns that should never appear in source code or logs.
 
 ```bash
 echo "=== PII in Source Code ==="
-
-# Email addresses hardcoded (not in tests or examples)
-PII_EMAIL=$(grep -rn '[a-zA-Z0-9._%+-]\+@[a-zA-Z0-9.-]\+\.[a-zA-Z]\{2,\}' \
-  --include="*.ts" --include="*.tsx" --include="*.py" --include="*.js" \
-  --exclude-dir=node_modules --exclude-dir=venv --exclude-dir=dist \
-  . 2>/dev/null \
-  | grep -v "example\.com\|test\|mock\|placeholder\|your-email\|\.spec\.\|\.test\." \
-  | grep -v "noreply@\|support@\|hello@\|admin@" \
-  | head -10 || true)
-if [ -n "$PII_EMAIL_PROD" ]; then
-  echo "[HIGH] Real email addresses found in source (not test/example)"
-  echo "$PII_EMAIL" | head -5
-fi
-
-# SSN patterns
-SSN=$(grep -rn '[0-9]\{3\}-[0-9]\{2\}-[0-9]\{4\}' \
-  --include="*.ts" --include="*.tsx" --include="*.py" \
-  --exclude-dir=node_modules --exclude-dir=venv \
-  . 2>/dev/null | head -5 || true)
-[ -n "$SSN" ] && echo "[CRITICAL] SSN pattern found in source: $SSN"
-
-# Credit card patterns
-CC=$(grep -rn '[0-9]\{4\}[- ][0-9]\{4\}[- ][0-9]\{4\}[- ][0-9]\{4\}' \
-  --include="*.ts" --include="*.tsx" --include="*.py" \
-  --exclude-dir=node_modules --exclude-dir=venv \
-  . 2>/dev/null | head -5 || true)
-[ -n "$CC" ] && echo "[CRITICAL] Credit card pattern found in source: $CC"
-
-# PII leaking into logs
-echo ""
-echo "=== PII in Log Statements ==="
-LOG_PII=$(grep -rn "console\.log\|logger\.\(info\|debug\|warn\|error\)" \
-  --include="*.ts" --include="*.tsx" --include="*.py" \
-  --exclude-dir=node_modules --exclude-dir=venv --exclude="*.test.*" --exclude="*.spec.*" \
-  . 2>/dev/null \
-  | grep -iE "email|password|ssn|credit.card|phone|dob|date.of.birth|social.security" \
-  | head -10 || true)
-if [ -n "$LOG_PII" ]; then
-  echo "[HIGH] PII field names in log statements (may leak PII to logs):"
-  echo "$LOG_PII" | head -5
-else
-  echo "[PASS] No PII field names detected in log statements"
-fi
-
-# Error responses leaking PII
-echo ""
-echo "=== PII in API Error Responses ==="
-ERR_PII=$(grep -rn "res\.json\|res\.send\|return.*error" \
-  --include="*.ts" \
-  --exclude-dir=node_modules --exclude="*.test.*" \
-  . 2>/dev/null \
-  | grep -iE "email|password|user\..*\b" \
-  | grep -v "error\.message\s*=\|//\|generic" \
-  | head -10 || true)
-if [ -n "$ERR_PII" ]; then
-  echo "[MEDIUM] Possible PII in API error responses — verify these are generic:"
-  echo "$ERR_PII" | head -5
-fi
+EXCL="--exclude-dir=node_modules --exclude-dir=venv --exclude-dir=dist"
+# Hardcoded emails (non-test/example)
+grep -rn $EXCL '[a-zA-Z0-9._%+-]\+@[a-zA-Z0-9.-]\+\.[a-zA-Z]\{2,\}' --include="*.ts" --include="*.tsx" --include="*.py" --include="*.js" . 2>/dev/null \
+  | grep -v "example\.com\|test\|mock\|\.spec\.\|\.test\.\|noreply@\|support@\|hello@\|admin@" | head -5 \
+  | grep -q . && echo "[HIGH] Real email addresses found in source" || true
+# SSN / credit card patterns
+grep -rn $EXCL '[0-9]\{3\}-[0-9]\{2\}-[0-9]\{4\}' --include="*.ts" --include="*.py" . 2>/dev/null | head -5 | grep -q . && echo "[CRITICAL] SSN pattern in source" || true
+grep -rn $EXCL '[0-9]\{4\}[- ][0-9]\{4\}[- ][0-9]\{4\}[- ][0-9]\{4\}' --include="*.ts" --include="*.py" . 2>/dev/null | head -5 | grep -q . && echo "[CRITICAL] Credit card pattern in source" || true
+# PII in logs / error responses
+grep -rn $EXCL "console\.log\|logger\." --include="*.ts" --include="*.py" --exclude="*.test.*" . 2>/dev/null \
+  | grep -iE "email|password|ssn|credit.card|phone|dob|social.security" | head -5 \
+  | grep -q . && echo "[HIGH] PII field names in log statements" || echo "[PASS] No PII in log statements"
+grep -rn $EXCL "res\.json\|res\.send\|return.*error" --include="*.ts" --exclude="*.test.*" . 2>/dev/null \
+  | grep -iE "email|password|user\." | grep -v "error\.message\|//\|generic" | head -5 \
+  | grep -q . && echo "[MEDIUM] Possible PII in API error responses — verify generic" || true
 ```
 
 ---
 
 ## Section 9 — Data Privacy Compliance Checklist
 
-Review these manually and confirm status. Report any gaps.
+Review manually. Report gaps.
 
-```
-GDPR / CCPA Compliance Checklist
-─────────────────────────────────────────────────────────
-□ Privacy Policy     — exists and is linked in the app
-□ Data Inventory     — all user PII fields documented
-□ Consent            — explicit consent collected before processing personal data
-□ Right to Delete    — user data deletion endpoint/flow exists
-□ Right to Export    — user data export capability exists
-□ Data Retention     — retention periods defined and enforced
-□ Third-party DPAs   — Data Processing Agreements in place with Stripe, Resend, Firebase, etc.
-□ Breach Response    — incident response plan documented (SECURITY.md or equivalent)
-□ Data Minimization  — collecting only what's needed (no unnecessary PII)
-□ Encryption at Rest — PII fields encrypted in DB (or DB encryption enabled)
-□ Encryption Transit — TLS enforced on all endpoints (HTTPS only)
-□ Audit Trail        — user data access/modification logged
-─────────────────────────────────────────────────────────
-```
+GDPR/CCPA: □ Privacy Policy □ Data Inventory □ Consent □ Right to Delete □ Right to Export □ Data Retention □ Third-party DPAs □ Breach Response □ Data Minimization □ Encryption at Rest □ Encryption Transit □ Audit Trail
 
-Check code evidence for each:
-- Delete endpoint: `grep -rn "DELETE.*user\|deleteUser\|deactivate" api/ src/ 2>/dev/null | head -5`
-- Export endpoint: `grep -rn "export.*user\|userExport\|data.*export" api/ src/ 2>/dev/null | head -5`
-- Retention policy: `grep -rn "retention\|expires\|cleanup\|purge" api/ 2>/dev/null | head -5`
+```bash
+grep -rn "DELETE.*user\|deleteUser\|deactivate" api/ src/ 2>/dev/null | head -3 || echo "[GAP] No delete user endpoint found"
+grep -rn "export.*user\|userExport\|data.*export" api/ src/ 2>/dev/null | head -3 || echo "[GAP] No export user endpoint found"
+grep -rn "retention\|expires\|cleanup\|purge" api/ 2>/dev/null | head -3 || echo "[GAP] No retention policy found"
+```
 
 ---
 
@@ -403,38 +192,17 @@ Check code evidence for each:
 
 ```bash
 echo "=== API Security ==="
-
-# Security headers (helmet or equivalent)
-HELMET=$(grep -rn "helmet\|Content-Security-Policy\|X-Frame-Options\|Strict-Transport" \
-  --include="*.ts" --include="*.py" --exclude-dir=node_modules . 2>/dev/null | head -3 || true)
-[ -z "$HELMET" ] && echo "[HIGH] No security headers middleware (helmet/CSP) found" \
-  || echo "[PASS] Security headers configured"
-
-# Rate limiting
-RATELIMIT=$(grep -rn "rateLimit\|rate.limit\|RateLimiter\|throttle" \
-  --include="*.ts" --include="*.py" --exclude-dir=node_modules . 2>/dev/null | head -3 || true)
-[ -z "$RATELIMIT" ] && echo "[MEDIUM] No rate limiting found on API" \
-  || echo "[PASS] Rate limiting configured"
-
-# CORS — wildcard check
-CORS_WILD=$(grep -rn "origin.*['\"]\\*['\"]" \
-  --include="*.ts" --include="*.py" --exclude-dir=node_modules . 2>/dev/null | head -3 || true)
-[ -n "$CORS_WILD" ] && echo "[HIGH] CORS wildcard (*) origin found: $CORS_WILD" \
-  || echo "[PASS] CORS does not use wildcard"
-
-# SQL injection — string interpolation in queries
-SQL_INJECT=$(grep -rn "query.*\`.*\${" \
-  --include="*.ts" --include="*.py" --exclude-dir=node_modules --exclude="*.test.*" \
-  . 2>/dev/null | grep -v '\$\${' | head -5 || true)
-[ -n "$SQL_INJECT" ] && echo "[CRITICAL] SQL injection risk — string interpolation in queries:" \
-  && echo "$SQL_INJECT" | head -3 \
-  || echo "[PASS] No SQL injection patterns detected"
-
-# eval() usage
-EVAL=$(grep -rn "eval(" --include="*.ts" --include="*.tsx" --include="*.js" \
-  --exclude-dir=node_modules --exclude="*.test.*" . 2>/dev/null | head -3 || true)
-[ -n "$EVAL" ] && echo "[HIGH] eval() usage found: $EVAL" \
-  || echo "[PASS] No eval() usage"
+X="--exclude-dir=node_modules"
+grep -rn $X "helmet\|Content-Security-Policy\|Strict-Transport" --include="*.ts" --include="*.py" . 2>/dev/null | grep -q . \
+  && echo "[PASS] Security headers configured" || echo "[HIGH] No security headers (helmet/CSP) found"
+grep -rn $X "rateLimit\|rate.limit\|RateLimiter\|throttle" --include="*.ts" --include="*.py" . 2>/dev/null | grep -q . \
+  && echo "[PASS] Rate limiting configured" || echo "[MEDIUM] No rate limiting found"
+grep -rn $X "origin.*['\"]\\*['\"]" --include="*.ts" --include="*.py" . 2>/dev/null | grep -q . \
+  && echo "[HIGH] CORS wildcard (*) origin found" || echo "[PASS] No CORS wildcard"
+grep -rn $X --exclude="*.test.*" "query.*\`.*\${" --include="*.ts" --include="*.py" . 2>/dev/null | grep -v '\$\${' | grep -q . \
+  && echo "[CRITICAL] SQL injection risk — string interpolation in queries" || echo "[PASS] No SQL injection patterns"
+grep -rn $X --exclude="*.test.*" "eval[(]" --include="*.ts" --include="*.tsx" --include="*.js" . 2>/dev/null | grep -q . \
+  && echo "[HIGH] unsafe-eval usage found" || echo "[PASS] No unsafe-eval usage"
 ```
 
 ---
@@ -444,24 +212,12 @@ EVAL=$(grep -rn "eval(" --include="*.ts" --include="*.tsx" --include="*.js" \
 ```bash
 if [ -n "$HAS_TERRAFORM" ]; then
   echo "=== Terraform Security ==="
-
-  # Overly broad IAM roles
-  grep -rn "roles/editor\|roles/owner\|storage\.admin\|secretmanager\.admin" \
-    terraform/ infra/ 2>/dev/null \
-    | grep -v "^#" | grep -v "\.terraform" \
-    && echo "[HIGH] Overly broad IAM role in Terraform" || echo "[PASS] No overly broad IAM roles"
-
-  # Default/placeholder passwords
-  grep -rn "CHANGE_ME\|password.*default\|default.*password" \
-    terraform/ infra/ 2>/dev/null \
-    | grep -v "^#" \
-    && echo "[CRITICAL] Default/placeholder password in Terraform" || true
-
-  # Public resources
-  grep -rn "0\.0\.0\.0/0\|all_traffic\|allUsers" \
-    terraform/ infra/ 2>/dev/null \
-    | grep -v "^#" | grep -v "egress" \
-    && echo "[HIGH] Possible public resource access in Terraform (review above)" || true
+  grep -rn "roles/editor\|roles/owner\|storage\.admin\|secretmanager\.admin" terraform/ infra/ 2>/dev/null \
+    | grep -v "^#\|\.terraform" | grep -q . && echo "[HIGH] Overly broad IAM role in Terraform" || echo "[PASS] No overly broad IAM roles"
+  grep -rn "CHANGE_ME\|password.*default\|default.*password" terraform/ infra/ 2>/dev/null \
+    | grep -v "^#" | grep -q . && echo "[CRITICAL] Default/placeholder password in Terraform" || true
+  grep -rn "0\.0\.0\.0/0\|all_traffic\|allUsers" terraform/ infra/ 2>/dev/null \
+    | grep -v "^#\|egress" | grep -q . && echo "[HIGH] Possible public resource in Terraform" || true
 fi
 ```
 
@@ -469,26 +225,8 @@ fi
 
 ## Final report
 
-```
-╔══════════════════════════════════════════════════════════════╗
-║              CLOUD SECURITY & PRIVACY SCAN RESULTS           ║
-╠══════════════════════════════════════════════════════════════╣
-║ S1  IAM & Access:        ✅ PASS | ❌ N findings             ║
-║ S2  Network/Firewall:    ✅ PASS | ❌ N findings             ║
-║ S3  Storage (GCS):       ✅ PASS | ❌ N findings             ║
-║ S4  Cloud Run:           ✅ PASS | ❌ N findings             ║
-║ S5  Audit Logging:       ✅ PASS | ❌ N findings             ║
-║ S6  Secret Manager:      ✅ PASS | ❌ N findings             ║
-║ S7  Container Security:  ✅ PASS | ❌ N findings | skipped   ║
-║ S8  PII in Source:       ✅ PASS | ❌ N findings             ║
-║ S9  Privacy Compliance:  ✅ PASS | ⚠️ N gaps                 ║
-║ S10 API Security:        ✅ PASS | ❌ N findings             ║
-║ S11 Terraform:           ✅ PASS | ❌ N findings | skipped   ║
-╠══════════════════════════════════════════════════════════════╣
-║ CRITICAL: N  HIGH: N  MEDIUM: N  LOW: N                      ║
-║ Gate 5: ✅ PASSED | ❌ BLOCKED (critical/high found)          ║
-╚══════════════════════════════════════════════════════════════╝
-```
+Summarize results per section: S1 IAM | S2 Network | S3 Storage | S4 Cloud Run | S5 Audit | S6 Secrets | S7 Container | S8 PII | S9 Privacy | S10 API | S11 Terraform
 
-**Gate 5 blocks on:** any CRITICAL or HIGH finding across all sections.
-**Gate 5 passes on:** zero critical + zero high (MEDIUM and LOW are reported but non-blocking).
+Report totals: CRITICAL: N  HIGH: N  MEDIUM: N  LOW: N
+
+**Gate 5:** BLOCKED if any CRITICAL or HIGH. PASSED if zero critical + zero high.
