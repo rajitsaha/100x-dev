@@ -24,6 +24,34 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.3.0] — 2026-04-20
+
+### Added
+- `/fix` — autonomous bug fixer (CI, docker logs, Slack, or description)
+- `/spec` — implementation-ready spec before coding
+- `/grill` — adversarial code review before `/pr`
+- `/techdebt` — scan and eliminate dead/duplicated code
+- `/context` — 7-day git/gh activity dump for session start
+- `/query` — plain-English analytics against any database
+- `/orchestrate` — plan-first methodology for complex tasks
+- `/update-claude` — write CLAUDE.md rules after corrections
+- `workflows/_lib.md` — shared conventions reference (excluded from adapter output)
+- GitHub Actions release workflow — auto-creates GitHub Release on version tag push
+
+### Changed
+- `enterprise-design`: replaced 24KB verbose template with lean 3KB systems-architect blueprint format (#7 #8)
+- `architect`: added scope banner distinguishing advisory Q&A from full blueprint generation
+- `db`: added scope banner differentiating from `/query`
+
+### Performance
+- cloud-security.md: ~19KB → ~12KB (compact bash replaces verbose Python parsers)
+- issue.md: ~10KB → ~8KB (bullet frameworks replace enumerated sub-questions)
+- test.md Phase 0: single adaptive docker block replaces 3 alternative strategies
+- db-engines: ~17KB → ~5KB (router + per-engine deltas)
+- enterprise-design.md: 24KB → 3KB (leaner systems-architect content)
+
+---
+
 ## [1.2.0] — 2026-04-20
 
 ### Changed
