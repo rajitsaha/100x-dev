@@ -61,7 +61,7 @@ _run_generate() {
     echo "# Regenerate: run install.sh or adapters/$(basename "${BASH_SOURCE[1]}") <project-path>"
     echo ""
 
-    for f in gate test commit push pr branch launch lint security docs issue architect cloud-security enterprise-design db; do
+    for f in gate test commit push pr branch launch lint security docs issue architect cloud-security enterprise-design db fix spec grill techdebt context query orchestrate update-claude; do
       if [ -f "$WORKFLOWS_DIR/$f.md" ]; then
         echo "---"
         echo ""
