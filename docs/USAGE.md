@@ -15,27 +15,34 @@
 
 ## Installation
 
+**Mac / Linux** — run once per machine:
 ```bash
-git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
-cd ~/100x-dev && ./install.sh
+curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
 ```
 
-The installer asks which tools you use and sets everything up. For Claude Code it also scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP, production URLs, and security exceptions.
-
-### Per-tool adapter commands
-
-If you need to set up a project later without re-running the full installer:
-
+**Windows** (or anywhere Node.js is installed):
 ```bash
-bash ~/100x-dev/adapters/cursor.sh      /path/to/project   # → .cursorrules
-bash ~/100x-dev/adapters/codex.sh       /path/to/project   # → AGENTS.md
-bash ~/100x-dev/adapters/windsurf.sh    /path/to/project   # → .windsurfrules
-bash ~/100x-dev/adapters/copilot.sh     /path/to/project   # → .github/copilot-instructions.md
-bash ~/100x-dev/adapters/gemini.sh      /path/to/project   # → GEMINI.md
-bash ~/100x-dev/adapters/antigravity.sh /path/to/project   # → ANTIGRAVITY.md
+npm install -g 100x-dev && 100x-dev install
 ```
 
-**Commit the generated file to your repo** so teammates get the same workflows.
+The installer sets up Claude Code globally (`~/.claude/commands/`) and scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP, production URLs, and security exceptions.
+
+### Add to a project
+
+Run once from each project root:
+
+```bash
+cd my-project && 100x-dev init
+```
+
+This writes the right instruction file for each enabled tool (`.cursorrules`, `AGENTS.md`, `.windsurfrules`, etc.). **Commit the generated file** so teammates get the same workflows.
+
+### Keep up to date
+
+```bash
+100x-dev update   # pull latest + regenerate all tracked projects
+100x-dev check    # check for a newer version without applying it
+```
 
 ---
 
@@ -102,7 +109,7 @@ Reference workflows by name in your prompts:
 ### One project at a time
 
 ```bash
-bash ~/100x-dev/adapters/cursor.sh ~/projects/my-app
+cd ~/projects/my-app && 100x-dev init
 ```
 
 ### Batch apply to all repos
@@ -136,8 +143,9 @@ Change `cursor` to your tool. Every `git clone` or `git init` now gets workflows
 Add to your team's onboarding checklist:
 
 ```
-- [ ] git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
-- [ ] cd ~/100x-dev && ./install.sh
+- [ ] Mac/Linux: curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+      Windows:   npm install -g 100x-dev && 100x-dev install
+- [ ] cd <your-project> && 100x-dev init
 - [ ] Verify: open a project and run /gate
 ```
 
@@ -184,16 +192,11 @@ For per-project tools (Cursor, Codex, etc.) add the same config to the generated
 ## Keeping Workflows Updated
 
 ```bash
-100x-check      # check if an update is available
-100x-update     # pull latest and re-run install
+100x-dev check    # check if an update is available
+100x-dev update   # pull latest and regenerate all tracked projects
 ```
 
 Claude Code shows an update banner at session start when a new version is available. After updating, instruction files in all tracked projects are regenerated automatically.
-
-To force a check:
-```bash
-~/100x-dev/shell/check-update.sh --notify
-```
 
 ---
 
