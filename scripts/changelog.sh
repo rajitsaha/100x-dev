@@ -75,14 +75,19 @@ _do_release() {
   entry="## [$version] — $date"$'\n\n'"$formatted_commits"
 
   # Prepend after the first --- separator in CHANGELOG.md
-  local tmp
+  local tmp entry_file
   tmp="$(mktemp)"
-  awk -v entry="$entry" '
+  entry_file="$(mktemp)"
+  printf '%s\n' "$entry" > "$entry_file"
+  awk -v ef="$entry_file" '
     /^---$/ && !done {
-      print; print ""; print entry; print "---"; done=1; next
+      print; print ""
+      while ((getline line < ef) > 0) print line
+      print "---"; done=1; next
     }
     { print }
   ' "$CHANGELOG" > "$tmp"
+  rm -f "$entry_file"
   mv "$tmp" "$CHANGELOG"
 
   echo "$version" > "$REPO_DIR/VERSION"
