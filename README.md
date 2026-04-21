@@ -4,344 +4,127 @@
 
 # 100x Dev
 
-<img src="assets/100x-dev-banner.png" alt="100x Dev Banner" width="800" />
-
 ### Stop vibe coding. Start shipping production-grade software.
 
-**16 battle-tested AI development workflows that enforce quality gates, security scans, and 95% test coverage — before every single commit.**
-
-One install. Any AI coding tool. Zero excuses.
-
 [![Version](https://img.shields.io/github/v/release/rajitsaha/100x-dev?style=flat-square&label=version&color=brightgreen)](https://github.com/rajitsaha/100x-dev/releases/latest)
-[![Claude Code](https://img.shields.io/badge/Claude_Code-supported-blue?style=flat-square)](https://claude.ai)
-[![Cursor](https://img.shields.io/badge/Cursor-supported-purple?style=flat-square)](https://cursor.com)
-[![Codex](https://img.shields.io/badge/Codex-supported-green?style=flat-square)](https://openai.com)
-[![Windsurf](https://img.shields.io/badge/Windsurf-supported-teal?style=flat-square)](https://windsurf.ai)
-[![Copilot](https://img.shields.io/badge/Copilot_CLI-supported-orange?style=flat-square)](https://github.com/features/copilot)
-[![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-supported-red?style=flat-square)](https://cloud.google.com/gemini)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-
-[Quick Start](#quick-start) | [Workflows](#what-you-get) | [Supported Tools](#supported-tools) | [How to Use](docs/USAGE.md) | [Templates](#templates) | [GitHub Actions](#github-actions-templates) | [Contributing](#add-your-own-tool)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-✓-blue?style=flat-square)](https://claude.ai)
+[![Cursor](https://img.shields.io/badge/Cursor-✓-purple?style=flat-square)](https://cursor.com)
+[![Codex](https://img.shields.io/badge/Codex-✓-green?style=flat-square)](https://openai.com)
+[![Windsurf](https://img.shields.io/badge/Windsurf-✓-teal?style=flat-square)](https://windsurf.ai)
+[![Copilot](https://img.shields.io/badge/Copilot-✓-orange?style=flat-square)](https://github.com/features/copilot)
+[![Gemini](https://img.shields.io/badge/Gemini-✓-red?style=flat-square)](https://cloud.google.com/gemini)
 
 </div>
 
 ---
 
-## The Problem
-
-AI coding tools generate code fast. But fast code without quality gates is just **technical debt at 10x speed**.
-
-Most developers using Claude Code, Cursor, or Codex have no guardrails. No enforced test coverage. No security scanning. No pre-commit gates. The AI writes it, you ship it, and production breaks at 2am.
-
-## The Fix
-
-**100x Dev** gives your AI coding tool a complete quality-enforced workflow system:
-
-- Every commit passes a **5-point quality gate** (tests, security, build, Docker, cloud security)
-- Test coverage **loops until 95%** — not aspirational, enforced
-- Integration tests run against **real Docker services** — no DB mocks, no false positives
-- E2E tests run against the **full stack via docker compose** — zero stubs
-- Security vulnerabilities are **scanned and auto-fixed** before code leaves your machine
-- Works with **7 AI coding tools** — same workflows, same standards, any tool
+24 slash commands. Quality gates on every commit. Works with any AI coding tool.
 
 ```bash
 git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
 cd ~/100x-dev && ./install.sh
 ```
 
-That's it. Your AI coding tool now has production-grade discipline.
-
-> **Latest release:** [v1.2.0](https://github.com/rajitsaha/100x-dev/releases/latest) — plugin cleanup (13→10), scope table, code review pipeline. See [What's new](https://github.com/rajitsaha/100x-dev/releases/latest).
-
-> **New here?** Read the full **[How to Use guide](docs/USAGE.md)** — covers installation by tool, propagating workflows to all your projects, team onboarding, and daily usage patterns.
+> **New here?** See the [full usage guide](docs/USAGE.md).
 
 ---
 
-## Quick Start
-
-```bash
-# 1. Clone
-git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
-
-# 2. Install (interactive — picks your tools and components)
-cd ~/100x-dev && ./install.sh
-
-# 3. Use
-# In Claude Code:  /gate, /test, /commit, /push, /launch, /release
-# In Cursor:       workflows embedded in .cursorrules
-# In Codex:        workflows embedded in AGENTS.md
-```
-
-The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini, Antigravity) and installs workflows in the right format for each.
-
----
-
-## What You Get
-
-### 16 Production Workflows
-
-| Workflow | What it does |
-|:---------|:-------------|
-| **gate** | 5-point pre-commit quality gate — tests, security, build, Docker, cloud security. Nothing ships without passing. |
-| **test** | Runs all test layers against real Docker services — no DB mocks. Auto-starts Postgres/Redis, runs integration tests against real DB, E2E via full `docker compose up` with split Playwright configs, real auth fixtures, smoke gate, and DB-verified CRUD assertions. Writes missing tests. Loops until 95% coverage. |
-| **commit** | Runs gate first, then stages and creates a conventional commit. |
-| **push** | Re-runs gate, pushes, monitors CI/CD, verifies production health. |
-| **pr** | Gate → push branch → create PR → full AI review → human merges. Never auto-merges. |
-| **branch** | Create conventional feature branches from main — `feat/`, `fix/`, `chore/`, auto-push upstream. |
-| **launch** | Full release pipeline: Docker, test, lint, security, build, commit, push — one command. |
-| **release** | Full release pipeline: local install smoke test → version bump → tag → publish to PyPI/npm/Docker Hub → verify from live registry. Auto-detects registries from repo contents. |
-| **lint** | Auto-detects your linting stack (ESLint, TypeScript, ruff). Fixes everything. Zero errors. |
-| **security** | Scans all package managers for vulnerabilities. Audits for leaked secrets. Auto-fixes what it can. |
-| **docs** | Detects code changes and updates corresponding documentation automatically. |
-| **issue** | Investigates bugs and creates detailed, actionable GitHub issues. |
-| **architect** | Cloud, data & SaaS distributed architecture advisor with GCP/AWS expertise. |
-| **cloud-security** | Deep cloud security & data privacy scan — IAM, networking, PII, GDPR/CCPA compliance. |
-| **enterprise-design** | Enterprise-grade design system and technical blueprint generation. |
-| **db** | Universal database access — query any of 7 database engines from one interface. |
-| **fix** | Autonomous bug fixer — CI, docker logs, Slack, or description |
-| **spec** | Write implementation-ready spec before coding |
-| **grill** | Adversarial code review before `/pr` |
-| **techdebt** | Scan and eliminate dead/duplicated code |
-| **context** | 7-day git/gh activity dump for session start |
-| **query** | Plain-English analytics against any database |
-| **orchestrate** | Plan-first methodology for complex multi-step tasks |
-| **update-claude** | Write CLAUDE.md rules after corrections |
-
-## Development Pipeline
+## The Pipeline
 
 ```
 /context → /issue → /spec → /fix → /commit
                                       ↓
-             /techdebt ← /gate → /grill → /pr → /push → /release
+         /techdebt ← /gate → /grill → /pr → /push → /release
 ```
 
-### Code Review Pipeline
+Every `/commit` and `/push` runs a 5-point quality gate — tests, security, build, Docker, cloud security. Nothing ships without passing.
 
-```
-/grill → create PR → /review-pr
-```
+---
 
-- `/grill` — adversarial pre-PR review (interrogates the developer before PR is opened)
-- `/review-pr` — multi-agent post-PR review (6 specialized agents once PR exists)
+## Commands
 
-### The Quality Gate
-
-Every commit and push runs through this. No exceptions.
-
-```
-╔══════════════════════════════════════════════════════╗
-║               QUALITY GATE RESULTS                   ║
-╠══════════════════════════════════════════════════════╣
-║ Gate 1 Tests:          ✅ PASSED  (FE 97% | BE 96%) ║
-║ Gate 2 Security:       ✅ PASSED  (0 critical)      ║
-║ Gate 3 Build:          ✅ PASSED  (FE ✅ | BE ✅)    ║
-║ Gate 4 Docker:         ✅ PASSED                     ║
-║ Gate 5 Cloud Security: ✅ PASSED                     ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: ✅ ALL GATES PASSED — safe to commit         ║
-╚══════════════════════════════════════════════════════╝
-```
-
-**If any gate fails, you fix it before committing.** That's the entire philosophy.
-
-### 7 Database Engines
-
-| Engine | Connection |
-|:-------|:-----------|
-| **PostgreSQL** | Direct TCP — PostgreSQL, Supabase, Neon |
-| **Cloud SQL** | GCP Cloud SQL via temporary public IP |
-| **Snowflake** | snowsql or Python connector |
-| **Databricks** | SQL warehouse via Python connector |
-| **Athena** | AWS Athena via boto3 |
-| **Presto** | Presto / Trino via Python client |
-| **Oracle** | cx_Oracle or sqlplus |
+| Command | What it does |
+|:--------|:-------------|
+| `/context` | 7-day git + GitHub activity dump — orient before touching anything |
+| `/issue` | Investigate a bug and create a detailed GitHub issue |
+| `/spec` | Turn a vague request into an implementation-ready spec |
+| `/fix` | Autonomous bug fixer — CI failures, docker logs, Slack pastes |
+| `/gate` | 5-point quality gate — run before every commit |
+| `/test` | Run all test layers against real Docker services, loop until 95% coverage |
+| `/commit` | Gate → stage → conventional commit |
+| `/grill` | Adversarial pre-PR review — challenge your own diff |
+| `/pr` | Gate → push → create PR |
+| `/push` | Gate → push → monitor CI → verify production health |
+| `/release` | Version bump → tag → publish to PyPI/npm/Docker Hub → verify |
+| `/launch` | Full deploy pipeline in one command |
+| `/branch` | Create conventional feature branches (`feat/`, `fix/`, `chore/`) |
+| `/lint` | Auto-detect and fix all lint errors (ESLint, TypeScript, ruff) |
+| `/security` | Scan for vulnerabilities and secrets, auto-fix where possible |
+| `/techdebt` | Scan for dead code, duplication, stale TODOs |
+| `/db` | Query any of 7 database engines from one interface |
+| `/query` | Plain-English analytics — describe what you want, Claude writes the SQL |
+| `/architect` | Architectural Q&A and decision matrices |
+| `/enterprise-design` | Full technical blueprint — IA, API, data model, stack |
+| `/cloud-security` | Deep GCP IAM, networking, PII, and compliance scan |
+| `/docs` | Detect code changes and update documentation |
+| `/orchestrate` | Plan-first methodology for complex multi-step tasks |
+| `/update-claude` | Write a CLAUDE.md rule after any correction |
 
 ---
 
 ## Supported Tools
 
-Works with every major AI coding tool:
+| Tool | How it works |
+|:-----|:-------------|
+| **Claude Code** | Each workflow is a slash command in `~/.claude/commands/` |
+| **Cursor** | All workflows concatenated into `.cursorrules` |
+| **Codex** | All workflows embedded in `AGENTS.md` |
+| **Windsurf** | All workflows in `.windsurfrules` |
+| **Copilot CLI** | All workflows in `.github/copilot-instructions.md` |
+| **Gemini CLI** | All workflows in `GEMINI.md` |
+| **Antigravity** | All workflows in `ANTIGRAVITY.md` |
 
-| Tool | Install Type | Instruction File | How It Works |
-|:-----|:------------|:-----------------|:-------------|
-| **Claude Code** | Global | `~/.claude/commands/` | Each workflow becomes a slash command (`/gate`, `/test`, etc.) |
-| **Cursor** | Per-project | `.cursorrules` | All workflows concatenated into your rules file |
-| **Codex (OpenAI)** | Per-project | `AGENTS.md` | All workflows embedded in your agent instructions |
-| **Windsurf** | Per-project | `.windsurfrules` | All workflows in your Windsurf rules |
-| **Copilot CLI** | Per-project | `.github/copilot-instructions.md` | All workflows in Copilot instructions |
-| **Gemini CLI** | Per-project | `GEMINI.md` | All workflows in Gemini instructions |
-| **Antigravity** | Per-project | `ANTIGRAVITY.md` | Provisional adapter — ready when format is confirmed |
-
-**Don't see your tool?** [Add your own adapter](#add-your-own-tool) — it's a single shell script.
+The installer asks which tools you use and sets up each one. For Claude Code it also scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP project, production URLs, and security exceptions.
 
 ---
 
-## Templates
+## What's Included
 
-Jump-start any project with pre-configured instruction files:
-
-```bash
-# Copy a template and rename for your tool
-cp ~/100x-templates/node-fullstack.md ./CLAUDE.md      # Claude Code
-cp ~/100x-templates/node-fullstack.md ./.cursorrules    # Cursor
-cp ~/100x-templates/node-fullstack.md ./AGENTS.md       # Codex
-```
-
-| Template | Stack |
-|:---------|:------|
-| `node-fullstack` | React + Vite + TypeScript + Node.js + Express + PostgreSQL |
-| `node-frontend` | React + Vite + TypeScript + Vitest + Playwright |
-| `python-api` | FastAPI / Flask + PostgreSQL + pytest |
-| `docker-compose` | Multi-service: API + frontend + DB + cache |
-
----
-
-## GitHub Actions Templates
-
-Two production-ready pipeline templates — copy them into any project:
-
-```bash
-mkdir -p .github/workflows
-
-# CI pipeline: lint + unit/integration (real DB) + full-stack Docker E2E
-cp ~/100x-dev/github-actions/ci.yml .github/workflows/ci.yml
-
-# Release pipeline: version checks → build → publish → verify
-cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
-```
-
-**`ci.yml`** covers: ESLint/TypeScript/ruff lint, unit + integration tests against real Docker Postgres/Redis (95% coverage enforced), full-stack `docker compose` E2E with Playwright (split configs, smoke gate first), artifact upload on failure.
-
-**`release.yml`** covers: pre-release checks (lint, tests, 95% coverage, version consistency), build + local smoke test, publish to PyPI/npm/Docker Hub/GHCR, post-release verification from live registry, Homebrew tap update.
-
----
-
-## Plugins (Claude Code Bonus)
-
-10 curated plugins auto-installed into Claude Code:
-
-**superpowers** | **frontend-design** | **playwright** | **github** | **pr-review-toolkit** | **hookify** | **skill-creator** | **code-simplifier** | **security-guidance** | **claude-mem**
-
-Only installed when you select Claude Code + Plugins during setup.
-
-> **Note:** The `claude-mem` plugin requires [Bun](https://bun.sh). The installer will detect if Bun is missing and offer to install it automatically.
-
-### Plugin Scope
-
-| Plugin | Purpose | Overlap notes |
-|---|---|---|
-| `superpowers` | Dev methodology — TDD, debugging, planning, code review | Core — keep |
-| `frontend-design` | Production-grade frontend code generation | Keep |
-| `playwright` | Browser automation MCP | Keep |
-| `github` | GitHub MCP tools | Keep |
-| `pr-review-toolkit` | Multi-agent comprehensive PR review | Replaces `code-review` |
-| `hookify` | Claude Code session hooks | Keep |
-| `skill-creator` | Create new skills | Keep |
-| `code-simplifier` | Post-coding simplification | Keep |
-| `security-guidance` | Advisory security guidance | Complements `/security` scanner |
-| `claude-mem` | Cross-session persistent memory | Keep |
-
----
-
-## Shell Aliases
-
-| Alias | What it does |
-|:------|:-------------|
-| `cc` | Launch Claude Code in current directory |
-| `ccc` | Continue last Claude Code session |
-| `100x-update` | Pull latest workflows and apply |
-| `100x-check` | Check for updates without applying |
-| `bash ~/100x-dev/scripts/changelog.sh` | Preview unreleased changes since last tag |
+- **24 workflows** — full dev lifecycle from orientation to release
+- **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle
+- **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
+- **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose
+- **2 GitHub Actions templates** — CI pipeline (lint + real-DB tests + E2E) and release pipeline
+- **Shell aliases** — `cc`, `ccc`, `100x-update`, `100x-check`
 
 ---
 
 ## Get Notified of Updates
 
-**GitHub Releases** (recommended): Click **Watch → Custom → Releases** on this repo to receive email notifications when a new version ships.
+**Watch releases**: Click **Watch → Custom → Releases** on this repo for email notifications.
 
-**SessionStart banner**: After installing, Claude Code automatically shows an update banner at the start of each session when a new version is available. The banner displays release notes and prompts you to update.
+**Auto-banner**: Claude Code shows an update notice at session start when a new version is available.
 
-**Shell alias**: Run `100x-update` to check for and apply updates at any time.
-
-**Manual check**: `~/100x-dev/update.sh --check-only`
+**Manual**: `~/100x-dev/update.sh` to update, `~/100x-dev/update.sh --check-only` to check.
 
 ---
 
-## Changelog
+## More
 
-Release history is in [CHANGELOG.md](CHANGELOG.md).
-
-To see what's changed since the last release:
-```bash
-bash ~/100x-dev/scripts/changelog.sh
-```
-
-To create a new release entry and tag:
-```bash
-bash ~/100x-dev/scripts/changelog.sh --release
-```
-
----
-
-## Add Your Own Tool
-
-Write one adapter script in `adapters/`. Adapters share a common library — your script sources it and calls one function:
-
-```bash
-#!/usr/bin/env bash
-set -e
-source "$(dirname "${BASH_SOURCE[0]}")/lib/shared.sh"
-
-install_project() {
-  local project_path="${1:-.}"
-  _run_generate "$project_path" ".my-tool-config" "My Tool"
-}
-
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  install_project "${1:-.}"
-fi
-```
-
-`_run_generate` handles workflow concatenation, directory creation, and output formatting. Add your adapter to `install.sh` and open a PR. That's it.
-
----
-
-## Philosophy
-
-| Principle | What it means |
-|:----------|:-------------|
-| **No skips** | Quality gates are mandatory. No `--no-verify`. No exceptions. |
-| **95% coverage** | Not a target. A requirement. The test workflow loops until it's met. |
-| **Real over mocked** | Integration tests run against a real Docker DB. E2E tests run against the full stack. Only external APIs (Stripe, Firebase) get mocked. |
-| **Auto-fix first** | Lint errors, security vulnerabilities — fixed automatically where possible. |
-| **Loop until clean** | Tests re-run, coverage re-checked, until every threshold passes. |
-| **Tool-agnostic** | Same workflows, same standards, regardless of which AI tool you use. |
-
----
-
-## Why I Built This
-
-I've spent 20+ years building and scaling enterprise data platforms at companies like Udemy, LendingClub, VMware, and Yahoo. I've seen what happens when teams ship fast without guardrails — and I've seen what happens when quality is non-negotiable.
-
-AI coding tools are the biggest productivity leap I've seen in two decades. But without discipline, they're just generating technical debt faster. **100x Dev** is the guardrail system I wish existed when AI coding tools first landed.
-
-This project was built in collaboration with [Claude](https://claude.ai) — using the very workflows it contains.
+- [Full usage guide](docs/USAGE.md) — installation by tool, team onboarding, daily patterns
+- [Changelog](CHANGELOG.md) — what's changed in each release
+- [Contributing](https://github.com/rajitsaha/100x-dev/issues) — add an adapter in one shell script
 
 ---
 
 <div align="center">
 
-### Built by [Rajit Saha](https://www.linkedin.com/in/rajsaha/)
-
-Tech leader | 20+ years building enterprise data platforms | Udemy, Experian, LendingClub, VMware, Yahoo
+Built by [Rajit Saha](https://www.linkedin.com/in/rajsaha/) — 20+ years in enterprise data at Udemy, Experian, LendingClub, VMware, Yahoo.
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/rajsaha/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=for-the-badge&logo=github)](https://github.com/rajitsaha)
 
----
-
 If this saves you time, **[star the repo](https://github.com/rajitsaha/100x-dev)** and share it with your team.
-
-Built with [Claude](https://claude.ai) | [Report an issue](https://github.com/rajitsaha/100x-dev/issues)
 
 </div>
