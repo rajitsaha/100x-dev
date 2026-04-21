@@ -86,6 +86,26 @@ _refresh_cache() {
   fi
 }
 
+_fetch_release_notes() {
+  # Try GitHub Releases API first (requires gh CLI)
+  if command -v gh >/dev/null 2>&1; then
+    local notes
+    notes=$(gh release view --repo rajitsaha/100x-dev --json body -q .body 2>/dev/null | head -20 || true)
+    if [[ -n "$notes" ]]; then
+      echo "$notes"
+      return
+    fi
+  fi
+  # Fallback: format cached commit messages
+  local changelog
+  changelog="$(_cache_get changelog)"
+  IFS='|' read -ra _lines <<< "$changelog"
+  for _line in "${_lines[@]}"; do
+    [[ -z "$_line" ]] && continue
+    echo "• ${_line#* }"
+  done
+}
+
 # ── Snooze helpers ────────────────────────────────────────────────────────────
 
 _is_snoozed() {
@@ -132,13 +152,14 @@ _do_notify() {
   # shellcheck disable=SC2059
   printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "100x Dev update available: $short_local → $short_remote"
 
-  IFS='|' read -ra _lines <<< "$changelog"
-  for _line in "${_lines[@]}"; do
-    [[ -z "$_line" ]] && continue
-    local _msg="${_line#* }"
+  local _notes
+  _notes="$(_fetch_release_notes)"
+  while IFS= read -r _note; do
+    [[ -z "$_note" ]] && continue
+    _note="${_note:0:50}"
     # shellcheck disable=SC2059
-    printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "• $_msg"
-  done
+    printf "${YELLOW}║${NC}  %-52s${YELLOW}║${NC}\n" "$_note"
+  done <<< "$_notes"
 
   # shellcheck disable=SC2059
   printf "${YELLOW}╚══════════════════════════════════════════════════════╝${NC}\n"
@@ -168,16 +189,13 @@ _do_claude_hook() {
   local short_local="${local_sha:0:7}"
   local short_remote="${remote_sha:0:7}"
 
-  local changes=""
-  IFS='|' read -ra _lines <<< "$changelog"
-  for _line in "${_lines[@]}"; do
-    [[ -z "$_line" ]] && continue
-    local _msg="${_line#* }"
-    changes+="• $_msg  "
-  done
-
   echo "> 100x Dev update available ($short_local → $short_remote)"
-  echo "> Changes: ${changes%  }"
+  local _notes
+  _notes="$(_fetch_release_notes)"
+  while IFS= read -r _note; do
+    [[ -z "$_note" ]] && continue
+    echo "  ${_note:0:60}"
+  done <<< "$_notes"
   echo "> Run \`100x-update\` in your terminal to upgrade."
 }
 
