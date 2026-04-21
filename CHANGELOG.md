@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.3.1] — 2026-04-20
+
+### Fixed
+- changelog.sh awk multiline variable — use temp file instead of -v flag
+- changelog.sh --release now writes VERSION file automatically
+- scaffold CLAUDE.md in user project during Claude Code install (closes #11)
+
+### Changed
+- docs: rewrite USAGE.md and e2e-patterns.md — concise, correct, 24 workflows
+- chore: remove docs/superpowers/ — internal planning docs, not user-facing
+- chore: remove ROADMAP.md — stale, GitHub Issues is source of truth
+- docs: fix CHANGELOG order — newest first (1.3.0 → 1.2.0 → 1.1.0 → 1.0.0)
+- docs: rewrite README — 300 lines → 130, install command visible in 10s
+---
+
 ## [1.3.0] — 2026-04-20
 
 ### Added
