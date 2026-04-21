@@ -5,25 +5,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
-## [1.1.0] — 2026-04-12
-
-### Added
-- Version notification system: daily update check, shell banner, Claude Code session hook, auto-regeneration of tracked projects
-- Shared adapter library (`adapters/lib/shared.sh`) — all 6 non-Claude adapters now use shared `_run_generate()` function
-- Banner and logo images added to assets/ and README.md header
-- `docs/e2e-patterns.md` — extracted Playwright fixture, auth, and CRUD test reference patterns from test.md
-
-### Changed
-- Consolidated 47 skills → 38 (merged copy, CRO, SEO skill groups; removed 3 niche skills)
-- **Token optimization** (closes #5): reduced per-invocation context overhead by ~3,500–4,500 tokens
-  - Gate Phase 0 block deduplicated in commit.md, push.md, release.md (3× identical 12-line blocks → 1-line reference each)
-  - `INSTRUCTION_FILE` detection loop (6 lines × 8 workflows) collapsed to a one-liner in all 8 files
-  - test.md trimmed from 791 → 470 lines by extracting Phase 4c–4g E2E boilerplate to `docs/e2e-patterns.md`
-  - Removed unused plugins: firecrawl, stripe, brightdata (save ~225 tokens/session from skill listing)
-  - Added `<!-- model: haiku -->` hint to lint.md + security.md; `<!-- model: opus -->` to architect.md + enterprise-design.md
-
----
-
 ## [1.3.0] — 2026-04-20
 
 ### Added
@@ -37,11 +18,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - `/update-claude` — write CLAUDE.md rules after corrections
 - `workflows/_lib.md` — shared conventions reference (excluded from adapter output)
 - GitHub Actions release workflow — auto-creates GitHub Release on version tag push
+- `install_project()` in Claude Code adapter — scaffolds `CLAUDE.md` with db/cloud/production/security placeholders (closes #11)
 
 ### Changed
 - `enterprise-design`: replaced 24KB verbose template with lean 3KB systems-architect blueprint format (#7 #8)
 - `architect`: added scope banner distinguishing advisory Q&A from full blueprint generation
 - `db`: added scope banner differentiating from `/query`
+- README rewritten — 300 lines → 130, install command visible within 10 seconds
+- `install.sh` now prompts for project path when Claude Code is selected, consistent with all other adapters
 
 ### Performance
 - cloud-security.md: ~19KB → ~12KB (compact bash replaces verbose Python parsers)
@@ -67,6 +51,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Performance
 - ~3,000–5,000 tokens/session saved by removing 3 unused/redundant plugins from system prompt
+
+---
+
+## [1.1.0] — 2026-04-12
+
+### Added
+- Version notification system: daily update check, shell banner, Claude Code session hook, auto-regeneration of tracked projects
+- Shared adapter library (`adapters/lib/shared.sh`) — all 6 non-Claude adapters now use shared `_run_generate()` function
+- Banner and logo images added to assets/ and README.md header
+- `docs/e2e-patterns.md` — extracted Playwright fixture, auth, and CRUD test reference patterns from test.md
+
+### Changed
+- Consolidated 47 skills → 38 (merged copy, CRO, SEO skill groups; removed 3 niche skills)
+- **Token optimization** (closes #5): reduced per-invocation context overhead by ~3,500–4,500 tokens
+  - Gate Phase 0 block deduplicated in commit.md, push.md, release.md (3× identical 12-line blocks → 1-line reference each)
+  - `INSTRUCTION_FILE` detection loop (6 lines × 8 workflows) collapsed to a one-liner in all 8 files
+  - test.md trimmed from 791 → 470 lines by extracting Phase 4c–4g E2E boilerplate to `docs/e2e-patterns.md`
+  - Removed unused plugins: firecrawl, stripe, brightdata (save ~225 tokens/session from skill listing)
+  - Added `<!-- model: haiku -->` hint to lint.md + security.md; `<!-- model: opus -->` to architect.md + enterprise-design.md
 
 ---
 
