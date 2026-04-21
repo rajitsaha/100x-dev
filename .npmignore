@@ -1,0 +1,5 @@
+docs/
+test/
+.github/
+*.bak
+.DS_Store
