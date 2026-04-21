@@ -9,6 +9,8 @@ alias ccc='claude --continue'
 
 # Setup management
 # shellcheck disable=SC2139
+alias 100x-dev="node $HOME/100x-dev/bin/100x-dev.js"
+# shellcheck disable=SC2139
 alias 100x-update="$HOME/100x-dev/update.sh"
 # shellcheck disable=SC2139
 alias 100x-check="$HOME/100x-dev/update.sh --check-only"

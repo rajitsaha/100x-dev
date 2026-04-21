@@ -18,6 +18,7 @@
 **Mac / Linux** — run once per machine:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+source ~/.zshrc   # or ~/.bashrc — reload shell to activate the 100x-dev command
 ```
 
 **Windows** (or anywhere Node.js is installed):
@@ -26,6 +27,8 @@ npm install -g 100x-dev && 100x-dev install
 ```
 
 The installer sets up Claude Code globally (`~/.claude/commands/`) and scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP, production URLs, and security exceptions.
+
+> **Terminal vs Claude Code:** The `100x-dev` command and its subcommands (`init`, `update`, `check`) run in your **terminal** (zsh/bash). Slash commands like `/commit`, `/gate`, and `/reload-plugins` run **inside Claude Code**. Don't mix them up — if you see "command not found", you're likely in the wrong environment.
 
 ### Add to a project
 
@@ -145,8 +148,9 @@ Add to your team's onboarding checklist:
 ```
 - [ ] Mac/Linux: curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
       Windows:   npm install -g 100x-dev && 100x-dev install
+- [ ] Reload shell: source ~/.zshrc (or ~/.bashrc)
 - [ ] cd <your-project> && 100x-dev init
-- [ ] Verify: open a project and run /gate
+- [ ] Open Claude Code in your project and run /gate
 ```
 
 For teams using Cursor/Codex/etc., commit the generated instruction file to each repo — new team members get the workflows automatically on clone.

@@ -25,6 +25,7 @@
 ```bash
 # Mac / Linux
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+source ~/.zshrc   # or ~/.bashrc — reload shell to activate the 100x-dev command
 
 # Windows (or anywhere Node.js is installed)
 npm install -g 100x-dev && 100x-dev install
@@ -34,7 +35,7 @@ Run once per machine. Then set up each project you work on:
 
 ```bash
 cd /path/to/your/project
-100x-dev init
+100x-dev init        # run in your terminal, not inside Claude Code
 ```
 
 > **New here?** See the [full usage guide](docs/USAGE.md).
@@ -107,7 +108,7 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 - **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
 - **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose
 - **2 GitHub Actions templates** — CI pipeline (lint + real-DB tests + E2E) and release pipeline
-- **Shell aliases** — `cc`, `ccc`, `100x-update`, `100x-check`
+- **Shell aliases** — `100x-dev`, `cc`, `ccc`, `100x-update`, `100x-check`
 
 ---
 
@@ -118,6 +119,8 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 **Auto-banner**: Claude Code shows an update notice at session start when a new version is available.
 
 **Manual**: `100x-dev update` to update, `100x-dev check` to check.
+
+> **Note:** `100x-dev` commands run in your **terminal** (zsh/bash). Claude Code slash commands like `/commit` and `/reload-plugins` run **inside Claude Code**. They are different environments.
 
 ---
 
