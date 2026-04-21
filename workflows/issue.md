@@ -38,52 +38,28 @@ git status
 
 ## Phase 2 — Multi-Dimensional Impact Analysis
 
-Analyze from ALL FIVE perspectives before forming a resolution plan. Do not skip any dimension.
+Analyze from ALL FIVE perspectives before forming a resolution plan.
 
-### 2.1 Product & Business Impact
-- Which feature, user journey, or subscription tier is affected?
-- Is this a regression (worked before) or a known gap?
-- Business impact severity: **Critical** (blocks core flow) / **High** (degrades key feature) / **Medium** (partial degradation) / **Low** (cosmetic/edge case)
-- Affected user segments: which tiers, roles, or usage patterns expose this?
-- Revenue or retention risk if not fixed? Conversion funnel impact?
-- SLA or compliance implication?
+### 2.1 Product & Business
+- Which feature/journey/tier is affected? Regression or known gap?
+- Severity: Critical (blocks core flow) / High (degrades key feature) / Medium / Low
+- Revenue, retention, or compliance risk?
 
-### 2.2 User Experience Impact
-- What does the user actually see, hear, or experience?
-- Exact error messages, broken states, or missing data shown to user?
-- Data loss, incorrect data display, or silent failures?
-- Accessibility impact (keyboard nav, screen reader, color contrast)?
-- Performance impact — perceived latency, loading states, skeleton screens?
-- Mobile vs desktop difference? PWA vs browser difference?
-- Does it affect the onboarding or first-time user experience specifically?
+### 2.2 User Experience
+- What does the user actually see? Exact errors or broken states?
+- Data loss, incorrect data, or silent failure? Accessibility / performance impact?
 
-### 2.3 Cloud Architecture Impact
-- Which cloud services are involved: Cloud Run, Cloud SQL, GCS, Pub/Sub, Redis, Firebase, Secret Manager?
-- Is this regional (single-region impact) or could it be multi-region?
-- Scaling or concurrency related — does this only appear under load?
-- IAM, networking, SSL, or firewall configuration issue?
-- Cold start, memory limit, or CPU throttling related?
-- CI/CD pipeline impact — does this block deploys?
-- Affects health checks, alerting, or SLO?
+### 2.3 Cloud Architecture
+- Which GCP services involved (Cloud Run, Cloud SQL, GCS, Pub/Sub, Redis, Firebase)?
+- Scaling, concurrency, IAM, networking, or cold-start related?
 
-### 2.4 Data Architecture Impact
-- Which database tables, columns, relationships, or indexes are involved?
-- Data integrity risk: corruption, inconsistency, orphaned records, duplicate data?
-- Schema migration required? Is it backwards-compatible?
-- Cache (Redis) invalidation or stale data issue?
-- Event ordering, Pub/Sub delivery guarantee, or idempotency issue?
-- Affects BigQuery exports, analytics, or reporting pipelines?
-- PII or sensitive data handling concern?
-- Data backfill needed to fix existing records?
+### 2.4 Data Architecture
+- Which tables/columns/indexes involved? Data integrity risk?
+- Migration needed? Cache invalidation? PII/compliance concern?
 
-### 2.5 SaaS / Distributed System Impact
-- Race condition, eventual consistency, or distributed transaction problem?
-- Multi-tenancy isolation risk — could one tenant's data leak to another?
-- Webhook, async job, or background worker related?
-- Rate limiting, quota exhaustion, or retry storm?
-- Third-party API dependency: Stripe, Firebase Auth, Resend, RentCast, FRED, etc.?
-- Retry/idempotency gap — can the operation be safely retried?
-- Affects subscription lifecycle events or billing state machine?
+### 2.5 SaaS / Distributed Systems
+- Race condition, multi-tenancy isolation risk, or async/webhook issue?
+- Third-party dependency (Stripe, Firebase Auth, Resend)? Retry/idempotency gap?
 
 ---
 
