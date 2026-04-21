@@ -203,6 +203,16 @@ echo "────────────────────────�
 echo ""
 echo "──────────────────────────────────────"
 echo -e "${GREEN}✓ Done!${NC}"
-[ "$TOOL_CLAUDE" = true ] && echo -e "${CYAN}  Claude Code: restart to load workflows. Run /reload-plugins for plugins.${NC}"
-echo -e "${CYAN}  Next: cd into a project and run  100x-dev init  to set it up.${NC}"
+echo ""
+if [ "$TOOL_CLAUDE" = true ]; then
+  echo -e "  ${CYAN}In Claude Code:${NC}"
+  echo -e "    Restart Claude Code to load workflows."
+  echo -e "    Run ${YELLOW}/reload-plugins${NC} inside Claude Code to load plugins."
+  echo ""
+fi
+echo -e "  ${CYAN}In your terminal:${NC}"
+if [ -n "$RC_FILE" ]; then
+  echo -e "    source ~/${RC_FILE##*/}          # reload shell aliases"
+fi
+echo -e "    cd your-project && ${YELLOW}100x-dev init${NC}  # set up a project"
 echo ""
