@@ -22,8 +22,17 @@
 24 slash commands. Quality gates on every commit. Works with any AI coding tool.
 
 ```bash
-git clone https://github.com/rajitsaha/100x-dev.git ~/100x-dev
-cd ~/100x-dev && ./install.sh
+# Mac / Linux
+curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+
+# Windows (or anywhere Node.js is installed)
+npm install -g 100x-dev && 100x-dev install
+```
+
+Run once per machine. Then to add 100x-dev to a project:
+
+```bash
+cd my-project && 100x-dev init
 ```
 
 > **New here?** See the [full usage guide](docs/USAGE.md).
@@ -106,7 +115,7 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 
 **Auto-banner**: Claude Code shows an update notice at session start when a new version is available.
 
-**Manual**: `~/100x-dev/update.sh` to update, `~/100x-dev/update.sh --check-only` to check.
+**Manual**: `100x-dev update` to update, `100x-dev check` to check.
 
 ---
 
