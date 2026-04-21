@@ -255,6 +255,18 @@ Only installed when you select Claude Code + Plugins during setup.
 
 ---
 
+## Get Notified of Updates
+
+**GitHub Releases** (recommended): Click **Watch → Custom → Releases** on this repo to receive email notifications when a new version ships.
+
+**SessionStart banner**: After installing, Claude Code automatically shows an update banner at the start of each session when a new version is available. The banner displays release notes and prompts you to update.
+
+**Shell alias**: Run `100x-update` to check for and apply updates at any time.
+
+**Manual check**: `~/100x-dev/update.sh --check-only`
+
+---
+
 ## Changelog
 
 Release history is in [CHANGELOG.md](CHANGELOG.md).
