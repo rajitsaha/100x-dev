@@ -78,35 +78,21 @@ echo "Needs services: $NEEDS_SERVICES"
 
 ### Start test services (if needed)
 
-**Option A — docker-compose test file exists:**
 ```bash
-[ -n "$TEST_COMPOSE" ] && docker compose -f "$TEST_COMPOSE" up -d --wait 2>/dev/null
-```
+# Auto-detect and start required services
+TEST_COMPOSE=$(ls docker-compose.test.yml docker-compose.testing.yml docker-compose.yml compose.yml 2>/dev/null | head -1 || true)
+NEEDS_SERVICES=$(grep -qE "postgres|redis|mysql|mongodb|elasticsearch" \
+  "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT/requirements"*.txt "$PROJECT_ROOT/package.json" 2>/dev/null && echo true || echo false)
 
-**Option B — no test compose, but services needed — start minimal stack:**
-```bash
-# Start only service containers, not the app itself
-if $NEEDS_SERVICES && [ -n "$TEST_COMPOSE" ]; then
-  # Start DB + cache only, skip app containers
-  docker compose -f "$TEST_COMPOSE" up -d --wait \
-    $(docker compose -f "$TEST_COMPOSE" config --services | grep -vE "^(api|app|backend|frontend|dashboard|web)$") 2>/dev/null || \
-  docker compose up -d --wait db redis 2>/dev/null || true
-fi
-```
-
-**Option C — no compose file, project has a Dockerfile — spin up test DB via docker run:**
-```bash
-if $NEEDS_SERVICES && [ -z "$TEST_COMPOSE" ]; then
-  # PostgreSQL
+if [ -n "$TEST_COMPOSE" ]; then
+  docker compose -f "$TEST_COMPOSE" up -d --wait 2>/dev/null || true
+elif $NEEDS_SERVICES; then
   docker run -d --name test-postgres \
     -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test \
     -p 5432:5432 postgres:16 2>/dev/null || true
-  # Redis (if referenced)
-  grep -qE "redis" "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT/requirements*.txt" "$PROJECT_ROOT/package.json" 2>/dev/null && \
+  grep -qE "redis" "$PROJECT_ROOT/package.json" "$PROJECT_ROOT/pyproject.toml" 2>/dev/null && \
     docker run -d --name test-redis -p 6379:6379 redis:7 2>/dev/null || true
-  # Wait for health
-  sleep 3
-  docker exec test-postgres pg_isready -U test 2>/dev/null || sleep 5
+  sleep 3 && docker exec test-postgres pg_isready -U test 2>/dev/null || sleep 3
 fi
 ```
 
