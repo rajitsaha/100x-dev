@@ -1,95 +1,14 @@
 # db-engine: oracle
+<!-- Implements _router.md skeleton for Oracle Database -->
 
-Receives pre-resolved variables from the /db router:
-- $ORA_HOST — hostname
-- $ORA_PORT — port (default 1521)
-- $ORA_SERVICE — Oracle service name or SID
-- $ORA_USER — username
-- $ORA_PASS — resolved password
-- $SQL — query to execute
+Receives pre-resolved variables from /db router: $DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASS, $SQL
 
----
-
-## Step 1 — Validate prerequisites
+**CLI:** `sqlplus` | **Default port:** 1521 | **SSL:** wallet-based
 
 ```bash
-if python3 -c "import cx_Oracle" 2>/dev/null; then
-  echo "Using cx_Oracle ✓"
-  USE_CX=true
-elif command -v sqlplus >/dev/null 2>&1; then
-  echo "Using sqlplus ✓"
-  USE_CX=false
-else
-  echo "ERROR: Neither cx_Oracle nor sqlplus found."
-  echo "  Install cx_Oracle: pip install cx_Oracle"
-  echo "  Requires Oracle Instant Client: https://oracle.github.io/odpi/doc/installation.html"
-  exit 1
-fi
+sqlplus "$DB_USER/$DB_PASS@$DB_HOST:${DB_PORT:-1521}/$DB_NAME" <<< "$SQL"
 ```
 
-## Step 2 — Execute query via cx_Oracle
+**Driver fallback:** Node `oracledb` — `oracledb.getConnection({ user, password, connectString })`
 
-```bash
-if [ "$USE_CX" = "true" ]; then
-  ORA_HOST="$ORA_HOST" ORA_PORT="${ORA_PORT:-1521}" ORA_SERVICE="$ORA_SERVICE" \
-  ORA_USER="$ORA_USER" ORA_PASS="$ORA_PASS" SQL="$SQL" \
-  python3 << 'PYEOF'
-import os, cx_Oracle
-
-try:
-    from tabulate import tabulate
-    use_tabulate = True
-except ImportError:
-    use_tabulate = False
-
-dsn = cx_Oracle.makedsn(
-    os.environ['ORA_HOST'],
-    int(os.environ.get('ORA_PORT', 1521)),
-    service_name=os.environ['ORA_SERVICE'],
-)
-conn = cx_Oracle.connect(
-    user=os.environ['ORA_USER'],
-    password=os.environ['ORA_PASS'],
-    dsn=dsn,
-)
-cur = conn.cursor()
-cur.execute(os.environ['SQL'])
-rows = cur.fetchall()
-headers = [desc[0] for desc in cur.description]
-if use_tabulate:
-    print(tabulate(rows, headers=headers, tablefmt='psql'))
-else:
-    print('\t'.join(headers))
-    for row in rows:
-        print('\t'.join(str(v) for v in row))
-cur.close()
-conn.close()
-PYEOF
-fi
-```
-
-## Step 3 — Execute query via sqlplus
-
-```bash
-if [ "$USE_CX" = "false" ]; then
-  # Write connection script to temp file (avoids ps exposure, handles special chars via heredoc)
-  TMPSCRIPT=$(mktemp /tmp/ora_script.XXXXXX.sql)
-  chmod 600 "$TMPSCRIPT"
-  cat > "$TMPSCRIPT" <<SQLEOF
-CONNECT ${ORA_USER}/"${ORA_PASS}"@${ORA_HOST}:${ORA_PORT:-1521}/${ORA_SERVICE}
-SET PAGESIZE 50000
-SET LINESIZE 200
-$SQL
-EXIT
-SQLEOF
-  sqlplus -S /nolog @"$TMPSCRIPT"
-  rm -f "$TMPSCRIPT"
-fi
-```
-
-## Safety rules
-- cx_Oracle requires Oracle Instant Client libraries on the system
-- Never log $ORA_PASS
-- Always add FETCH FIRST N ROWS ONLY or ROWNUM limit to SELECT queries
-- tabulate is optional — falls back to tab-separated output
-- For sqlplus: credentials written to temp file (chmod 600), never on command line — avoids ps aux exposure
+**Migration detection:** Flyway or Liquibase config → run migrate
