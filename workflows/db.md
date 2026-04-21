@@ -3,6 +3,8 @@
 Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle.
 Reads connection config from the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent) or ~/.claude/db-connections.json (global registry).
 
+> **Scope:** `/db` executes specific SQL or migrations against named connections. For analytics in plain English, use `/query`.
+
 ## Supported engines
 cloud-sql | postgres | snowflake | databricks | athena | presto | oracle
 
