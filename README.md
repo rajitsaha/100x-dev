@@ -7,6 +7,7 @@
 ### Stop vibe coding. Start shipping production-grade software.
 
 [![Version](https://img.shields.io/github/v/release/rajitsaha/100x-dev?style=flat-square&label=version&color=brightgreen)](https://github.com/rajitsaha/100x-dev/releases/latest)
+[![npm](https://img.shields.io/npm/v/100x-dev?style=flat-square&color=red)](https://www.npmjs.com/package/100x-dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-✓-blue?style=flat-square)](https://claude.ai)
 [![Cursor](https://img.shields.io/badge/Cursor-✓-purple?style=flat-square)](https://cursor.com)
