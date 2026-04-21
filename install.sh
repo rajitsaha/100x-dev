@@ -105,32 +105,10 @@ select_components() {
 # ── Install workflows ───────────────────────────────────────────────────────
 
 install_workflows() {
-  local need_project_path=false
-  [ "$TOOL_CLAUDE" = true ] && need_project_path=true
-  for tool in CURSOR CODEX WINDSURF COPILOT GEMINI ANTIGRAVITY; do
-    eval "val=\$TOOL_$tool"
-    # shellcheck disable=SC2154
-    [ "$val" = true ] && need_project_path=true && break
-  done
-
-  if [ "$need_project_path" = true ]; then
-    echo ""
-    read -rp "  Project path to set up (default: current directory): " PROJECT_PATH
-    PROJECT_PATH="${PROJECT_PATH:-.}"
-  fi
-
   if [ "$TOOL_CLAUDE" = true ]; then
     source "$REPO_DIR/adapters/claude-code.sh"
     install_global
-    install_project "$PROJECT_PATH"
   fi
-
-  [ "$TOOL_CURSOR" = true ]      && bash "$REPO_DIR/adapters/cursor.sh" "$PROJECT_PATH"
-  [ "$TOOL_CODEX" = true ]       && bash "$REPO_DIR/adapters/codex.sh" "$PROJECT_PATH"
-  [ "$TOOL_WINDSURF" = true ]    && bash "$REPO_DIR/adapters/windsurf.sh" "$PROJECT_PATH"
-  [ "$TOOL_COPILOT" = true ]     && bash "$REPO_DIR/adapters/copilot.sh" "$PROJECT_PATH"
-  [ "$TOOL_GEMINI" = true ]      && bash "$REPO_DIR/adapters/gemini.sh" "$PROJECT_PATH"
-  [ "$TOOL_ANTIGRAVITY" = true ] && bash "$REPO_DIR/adapters/antigravity.sh" "$PROJECT_PATH"
 }
 
 # ── Install plugins (Claude Code only) ──────────────────────────────────────
@@ -256,4 +234,5 @@ echo ""
 echo "──────────────────────────────────────"
 echo -e "${GREEN}✓ Done!${NC}"
 [ "$TOOL_CLAUDE" = true ] && echo -e "${CYAN}  Claude Code: restart to load workflows. Run /reload-plugins for plugins.${NC}"
+echo -e "${CYAN}  Next: cd into a project and run  100x-dev init  to set it up.${NC}"
 echo ""
