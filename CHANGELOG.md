@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
-## [Unreleased]
+## [1.1.0] — 2026-04-12
 
 ### Added
 - Version notification system: daily update check, shell banner, Claude Code session hook, auto-regeneration of tracked projects
@@ -21,6 +21,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   - test.md trimmed from 791 → 470 lines by extracting Phase 4c–4g E2E boilerplate to `docs/e2e-patterns.md`
   - Removed unused plugins: firecrawl, stripe, brightdata (save ~225 tokens/session from skill listing)
   - Added `<!-- model: haiku -->` hint to lint.md + security.md; `<!-- model: opus -->` to architect.md + enterprise-design.md
+
+---
+
+## [1.2.0] — 2026-04-20
+
+### Changed
+- Removed `firecrawl@claude-plugins-official` from plugins (unused — web scraping not needed for dev workflow)
+- Removed `stripe@claude-plugins-official` from plugins (unused — no Stripe integration in core workflows)
+- Removed `code-review@claude-plugins-official` from plugins (superseded by `pr-review-toolkit` which provides multi-agent review)
+- Plugin count: 13 → 10
+
+### Added
+- Plugin scope table in README documenting each plugin's purpose and overlap notes
+- Code review pipeline diagram: `/grill` → PR → `/review-pr`
+- GitHub issues #9 and #10 tracking remaining overlap remediation
+
+### Performance
+- ~3,000–5,000 tokens/session saved by removing 3 unused/redundant plugins from system prompt
 
 ---
 
