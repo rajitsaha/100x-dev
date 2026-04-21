@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract CHANGELOG section
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES=$(awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md 2>/dev/null | sed '/^---$/d' | sed '/^[[:space:]]*$/d')
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          fi
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "notes<<$EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.version }}"
+          body: |
+            ${{ steps.notes.outputs.notes }}
+
+            ---
+            **Install / upgrade:**
+            ```bash
+            # New install
+            bash -c "$(curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh)"
+
+            # Existing users
+            ~/100x-dev/update.sh
+            ```
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
