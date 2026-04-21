@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.4.1] — 2026-04-21
+
+### Fixed
+- `shell/aliases.sh` — add `100x-dev` alias so the command works after `curl | bash` install (not just npm global install)
+- `install.sh` — separate post-install output into "In Claude Code" vs "In your terminal" sections; add shell reload reminder
+
+---
+
 ## [1.4.0] — 2026-04-21
 
 ### Added

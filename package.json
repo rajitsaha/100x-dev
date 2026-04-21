@@ -1,6 +1,6 @@
 {
   "name": "100x-dev",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "24 slash commands. Quality gates on every commit. Works with any AI coding tool.",
   "bin": {
     "100x-dev": "bin/100x-dev.js"
