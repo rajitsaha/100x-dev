@@ -30,10 +30,11 @@ curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | ba
 npm install -g 100x-dev && 100x-dev install
 ```
 
-Run once per machine. Then to add 100x-dev to a project:
+Run once per machine. Then set up each project you work on:
 
 ```bash
-cd my-project && 100x-dev init
+cd /path/to/your/project
+100x-dev init
 ```
 
 > **New here?** See the [full usage guide](docs/USAGE.md).
