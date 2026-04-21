@@ -39,7 +39,7 @@ select_tools() {
     echo "  [$([ "$TOOL_GEMINI" = true ] && echo "x" || echo " ")] 6) Gemini CLI"
     echo "  [$([ "$TOOL_ANTIGRAVITY" = true ] && echo "x" || echo " ")] 7) Antigravity"
     echo ""
-    read -rp "  Toggle (1-7) or press Enter to confirm: " choice
+    read -rp "  Toggle (1-7) or press Enter to confirm: " choice || true
     case "$choice" in
       1) TOOL_CLAUDE=$([ "$TOOL_CLAUDE" = true ] && echo false || echo true) ;;
       2) TOOL_CURSOR=$([ "$TOOL_CURSOR" = true ] && echo false || echo true) ;;

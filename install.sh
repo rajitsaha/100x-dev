@@ -21,49 +21,19 @@ echo ""
 # ── Tool selection ──────────────────────────────────────────────────────────
 
 TOOL_CLAUDE=false
-TOOL_CURSOR=false
-TOOL_CODEX=false
-TOOL_WINDSURF=false
-TOOL_COPILOT=false
-TOOL_GEMINI=false
-TOOL_ANTIGRAVITY=false
 
 select_tools() {
-  echo "Which AI coding tools do you use?"
-  echo "  (Enter numbers to toggle, then press Enter with no input to confirm)"
+  echo "This installs 100x Dev globally for Claude Code."
+  echo "To set up Cursor, Codex, Windsurf, Copilot, Gemini, or Antigravity in a project,"
+  echo "run  100x-dev init  from that project directory after this completes."
   echo ""
-
-  while true; do
-    echo "  [$([ "$TOOL_CLAUDE" = true ] && echo "x" || echo " ")] 1) Claude Code"
-    echo "  [$([ "$TOOL_CURSOR" = true ] && echo "x" || echo " ")] 2) Cursor"
-    echo "  [$([ "$TOOL_CODEX" = true ] && echo "x" || echo " ")] 3) Codex (OpenAI)"
-    echo "  [$([ "$TOOL_WINDSURF" = true ] && echo "x" || echo " ")] 4) Windsurf"
-    echo "  [$([ "$TOOL_COPILOT" = true ] && echo "x" || echo " ")] 5) Copilot CLI"
-    echo "  [$([ "$TOOL_GEMINI" = true ] && echo "x" || echo " ")] 6) Gemini CLI"
-    echo "  [$([ "$TOOL_ANTIGRAVITY" = true ] && echo "x" || echo " ")] 7) Antigravity"
-    echo ""
-    read -rp "  Toggle (1-7) or press Enter to confirm: " choice
-
-    case "$choice" in
-      1) TOOL_CLAUDE=$([ "$TOOL_CLAUDE" = true ] && echo false || echo true) ;;
-      2) TOOL_CURSOR=$([ "$TOOL_CURSOR" = true ] && echo false || echo true) ;;
-      3) TOOL_CODEX=$([ "$TOOL_CODEX" = true ] && echo false || echo true) ;;
-      4) TOOL_WINDSURF=$([ "$TOOL_WINDSURF" = true ] && echo false || echo true) ;;
-      5) TOOL_COPILOT=$([ "$TOOL_COPILOT" = true ] && echo false || echo true) ;;
-      6) TOOL_GEMINI=$([ "$TOOL_GEMINI" = true ] && echo false || echo true) ;;
-      7) TOOL_ANTIGRAVITY=$([ "$TOOL_ANTIGRAVITY" = true ] && echo false || echo true) ;;
-      "") break ;;
-      *) echo "  Invalid choice. Enter 1-7." ;;
-    esac
-    echo ""
-  done
-
-  if [ "$TOOL_CLAUDE" = false ] && [ "$TOOL_CURSOR" = false ] && [ "$TOOL_CODEX" = false ] && \
-     [ "$TOOL_WINDSURF" = false ] && [ "$TOOL_COPILOT" = false ] && [ "$TOOL_GEMINI" = false ] && \
-     [ "$TOOL_ANTIGRAVITY" = false ]; then
-    echo -e "  ${YELLOW}No tools selected. Please select at least one.${NC}"
-    echo ""
-    select_tools
+  read -rp "  Install for Claude Code? [Y/n]: " yn || true
+  yn="${yn:-Y}"
+  if [[ "$yn" =~ ^[Yy]$ ]]; then
+    TOOL_CLAUDE=true
+  else
+    echo "  Nothing to install. Exiting."
+    exit 0
   fi
 }
 
@@ -88,7 +58,7 @@ select_components() {
     echo "  [$([ "$INSTALL_SHELL" = true ] && echo "x" || echo " ")] 3) Shell        — aliases + shortcuts (cc, ccc, 100x-update, ...)"
     echo "  [$([ "$INSTALL_TEMPLATES" = true ] && echo "x" || echo " ")] 4) Templates   — project starters (node, python, docker)"
     echo ""
-    read -rp "  Toggle (1-4) or press Enter to confirm: " choice
+    read -rp "  Toggle (1-4) or press Enter to confirm: " choice || true
 
     case "$choice" in
       1) INSTALL_WORKFLOWS=$([ "$INSTALL_WORKFLOWS" = true ] && echo false || echo true) ;;
