@@ -1,9 +1,9 @@
 {
   "name": "100x-dev",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "24 slash commands. Quality gates on every commit. Works with any AI coding tool.",
   "bin": {
-    "100x-dev": "./bin/100x-dev.js"
+    "100x-dev": "bin/100x-dev.js"
   },
   "files": [
     "bin/",
@@ -23,12 +23,17 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "claude-code", "cursor", "codex", "ai-coding", "developer-workflow", "slash-commands"
+    "claude-code",
+    "cursor",
+    "codex",
+    "ai-coding",
+    "developer-workflow",
+    "slash-commands"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rajitsaha/100x-dev.git"
+    "url": "git+https://github.com/rajitsaha/100x-dev.git"
   },
   "homepage": "https://github.com/rajitsaha/100x-dev"
 }

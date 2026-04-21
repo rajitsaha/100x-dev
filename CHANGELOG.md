@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.4.0] — 2026-04-21
+
+### Added
+- `get.sh` — idempotent curl|bash bootstrap: clones on first run, pulls on subsequent runs
+- `100x-dev` CLI — `install`, `init`, `update`, `check` subcommands (cross-platform)
+- `install-project.sh` — per-project setup extracted from install.sh; called by `100x-dev init`
+- `lib/adapters/windows.js` — full Windows support: copies workflows, scaffolds CLAUDE.md, merges plugins.json, generates per-tool instruction files
+- `bin/100x-dev.js` — CLI entry point dispatching to bash scripts (Mac/Linux) or JS adapters (Windows)
+- `package.json` + `.npmignore` — published as `100x-dev` on npm registry
+- 16 tests covering `lib/platform.js` and `lib/adapters/windows.js`
+
+### Changed
+- `install.sh` — Phase 1 (global) only; no longer prompts for project path
+- README — new install block: `curl | bash` (Mac/Linux) + `npm install -g 100x-dev` (Windows)
+- `docs/USAGE.md` — updated all install/init/update instructions to use new CLI commands
+
+---
+
 ## [1.3.1] — 2026-04-20
 
 ### Fixed
