@@ -51,7 +51,7 @@ cd ~/100x-dev && ./install.sh
 
 That's it. Your AI coding tool now has production-grade discipline.
 
-> **Latest release:** [v1.1.0](https://github.com/rajitsaha/100x-dev/releases/latest) — token optimization, update notifications, banner. See [What's new](https://github.com/rajitsaha/100x-dev/releases/latest).
+> **Latest release:** [v1.2.0](https://github.com/rajitsaha/100x-dev/releases/latest) — plugin cleanup (13→10), scope table, code review pipeline. See [What's new](https://github.com/rajitsaha/100x-dev/releases/latest).
 
 > **New here?** Read the full **[How to Use guide](docs/USAGE.md)** — covers installation by tool, propagating workflows to all your projects, team onboarding, and daily usage patterns.
 
@@ -98,6 +98,15 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | **cloud-security** | Deep cloud security & data privacy scan — IAM, networking, PII, GDPR/CCPA compliance. |
 | **enterprise-design** | Enterprise-grade design system and technical blueprint generation. |
 | **db** | Universal database access — query any of 7 database engines from one interface. |
+
+### Code Review Pipeline
+
+```
+/grill → create PR → /review-pr
+```
+
+- `/grill` — adversarial pre-PR review (interrogates the developer before PR is opened)
+- `/review-pr` — multi-agent post-PR review (6 specialized agents once PR exists)
 
 ### The Quality Gate
 
@@ -193,13 +202,28 @@ cp ~/100x-dev/github-actions/release.yml .github/workflows/release.yml
 
 ## Plugins (Claude Code Bonus)
 
-12 curated plugins auto-installed into Claude Code:
+10 curated plugins auto-installed into Claude Code:
 
-**superpowers** | **frontend-design** | **hookify** | **pr-review-toolkit** | **code-review** | **playwright** | **github** | **skill-creator** | **code-simplifier** | **security-guidance** | **remember** | **claude-mem**
+**superpowers** | **frontend-design** | **playwright** | **github** | **pr-review-toolkit** | **hookify** | **skill-creator** | **code-simplifier** | **security-guidance** | **claude-mem**
 
 Only installed when you select Claude Code + Plugins during setup.
 
 > **Note:** The `claude-mem` plugin requires [Bun](https://bun.sh). The installer will detect if Bun is missing and offer to install it automatically.
+
+### Plugin Scope
+
+| Plugin | Purpose | Overlap notes |
+|---|---|---|
+| `superpowers` | Dev methodology — TDD, debugging, planning, code review | Core — keep |
+| `frontend-design` | Production-grade frontend code generation | Keep |
+| `playwright` | Browser automation MCP | Keep |
+| `github` | GitHub MCP tools | Keep |
+| `pr-review-toolkit` | Multi-agent comprehensive PR review | Replaces `code-review` |
+| `hookify` | Claude Code session hooks | Keep |
+| `skill-creator` | Create new skills | Keep |
+| `code-simplifier` | Post-coding simplification | Keep |
+| `security-guidance` | Advisory security guidance | Complements `/security` scanner |
+| `claude-mem` | Cross-session persistent memory | Keep |
 
 ---
 
