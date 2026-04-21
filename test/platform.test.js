@@ -25,3 +25,8 @@ test('claudeSettingsFile is ~/.claude/settings.json', () => {
 test('trackedProjectsFile is ~/.100x-dev/tracked-projects', () => {
   assert.equal(platform.trackedProjectsFile, path.join(os.homedir(), '.100x-dev', 'tracked-projects'))
 })
+
+test('exactly one of isWindows/isMac/isLinux is true', () => {
+  const flags = [platform.isWindows, platform.isMac, platform.isLinux]
+  assert.equal(flags.filter(Boolean).length, 1)
+})

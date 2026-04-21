@@ -1,5 +1,10 @@
 docs/
 test/
 .github/
+assets/
+scripts/
+github-actions/
 *.bak
 .DS_Store
+.worktrees/
+.remember/
