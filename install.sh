@@ -105,12 +105,8 @@ select_components() {
 # ── Install workflows ───────────────────────────────────────────────────────
 
 install_workflows() {
-  if [ "$TOOL_CLAUDE" = true ]; then
-    source "$REPO_DIR/adapters/claude-code.sh"
-    install_global
-  fi
-
   local need_project_path=false
+  [ "$TOOL_CLAUDE" = true ] && need_project_path=true
   for tool in CURSOR CODEX WINDSURF COPILOT GEMINI ANTIGRAVITY; do
     eval "val=\$TOOL_$tool"
     # shellcheck disable=SC2154
@@ -119,16 +115,22 @@ install_workflows() {
 
   if [ "$need_project_path" = true ]; then
     echo ""
-    read -rp "  Project path for generated files (default: current directory): " PROJECT_PATH
+    read -rp "  Project path to set up (default: current directory): " PROJECT_PATH
     PROJECT_PATH="${PROJECT_PATH:-.}"
-
-    [ "$TOOL_CURSOR" = true ]      && bash "$REPO_DIR/adapters/cursor.sh" "$PROJECT_PATH"
-    [ "$TOOL_CODEX" = true ]       && bash "$REPO_DIR/adapters/codex.sh" "$PROJECT_PATH"
-    [ "$TOOL_WINDSURF" = true ]    && bash "$REPO_DIR/adapters/windsurf.sh" "$PROJECT_PATH"
-    [ "$TOOL_COPILOT" = true ]     && bash "$REPO_DIR/adapters/copilot.sh" "$PROJECT_PATH"
-    [ "$TOOL_GEMINI" = true ]      && bash "$REPO_DIR/adapters/gemini.sh" "$PROJECT_PATH"
-    [ "$TOOL_ANTIGRAVITY" = true ] && bash "$REPO_DIR/adapters/antigravity.sh" "$PROJECT_PATH"
   fi
+
+  if [ "$TOOL_CLAUDE" = true ]; then
+    source "$REPO_DIR/adapters/claude-code.sh"
+    install_global
+    install_project "$PROJECT_PATH"
+  fi
+
+  [ "$TOOL_CURSOR" = true ]      && bash "$REPO_DIR/adapters/cursor.sh" "$PROJECT_PATH"
+  [ "$TOOL_CODEX" = true ]       && bash "$REPO_DIR/adapters/codex.sh" "$PROJECT_PATH"
+  [ "$TOOL_WINDSURF" = true ]    && bash "$REPO_DIR/adapters/windsurf.sh" "$PROJECT_PATH"
+  [ "$TOOL_COPILOT" = true ]     && bash "$REPO_DIR/adapters/copilot.sh" "$PROJECT_PATH"
+  [ "$TOOL_GEMINI" = true ]      && bash "$REPO_DIR/adapters/gemini.sh" "$PROJECT_PATH"
+  [ "$TOOL_ANTIGRAVITY" = true ] && bash "$REPO_DIR/adapters/antigravity.sh" "$PROJECT_PATH"
 }
 
 # ── Install plugins (Claude Code only) ──────────────────────────────────────
