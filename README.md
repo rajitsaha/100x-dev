@@ -98,6 +98,22 @@ The installer asks which AI tools you use (Claude Code, Cursor, Codex, Windsurf,
 | **cloud-security** | Deep cloud security & data privacy scan — IAM, networking, PII, GDPR/CCPA compliance. |
 | **enterprise-design** | Enterprise-grade design system and technical blueprint generation. |
 | **db** | Universal database access — query any of 7 database engines from one interface. |
+| **fix** | Autonomous bug fixer — CI, docker logs, Slack, or description |
+| **spec** | Write implementation-ready spec before coding |
+| **grill** | Adversarial code review before `/pr` |
+| **techdebt** | Scan and eliminate dead/duplicated code |
+| **context** | 7-day git/gh activity dump for session start |
+| **query** | Plain-English analytics against any database |
+| **orchestrate** | Plan-first methodology for complex multi-step tasks |
+| **update-claude** | Write CLAUDE.md rules after corrections |
+
+## Development Pipeline
+
+```
+/context → /issue → /spec → /fix → /commit
+                                      ↓
+             /techdebt ← /gate → /grill → /pr → /push → /release
+```
 
 ### Code Review Pipeline
 

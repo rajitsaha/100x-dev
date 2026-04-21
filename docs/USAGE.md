@@ -32,6 +32,29 @@ This guide covers how to install, configure, and propagate 100x Dev workflows ac
 
 ---
 
+## Full Development Pipeline
+
+100x-dev provides a complete end-to-end workflow:
+
+1. **`/context`** — Session orientation: 7-day git/gh activity dump
+2. **`/issue`** — Create a structured GitHub issue from a description
+3. **`/spec`** — Turn fuzzy requirements into an implementation-ready spec
+4. **`/fix`** — Autonomously fix a bug (CI, logs, Slack, or description)
+5. **`/commit`** — Stage, review, and commit with a conventional commit message
+6. **`/gate`** — Pre-PR quality gate (tests, lint, types)
+7. **`/grill`** — Adversarial pre-PR review — challenge your own code
+8. **`/pr`** — Create a pull request with description
+9. **`/push`** — Push to remote
+10. **`/release`** — Tag and publish a release
+
+### Supplementary workflows
+- **`/techdebt`** — Periodic: scan and eliminate debt
+- **`/orchestrate`** — For complex tasks: plan-first methodology
+- **`/query`** — Plain-English database analytics
+- **`/update-claude`** — After corrections: write a CLAUDE.md rule
+
+---
+
 ## How It Works
 
 100x Dev provides 16 AI development workflows (quality gates, testing, security scans, etc.) written as markdown instructions. Your AI coding tool reads these instructions and follows them.
