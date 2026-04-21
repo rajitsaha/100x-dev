@@ -57,9 +57,8 @@ select_tools() {
   if [ "$TOOL_CLAUDE" = false ] && [ "$TOOL_CURSOR" = false ] && [ "$TOOL_CODEX" = false ] && \
      [ "$TOOL_WINDSURF" = false ] && [ "$TOOL_COPILOT" = false ] && [ "$TOOL_GEMINI" = false ] && \
      [ "$TOOL_ANTIGRAVITY" = false ]; then
-    echo -e "  ${YELLOW}No tools selected. Please select at least one.${NC}"
-    echo ""
-    select_tools
+    echo -e "  ${YELLOW}No tools selected. Exiting.${NC}"
+    exit 1
   fi
 }
 
