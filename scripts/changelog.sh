@@ -85,8 +85,10 @@ _do_release() {
   ' "$CHANGELOG" > "$tmp"
   mv "$tmp" "$CHANGELOG"
 
+  echo "$version" > "$REPO_DIR/VERSION"
+
   git -C "$REPO_DIR" tag -a "$tag" -m "Release $tag"
-  echo -e "${GREEN}Tagged $tag and updated CHANGELOG.md${NC}"
+  echo -e "${GREEN}Tagged $tag, updated CHANGELOG.md and VERSION${NC}"
 
   read -rp "Push tag $tag now to trigger GitHub Release? (Y/n): " _push
   _push="${_push:-Y}"
