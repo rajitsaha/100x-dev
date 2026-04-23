@@ -26,7 +26,8 @@
 # Mac / Linux
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
 source ~/.zshrc   # or ~/.bashrc — reload shell to activate the 100x-dev command
-
+```
+```bash
 # Windows (or anywhere Node.js is installed)
 npm install -g 100x-dev && 100x-dev install
 ```
