@@ -23,3 +23,10 @@ Add to any workflow that operates without user prompting:
 ```
 **GATE: [Condition that must be true before proceeding.]**
 ```
+
+## SaaS credentials
+When a workflow requires cloud or SaaS credentials, reference the **connect** workflow:
+- Run `/connect` to see status of all 25+ services
+- Run `/connect <service>` to install CLI + authenticate a specific service
+- Credentials are stored in `.env` (copy `.env.example` to start)
+- Services: github · aws · gcp · azure · vercel · netlify · railway · heroku · flyio · supabase · planetscale · firebase · stripe · cloudflare · docker · terraform · sentry · datadog · jira · linear · slack · notion · npm · pypi · digitalocean · render · mongodb
