@@ -4,7 +4,7 @@
 
 ## How It Works
 
-100x Dev provides 24 AI development workflows as markdown instructions. Your AI tool reads them and follows them — running bash commands, enforcing thresholds, looping until checks pass.
+100x Dev provides 25 AI development workflows as markdown instructions. Your AI tool reads them and follows them — running bash commands, enforcing thresholds, looping until checks pass.
 
 | Approach | Tools | How workflows are delivered |
 |:---------|:------|:---------------------------|
@@ -86,6 +86,7 @@ This writes the right instruction file for each enabled tool (`.cursorrules`, `A
 /docs                  Detect code changes and update documentation
 /orchestrate           Plan-first methodology for complex multi-step tasks
 /update-claude         Write a CLAUDE.md rule after any correction
+/connect               Install + auth any SaaS CLI (GitHub, AWS, Stripe, Supabase…) from .env
 ```
 
 **Typical daily flow:**

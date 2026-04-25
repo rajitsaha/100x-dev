@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.5.0] — 2026-04-25
+
+### Added
+- `/connect` workflow — install, authenticate, and test 27 SaaS CLI tools in one command; reads credentials from `.env`; no MCP required
+- `.env.example` — credential stubs for all 27 services with inline token-creation links, grouped by category (cloud, deployment, database, payments, DevOps, comms, registries)
+- `templates/.env.example` — same template bundled into project scaffolds
+- `workflows/_lib.md` — SaaS credentials reference section so other workflows can point users to `/connect`
+- Services covered: GitHub, AWS, GCP, Azure, Vercel, Netlify, Railway, Heroku, Fly.io, Supabase, PlanetScale, Firebase, Stripe, Cloudflare, Docker, Terraform, Sentry, Datadog, Jira, Linear, Slack, Notion, npm, PyPI, DigitalOcean, Render, MongoDB Atlas
+
+---
+
 ## [1.4.1] — 2026-04-21
 
 ### Fixed

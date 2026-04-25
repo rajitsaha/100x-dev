@@ -20,7 +20,7 @@
 
 ---
 
-24 slash commands. Quality gates on every commit. Works with any AI coding tool.
+25 slash commands. Quality gates on every commit. Works with any AI coding tool.
 
 ```bash
 # Mac / Linux
@@ -83,6 +83,7 @@ Every `/commit` and `/push` runs a 5-point quality gate — tests, security, bui
 | `/docs` | Detect code changes and update documentation |
 | `/orchestrate` | Plan-first methodology for complex multi-step tasks |
 | `/update-claude` | Write a CLAUDE.md rule after any correction |
+| `/connect` | Install, authenticate, and test any SaaS CLI (27 services) from `.env` |
 
 ---
 
@@ -104,10 +105,11 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 
 ## What's Included
 
-- **24 workflows** — full dev lifecycle from orientation to release
+- **25 workflows** — full dev lifecycle from orientation to release, including SaaS CLI connections
 - **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle
 - **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
 - **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose
+- **`.env.example`** — credential stubs for 27 SaaS services with token creation links
 - **2 GitHub Actions templates** — CI pipeline (lint + real-DB tests + E2E) and release pipeline
 - **Shell aliases** — `100x-dev`, `cc`, `ccc`, `100x-update`, `100x-check`
 
