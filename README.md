@@ -20,7 +20,7 @@
 
 ---
 
-<img src="assets/100x-dev-banner.png" alt="100x Dev Logo" />
+<img src="assets/postcard-stack.png" alt="100x Dev Logo" />
 
 
 ```bash
