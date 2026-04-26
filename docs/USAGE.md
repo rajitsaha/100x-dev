@@ -231,6 +231,63 @@ Pre-release checks → build → GitHub Release → publish to PyPI/npm/Docker H
 
 ---
 
+## Common CI Traps
+
+Three bugs that consistently cause CI failures when AI tools generate pipelines. All three are now documented in the project templates and the `ci.yml` template with inline `# TRAP:` comments.
+
+### 1. npm package not published → Docker build 404
+
+**Symptom:** `npm error 404 Not Found — GET https://registry.npmjs.org/@yourorg%2fpkg`
+
+If a package appears in `dependencies` but hasn't been published to the npm registry, `npm install` silently passes locally (package may be in `node_modules` from a prior install) but fails inside Docker where there is no cache.
+
+```json
+// Wrong — 404 in every Docker build
+"dependencies": { "@yourorg/internal-client": "^0.1.0" }
+
+// Right option A — local file reference
+"dependencies": { "@yourorg/internal-client": "file:./internal-client" }
+
+// Right option B — vendor source into build context, import as local file
+// (copy src/index.ts → build_dir/internal-client.ts, import './internal-client.js')
+```
+
+### 2. `useState(false)` animation → Playwright `toBeVisible()` timeout
+
+**Symptom:** E2E tests time out waiting for form inputs that are present in the DOM but invisible.
+
+```tsx
+// Wrong — form renders with opacity-0 on first paint; toBeVisible() fails
+const [mounted, setMounted] = useState(false);
+useEffect(() => { setMounted(true); }, []);
+// ...
+<form className={mounted ? "opacity-100" : "opacity-0"}>
+```
+
+This pattern is an SSR hydration guard. In a client-only SPA it serves no purpose — the component always mounts in the browser. Playwright's `toBeVisible()` checks CSS visibility and fails on `opacity-0` elements even when they are in the DOM.
+
+```tsx
+// Right — immediately visible, animation via CSS @keyframes instead
+const mounted = true;
+// or keep the state but initialize true: useState(true)
+```
+
+### 3. Integration tests silently excluded from the gate
+
+**Symptom:** Tests pass in CI but integration failures only appear after merge or in prod.
+
+```yaml
+# Wrong — integration tests never run in CI
+run: pytest tests/unit/
+
+# Right — gate both together
+run: pytest tests/unit/ tests/integration/
+```
+
+Docker-build tests, database schema tests, and cross-service contract tests all live in `tests/integration/`. Omitting them means a 404 npm error or a broken Dockerfile can merge undetected.
+
+---
+
 ## FAQ
 
 **Does this work without an AI coding tool?**

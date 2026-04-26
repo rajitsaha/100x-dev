@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.6.0] — 2026-04-26
+
+### Added
+- **`docs/ci-traps.md`** — new reference guide documenting three CI failures that consistently surface when AI tools generate pipelines: npm 404 from unpublished packages, Playwright `toBeVisible()` timeouts caused by `opacity-0` React animations, and integration tests silently excluded from the gate
+- **`Common CI Traps` section in README** — quick-reference callout linking to the full guide
+- **`Common CI Traps` section in all project templates** — `node-frontend.md`, `node-fullstack.md`, `python-api.md` each include the relevant traps for their stack
+- **`Common CI Traps` section in `docs/USAGE.md`** — full code examples and fixes under the GitHub Actions Templates section
+- **`# TRAP:` inline comments in `github-actions/ci.yml`** — three comments at the exact lines where each pitfall occurs (npm ci step, pytest step, E2E step)
+
+### Fixed
+- `github-actions/ci.yml` — the `unit-tests` job now includes a reminder comment that `tests/integration/` must be included alongside `tests/unit/`
+
+---
+
 ## [1.5.0] — 2026-04-25
 
 ### Added

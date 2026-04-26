@@ -108,10 +108,27 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 - **25 workflows** — full dev lifecycle from orientation to release, including SaaS CLI connections
 - **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle
 - **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
-- **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose
+- **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose — each with a **Common CI Traps** section
 - **`.env.example`** — credential stubs for 27 SaaS services with token creation links
 - **2 GitHub Actions templates** — CI pipeline (lint + real-DB tests + E2E) and release pipeline
 - **Shell aliases** — `100x-dev`, `cc`, `ccc`, `100x-update`, `100x-check`
+
+---
+
+## Common CI Traps
+
+Three bugs that consistently surface when AI tools generate CI pipelines. Now documented in every template and the `ci.yml` template.
+
+**1. npm package not published → Docker build 404**
+A package listed in `dependencies` that doesn't exist on the npm registry causes `npm install` to fail inside Docker. Use `file:` paths or vendor the source into the build context.
+
+**2. `useState(false)` animation → Playwright invisible form**
+`useState(false)` + `useEffect(() => setState(true), [])` for CSS enter-animations makes elements `opacity-0` on first render. Playwright's `toBeVisible()` fails. In SPAs initialize to `true` — no effect needed.
+
+**3. Integration tests silently excluded from gate**
+Running only `pytest tests/unit/` excludes integration tests. Docker-build failures and DB regressions only surface after merge. Always run `tests/unit/ tests/integration/` together.
+
+See [docs/ci-traps.md](docs/ci-traps.md) for full examples and fixes.
 
 ---
 
