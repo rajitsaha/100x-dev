@@ -20,13 +20,17 @@
 
 ---
 
-25 slash commands. Quality gates on every commit. Works with any AI coding tool.
+<img src="assets/100x-dev-banner.png" alt="100x Dev Logo" />
+
 
 ```bash
 # Mac / Linux
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+```
+```
 source ~/.zshrc   # or ~/.bashrc — reload shell to activate the 100x-dev command
 ```
+
 ```bash
 # Windows (or anywhere Node.js is installed)
 npm install -g 100x-dev && 100x-dev install
@@ -43,94 +47,6 @@ cd /path/to/your/project
 
 ---
 
-## The Pipeline
-
-```
-/context → /issue → /spec → /fix → /commit
-                                      ↓
-         /techdebt ← /gate → /grill → /pr → /push → /release
-```
-
-Every `/commit` and `/push` runs a 5-point quality gate — tests, security, build, Docker, cloud security. Nothing ships without passing.
-
----
-
-## Commands
-
-| Command | What it does |
-|:--------|:-------------|
-| `/context` | 7-day git + GitHub activity dump — orient before touching anything |
-| `/issue` | Investigate a bug and create a detailed GitHub issue |
-| `/spec` | Turn a vague request into an implementation-ready spec |
-| `/fix` | Autonomous bug fixer — CI failures, docker logs, Slack pastes |
-| `/gate` | 5-point quality gate — run before every commit |
-| `/test` | Run all test layers against real Docker services, loop until 95% coverage |
-| `/commit` | Gate → stage → conventional commit |
-| `/grill` | Adversarial pre-PR review — challenge your own diff |
-| `/pr` | Gate → push → create PR |
-| `/push` | Gate → push → monitor CI → verify production health |
-| `/release` | Version bump → tag → publish to PyPI/npm/Docker Hub → verify |
-| `/launch` | Full deploy pipeline in one command |
-| `/branch` | Create conventional feature branches (`feat/`, `fix/`, `chore/`) |
-| `/lint` | Auto-detect and fix all lint errors (ESLint, TypeScript, ruff) |
-| `/security` | Scan for vulnerabilities and secrets, auto-fix where possible |
-| `/techdebt` | Scan for dead code, duplication, stale TODOs |
-| `/db` | Query any of 7 database engines from one interface |
-| `/query` | Plain-English analytics — describe what you want, Claude writes the SQL |
-| `/architect` | Architectural Q&A and decision matrices |
-| `/enterprise-design` | Full technical blueprint — IA, API, data model, stack |
-| `/cloud-security` | Deep GCP IAM, networking, PII, and compliance scan |
-| `/docs` | Detect code changes and update documentation |
-| `/orchestrate` | Plan-first methodology for complex multi-step tasks |
-| `/update-claude` | Write a CLAUDE.md rule after any correction |
-| `/connect` | Install, authenticate, and test any SaaS CLI (27 services) from `.env` |
-
----
-
-## Supported Tools
-
-| Tool | How it works |
-|:-----|:-------------|
-| **Claude Code** | Each workflow is a slash command in `~/.claude/commands/` |
-| **Cursor** | All workflows concatenated into `.cursorrules` |
-| **Codex** | All workflows embedded in `AGENTS.md` |
-| **Windsurf** | All workflows in `.windsurfrules` |
-| **Copilot CLI** | All workflows in `.github/copilot-instructions.md` |
-| **Gemini CLI** | All workflows in `GEMINI.md` |
-| **Antigravity** | All workflows in `ANTIGRAVITY.md` |
-
-The installer asks which tools you use and sets up each one. For Claude Code it also scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP project, production URLs, and security exceptions.
-
----
-
-## What's Included
-
-- **25 workflows** — full dev lifecycle from orientation to release, including SaaS CLI connections
-- **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle
-- **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
-- **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose — each with a **Common CI Traps** section
-- **`.env.example`** — credential stubs for 27 SaaS services with token creation links
-- **2 GitHub Actions templates** — CI pipeline (lint + real-DB tests + E2E) and release pipeline
-- **Shell aliases** — `100x-dev`, `cc`, `ccc`, `100x-update`, `100x-check`
-
----
-
-## Common CI Traps
-
-Three bugs that consistently surface when AI tools generate CI pipelines. Now documented in every template and the `ci.yml` template.
-
-**1. npm package not published → Docker build 404**
-A package listed in `dependencies` that doesn't exist on the npm registry causes `npm install` to fail inside Docker. Use `file:` paths or vendor the source into the build context.
-
-**2. `useState(false)` animation → Playwright invisible form**
-`useState(false)` + `useEffect(() => setState(true), [])` for CSS enter-animations makes elements `opacity-0` on first render. Playwright's `toBeVisible()` fails. In SPAs initialize to `true` — no effect needed.
-
-**3. Integration tests silently excluded from gate**
-Running only `pytest tests/unit/` excludes integration tests. Docker-build failures and DB regressions only surface after merge. Always run `tests/unit/ tests/integration/` together.
-
-See [docs/ci-traps.md](docs/ci-traps.md) for full examples and fixes.
-
----
 
 ## Get Notified of Updates
 
