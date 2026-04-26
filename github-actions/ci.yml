@@ -98,6 +98,10 @@ jobs:
 
       - name: Install Node dependencies
         if: hashFiles('package.json') != ''
+        # TRAP: if any dependency in package.json doesn't exist on the npm registry
+        # (e.g. a local-only package not yet published), npm ci will fail with a 404.
+        # Fix: use "file:./path/to/pkg" in package.json, or vendor the source directly
+        # into the build context and import it as a local file.
         run: npm ci
 
       - name: Run Node unit + integration tests (real DB — no mocks)
@@ -131,6 +135,9 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
           REDIS_URL: redis://localhost:6379
+        # TRAP: running only tests/unit/ silently excludes integration tests from the gate.
+        # Docker-build failures, DB regressions, and unpublished-package 404s only surface
+        # after merge if integration tests aren't included here.
         run: pytest tests/unit/ tests/integration/ -v --tb=short
 
       - name: Enforce 95% coverage (Python)
@@ -210,6 +217,11 @@ jobs:
             fi
           done
 
+      # TRAP: if a React component uses useState(false) + useEffect(() => setState(true), [])
+      # to trigger a CSS enter-animation, the element starts with opacity-0. Playwright's
+      # toBeVisible() fails on opacity-0 elements and the test times out. In a client-only
+      # SPA there is no SSR reason to defer visibility — initialize to true directly:
+      #   const mounted = true;   // or useState(true) if you still need reactivity
       - name: Run smoke tests first (fast gate)
         id: smoke
         run: |
