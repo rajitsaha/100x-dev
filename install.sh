@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES_DIR="$HOME/100x-templates"
 VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
+RC_FILE=""
 
 # Colors
 GREEN='\033[0;32m'
@@ -95,10 +96,10 @@ _install_session_hook() {
   local settings_file="$HOME/.claude/settings.json"
   [[ -f "$settings_file" ]] || return 0
 
-python3 << PYEOF
+  SETTINGS_FILE="$settings_file" python3 - <<'PYEOF'
 import json, os
 
-settings_file = os.path.expanduser('$settings_file')
+settings_file = os.environ['SETTINGS_FILE']
 hook_cmd = os.path.expanduser('~/100x-dev/shell/check-update.sh') + ' --claude-hook'
 
 with open(settings_file) as f:
