@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #fafaf7;
+    --paper: #ffffff;
+    --ink: #0f1419;
+    --ink-soft: #4b5563;
+    --ink-mute: #9ca3af;
+    --rule: #e5e7eb;
+    --accent: #1e40af;
+    --accent-soft: #eff4ff;
+    --green: #047857;
+  }
+
+  body {
+    width: 1200px;
+    height: 600px;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .layout {
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 36px 56px 28px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .brand-logo {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+  .brand-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px; font-weight: 700;
+    color: var(--ink); letter-spacing: -0.3px;
+  }
+  .release-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .release-pill .dot {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 22px 0 16px;
+  }
+  .release-version {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .headline {
+    font-size: 50px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+  .headline .accent {
+    color: var(--accent);
+  }
+  .subhead {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-weight: 500;
+    max-width: 880px;
+  }
+
+  /* ── STATS ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-top: 22px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .stat {
+    padding: 14px 20px;
+    border-right: 1px solid var(--rule);
+  }
+  .stat:last-child { border-right: 0; }
+  .stat-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .stat-num.green { color: var(--green); }
+  .stat-num.accent { color: var(--accent); }
+  .stat-label {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .stat-detail {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    margin-top: 18px;
+  }
+  .tools-row {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .tools-row strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .footer-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <img class="brand-logo" src="100x-dev-blogo.png" alt="100x-dev">
+      <span class="brand-name">100x-dev</span>
+    </div>
+    <span class="release-pill"><span class="dot"></span>NEW RELEASE</span>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="release-version">v2.0.0 · 2026-04-30</div>
+    <div class="headline">
+      One source.<br>
+      <span class="accent">Every AI coding tool.</span>
+    </div>
+    <div class="subhead">
+      64 unified modules now generate native config for Claude Code, Cursor, Codex, Windsurf,
+      Copilot, Gemini, and Antigravity — with token-tiered output that costs zero baseline tokens
+      where the tool supports auto-trigger.
+    </div>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num accent">64</div>
+        <div class="stat-label">Modules</div>
+        <div class="stat-detail">25 slash · 39 auto-trigger</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">7</div>
+        <div class="stat-label">AI tools supported</div>
+        <div class="stat-detail">single source of truth</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num green">0</div>
+        <div class="stat-label">Baseline tokens</div>
+        <div class="stat-detail">in Claude Code &amp; Cursor</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">−8</div>
+        <div class="stat-label">Duplicates removed</div>
+        <div class="stat-detail">workflow ↔ skill drift, gone</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="tools-row">
+      <strong>Works in:</strong> Claude Code · Cursor · Codex · Windsurf · Copilot · Gemini · Antigravity
+    </div>
+    <div class="footer-link">github.com/rajitsaha/100x-dev</div>
+  </div>
+
+</div>
+
+</body>
+</html>
