@@ -23,6 +23,7 @@
 ```bash
 # Mac / Linux
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash
+source ~/.zshrc   # or ~/.bashrc — activates the 100x-dev command
 
 # Windows / anywhere with Node
 npm install -g 100x-dev && 100x-dev install

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
@@ -14,7 +14,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-[ "$1" = "--check-only" ] && CHECK_ONLY=true
+[ "${1:-}" = "--check-only" ] && CHECK_ONLY=true
 
 echo ""
 echo "Checking for updates..."
@@ -63,6 +63,17 @@ echo ""
 git pull origin main --quiet
 echo -e "  ${GREEN}→ Pulled latest ✓${NC}"
 
+# Optional: verify GPG signature on HEAD when HUNDRED_X_VERIFY_SIGNATURES=1.
+# Requires the maintainer's public key to be imported in the user's GPG keyring.
+if [ "${HUNDRED_X_VERIFY_SIGNATURES:-0}" = "1" ]; then
+  if git verify-commit HEAD >/dev/null 2>&1; then
+    echo -e "  ${GREEN}→ HEAD signature verified ✓${NC}"
+  else
+    echo -e "  ${YELLOW}⚠ HEAD commit is not signed or signature is invalid.${NC}"
+    echo -e "  ${YELLOW}  Set HUNDRED_X_VERIFY_SIGNATURES=0 to skip this check.${NC}"
+  fi
+fi
+
 if [ -d "$COMMANDS_DIR" ] && [ "$(ls -A "$COMMANDS_DIR" 2>/dev/null)" ]; then
   BACKUP="$CLAUDE_DIR/commands.bak.$(date +%Y%m%d_%H%M%S)"
   cp -r "$COMMANDS_DIR" "$BACKUP"
@@ -73,11 +84,11 @@ fi
 python3 "$REPO_DIR/adapters/lib/modules.py" emit-claude-code
 echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
-python3 << PYEOF
+REPO_DIR="$REPO_DIR" SETTINGS_FILE="$SETTINGS_FILE" python3 - <<'PYEOF'
 import json, os
 
-plugins_file = os.path.join('$REPO_DIR', 'plugins', 'plugins.json')
-settings_file = '$SETTINGS_FILE'
+plugins_file = os.path.join(os.environ['REPO_DIR'], 'plugins', 'plugins.json')
+settings_file = os.environ['SETTINGS_FILE']
 
 with open(plugins_file) as f:
     repo_data = json.load(f)
