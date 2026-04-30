@@ -5,7 +5,7 @@ set -e
 source "$(dirname "${BASH_SOURCE[0]}")/lib/shared.sh"
 
 install_project() {
-  _run_generate "${1:-.}" ".cursorrules" "Cursor"
+  _run_cursor "${1:-.}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

@@ -179,9 +179,11 @@ test_adapter_writes_tracked_projects() {
   local fake_repo
   fake_repo="$(mktemp -d)"
 
-  # Minimal fake workflows dir so _run_generate has something to loop over
-  mkdir -p "$fake_repo/workflows"
-  echo "# test workflow" > "$fake_repo/workflows/gate.md"
+  # Minimal fake modules dir so the python emitter has something to read
+  mkdir -p "$fake_repo/modules/gate"
+  printf -- "---\nname: gate\ndescription: test\ncategory: quality\ntier: core\nslash_command: /gate\n---\n# Gate\n" \
+    > "$fake_repo/modules/gate/SKILL.md"
+  cp "$REPO_DIR/adapters/lib/modules.py" "$fake_repo/modules.py"
 
   local project_dir="$HOME/myproject"
   mkdir -p "$project_dir"

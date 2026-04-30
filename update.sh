@@ -3,7 +3,8 @@ set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
-WORKFLOWS_DIR="$CLAUDE_DIR/commands"
+COMMANDS_DIR="$CLAUDE_DIR/commands"
+SKILLS_DIR="$CLAUDE_DIR/skills"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 CHECK_ONLY=false
 
@@ -62,26 +63,15 @@ echo ""
 git pull origin main --quiet
 echo -e "  ${GREEN}→ Pulled latest ✓${NC}"
 
-if [ -d "$WORKFLOWS_DIR" ] && [ "$(ls -A "$WORKFLOWS_DIR" 2>/dev/null)" ]; then
+if [ -d "$COMMANDS_DIR" ] && [ "$(ls -A "$COMMANDS_DIR" 2>/dev/null)" ]; then
   BACKUP="$CLAUDE_DIR/commands.bak.$(date +%Y%m%d_%H%M%S)"
-  cp -r "$WORKFLOWS_DIR" "$BACKUP"
-  echo -e "  ${YELLOW}→ Backed up workflows to $(basename "$BACKUP")${NC}"
+  cp -r "$COMMANDS_DIR" "$BACKUP"
+  echo -e "  ${YELLOW}→ Backed up commands to $(basename "$BACKUP")${NC}"
 fi
 
-count=0
-for f in "$REPO_DIR/workflows/"*.md; do
-  cp "$f" "$WORKFLOWS_DIR/"
-  count=$((count + 1))
-done
-
-# Update db-engines subdirectory
-if [ -d "$REPO_DIR/workflows/db-engines" ]; then
-  mkdir -p "$WORKFLOWS_DIR/db-engines"
-  cp "$REPO_DIR/workflows/db-engines/"*.md "$WORKFLOWS_DIR/db-engines/"
-  echo -e "  ${GREEN}→ Updated db-engines/ ($(find "$REPO_DIR/workflows/db-engines/" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ') engine files) ✓${NC}"
-fi
-
-echo -e "  ${GREEN}→ Updated $count workflows ✓${NC}"
+# Sync modules (skills + slash command aliases) via the claude-code adapter
+python3 "$REPO_DIR/adapters/lib/modules.py" emit-claude-code
+echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
 python3 << PYEOF
 import json, os

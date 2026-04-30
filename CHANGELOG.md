@@ -5,6 +5,38 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [2.0.0] — 2026-04-30
+
+**Breaking — `workflows/` and `skills/` collapsed into a single `modules/` directory.**
+
+### Added
+- **`modules/`** — single source of truth (64 modules) replacing `workflows/` (25) + `skills/` (47, with 8 duplicate pairs deduped)
+- **Module frontmatter** — each `modules/<slug>/SKILL.md` declares `category`, `tier` (`core` or `on-demand`), and optional `slash_command` so adapters can dispatch consistently
+- **Cross-tool parity** — every module now works in Claude Code, Cursor, Codex, Windsurf, Antigravity, Copilot, and Gemini. Previously skills were Claude Code-only.
+- **`adapters/lib/modules.py`** — single Python emitter all adapter scripts call into; replaces the per-adapter shell concat logic
+- **Cursor multi-file rules** — `.cursor/rules/<slug>.mdc` per module with `alwaysApply: false`, so Cursor auto-triggers each module by description (zero baseline token cost)
+- **Token-tiered concat output** — Codex / Antigravity / Copilot / Gemini get full bodies for `tier: core` modules + a one-line index for `tier: on-demand` modules; Windsurf gets index-only mode to fit its rules budget
+- **Slash command aliases** — modules with `slash_command` get a 2-line file in `~/.claude/commands/<name>.md` so `/spec`, `/grill`, `/fix`, etc. still work in Claude Code despite content living in skills
+- **`docs/v2-refactor.md`** — architecture and rationale for the v2 layout
+
+### Changed
+- `install.sh` — single `Modules` toggle replaces the previous `Workflows` + `Skills` toggles
+- `update.sh` — single module-sync path replaces separate workflows/skills syncs; backs up `~/.claude/commands/` before overwrite
+- All `adapters/*.sh` are now thin wrappers around `adapters/lib/modules.py`
+- `README.md` — describes the unified module model and per-tool generation
+- `package.json` files manifest now lists `modules/` instead of `workflows/`
+
+### Removed
+- `workflows/` directory — content migrated into `modules/`
+- `skills/` directory — content migrated into `modules/`
+
+### Migration notes
+- Users on v1.x: run `100x-update` (or `~/100x-dev/update.sh`). Existing `~/.claude/commands/*.md` files are backed up to `~/.claude/commands.bak.<timestamp>` before the new module-based install overwrites them.
+- Project-level rules files (`.cursorrules`, `AGENTS.md`, etc.) auto-regenerate via the tracked-projects mechanism in `update.sh`.
+- The 8 duplicate workflow ↔ skill pairs (`/spec` ↔ `spec`, `/grill` ↔ `grill-me`, `/fix` ↔ `fix-bugs`, `/orchestrate` ↔ `orchestrate`, `/techdebt` ↔ `techdebt`, `/update-claude` ↔ `update-claude-md`, `/context` ↔ `context-dump`, `/query` ↔ `data-query`) are now single modules. Slash commands and skill descriptions both still trigger them.
+
+---
+
 ## [1.6.0] — 2026-04-26
 
 ### Added

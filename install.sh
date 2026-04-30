@@ -39,7 +39,7 @@ select_tools() {
 
 # ── Component selection ─────────────────────────────────────────────────────
 
-INSTALL_WORKFLOWS=true
+INSTALL_MODULES=true
 INSTALL_PLUGINS=true
 INSTALL_SHELL=true
 INSTALL_TEMPLATES=true
@@ -51,9 +51,9 @@ select_components() {
   echo ""
 
   while true; do
-    echo "  [$([ "$INSTALL_WORKFLOWS" = true ] && echo "x" || echo " ")] 1) Workflows    — gate, test, commit, push, launch, lint, security, ..."
+    echo "  [$([ "$INSTALL_MODULES" = true ] && echo "x" || echo " ")] 1) Modules      — 64 modules (lifecycle, quality, engineering, marketing, …)"
     if [ "$TOOL_CLAUDE" = true ]; then
-      echo "  [$([ "$INSTALL_PLUGINS" = true ] && echo "x" || echo " ")] 2) Plugins      — Claude Code only: superpowers, stripe, hookify, ..."
+      echo "  [$([ "$INSTALL_PLUGINS" = true ] && echo "x" || echo " ")] 2) Plugins      — Claude Code only: superpowers, hookify, claude-mem, ..."
     fi
     echo "  [$([ "$INSTALL_SHELL" = true ] && echo "x" || echo " ")] 3) Shell        — aliases + shortcuts (cc, ccc, 100x-update, ...)"
     echo "  [$([ "$INSTALL_TEMPLATES" = true ] && echo "x" || echo " ")] 4) Templates   — project starters (node, python, docker)"
@@ -61,7 +61,7 @@ select_components() {
     read -rp "  Toggle (1-4) or press Enter to confirm: " choice || true
 
     case "$choice" in
-      1) INSTALL_WORKFLOWS=$([ "$INSTALL_WORKFLOWS" = true ] && echo false || echo true) ;;
+      1) INSTALL_MODULES=$([ "$INSTALL_MODULES" = true ] && echo false || echo true) ;;
       2) [ "$TOOL_CLAUDE" = true ] && INSTALL_PLUGINS=$([ "$INSTALL_PLUGINS" = true ] && echo false || echo true) ;;
       3) INSTALL_SHELL=$([ "$INSTALL_SHELL" = true ] && echo false || echo true) ;;
       4) INSTALL_TEMPLATES=$([ "$INSTALL_TEMPLATES" = true ] && echo false || echo true) ;;
@@ -74,7 +74,7 @@ select_components() {
 
 # ── Install workflows ───────────────────────────────────────────────────────
 
-install_workflows() {
+install_modules() {
   if [ "$TOOL_CLAUDE" = true ]; then
     source "$REPO_DIR/adapters/claude-code.sh"
     install_global
@@ -195,7 +195,7 @@ select_components
 echo ""
 echo "──────────────────────────────────────"
 
-[ "$INSTALL_WORKFLOWS" = true ] && install_workflows
+[ "$INSTALL_MODULES" = true ] && install_modules
 [ "$INSTALL_PLUGINS" = true ] && [ "$TOOL_CLAUDE" = true ] && do_install_plugins
 [ "$INSTALL_SHELL" = true ] && install_shell
 [ "$INSTALL_TEMPLATES" = true ] && install_templates
@@ -206,7 +206,7 @@ echo -e "${GREEN}✓ Done!${NC}"
 echo ""
 if [ "$TOOL_CLAUDE" = true ]; then
   echo -e "  ${CYAN}In Claude Code:${NC}"
-  echo -e "    Restart Claude Code to load workflows."
+  echo -e "    Restart Claude Code to load modules."
   echo -e "    Run ${YELLOW}/reload-plugins${NC} inside Claude Code to load plugins."
   echo ""
 fi

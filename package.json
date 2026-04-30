@@ -1,14 +1,14 @@
 {
   "name": "100x-dev",
-  "version": "1.6.0",
-  "description": "24 slash commands. Quality gates on every commit. Works with any AI coding tool.",
+  "version": "2.0.0",
+  "description": "64 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, Codex, Windsurf, Antigravity, Copilot, Gemini.",
   "bin": {
     "100x-dev": "bin/100x-dev.js"
   },
   "files": [
     "bin/",
     "lib/",
-    "workflows/",
+    "modules/",
     "plugins/",
     "templates/",
     "shell/",

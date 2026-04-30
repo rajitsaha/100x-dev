@@ -91,13 +91,13 @@ Every `/commit` and `/push` runs a 5-point quality gate — tests, security, bui
 
 | Tool | How it works |
 |:-----|:-------------|
-| **Claude Code** | Each workflow is a slash command in `~/.claude/commands/` |
-| **Cursor** | All workflows concatenated into `.cursorrules` |
-| **Codex** | All workflows embedded in `AGENTS.md` |
-| **Windsurf** | All workflows in `.windsurfrules` |
-| **Copilot CLI** | All workflows in `.github/copilot-instructions.md` |
-| **Gemini CLI** | All workflows in `GEMINI.md` |
-| **Antigravity** | All workflows in `ANTIGRAVITY.md` |
+| **Claude Code** | Each module becomes a skill in `~/.claude/skills/<slug>/SKILL.md` plus a slash command alias in `~/.claude/commands/` |
+| **Cursor** | One file per module in `.cursor/rules/<slug>.mdc` (auto-trigger via description) |
+| **Codex** | Core modules inlined in `AGENTS.md`, on-demand modules indexed |
+| **Windsurf** | One-line index of every module in `.windsurfrules` (size-budgeted) |
+| **Copilot CLI** | Core inlined + on-demand index in `.github/copilot-instructions.md` |
+| **Gemini CLI** | Core inlined + on-demand index in `GEMINI.md` |
+| **Antigravity** | Core inlined + on-demand index in `ANTIGRAVITY.md` |
 
 The installer asks which tools you use and sets up each one. For Claude Code it also scaffolds a `CLAUDE.md` in your project with placeholders for DB config, GCP project, production URLs, and security exceptions.
 
@@ -105,8 +105,11 @@ The installer asks which tools you use and sets up each one. For Claude Code it 
 
 ## What's Included
 
-- **25 workflows** — full dev lifecycle from orientation to release, including SaaS CLI connections
-- **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle
+- **64 modules** — single source in [`modules/`](modules/), generated per tool. Each module has a `tier` (`core` for always-on, `on-demand` for indexed) and an optional `slash_command`.
+  - 25 modules carry a slash command (`/commit`, `/spec`, `/grill`, `/db`, …) — same muscle memory as before
+  - 47 marketing & growth modules auto-trigger from description in Claude Code and Cursor
+  - 12 modules are `tier: core` (lifecycle + quality + key engineering helpers); the rest load on-demand to keep concat-tool token cost low
+- **7 database adapters** — PostgreSQL, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle (under `modules/db/db-engines/`)
 - **10 Claude Code plugins** — superpowers, frontend-design, playwright, github, pr-review-toolkit, hookify, skill-creator, code-simplifier, security-guidance, claude-mem
 - **4 project templates** — node-fullstack, node-frontend, python-api, docker-compose — each with a **Common CI Traps** section
 - **`.env.example`** — credential stubs for 27 SaaS services with token creation links
