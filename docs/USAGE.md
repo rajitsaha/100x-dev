@@ -4,12 +4,13 @@
 
 ## How It Works
 
-100x Dev provides 25 AI development workflows as markdown instructions. Your AI tool reads them and follows them — running bash commands, enforcing thresholds, looping until checks pass.
+100x Dev provides 64 modules as markdown instructions with frontmatter. Your AI tool reads them and follows them — running bash commands, enforcing thresholds, looping until checks pass.
 
-| Approach | Tools | How workflows are delivered |
+| Approach | Tools | How modules are delivered |
 |:---------|:------|:---------------------------|
-| **Global install** | Claude Code | Copied to `~/.claude/commands/` — available in every project as slash commands |
-| **Per-project** | Cursor, Codex, Windsurf, Copilot, Gemini, Antigravity | Concatenated into one instruction file (`.cursorrules`, `AGENTS.md`, etc.) — commit it to your repo |
+| **Global install** | Claude Code | Each module → skill in `~/.claude/skills/<slug>/`, plus slash command aliases in `~/.claude/commands/` for the 25 modules with a `slash_command` |
+| **Per-project (multi-file)** | Cursor | One file per module in `.cursor/rules/<slug>.mdc` (auto-trigger via `description`) |
+| **Per-project (single-file)** | Codex, Windsurf, Copilot, Gemini, Antigravity | Core modules inlined + on-demand index in `AGENTS.md` / `.windsurfrules` / etc. — commit it to your repo |
 
 ---
 
