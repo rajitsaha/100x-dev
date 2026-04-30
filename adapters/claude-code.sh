@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOWS_DIR="$REPO_DIR/workflows"
@@ -155,32 +155,24 @@ install_plugins() {
 
   PLUGINS_FILE="$REPO_DIR/plugins/plugins.json"
 
-  new_plugins=$(python3 -c "
-import json
-with open('$PLUGINS_FILE') as f:
-    data = json.load(f)
-print(json.dumps(data.get('plugins', [])))
-")
-
-  extra_marketplaces=$(python3 -c "
-import json
-with open('$PLUGINS_FILE') as f:
-    data = json.load(f)
-print(json.dumps(data.get('extraKnownMarketplaces', {})))
-")
-
   if [ ! -f "$SETTINGS_FILE" ]; then
     echo '{}' > "$SETTINGS_FILE"
   fi
 
-  python3 << PYEOF
-import json
+  PLUGINS_FILE="$PLUGINS_FILE" SETTINGS_FILE="$SETTINGS_FILE" python3 - <<'PYEOF'
+import json, os
 
-with open('$SETTINGS_FILE', 'r') as f:
+plugins_file = os.environ['PLUGINS_FILE']
+settings_file = os.environ['SETTINGS_FILE']
+
+with open(plugins_file) as f:
+    plugins_data = json.load(f)
+
+with open(settings_file) as f:
     settings = json.load(f)
 
-new_plugins = $new_plugins
-extra_marketplaces = $extra_marketplaces
+new_plugins = plugins_data.get('plugins', [])
+extra_marketplaces = plugins_data.get('extraKnownMarketplaces', {})
 
 enabled = settings.get('enabledPlugins', {})
 added = 0
@@ -195,7 +187,7 @@ existing_marketplaces = settings.get('extraKnownMarketplaces', {})
 existing_marketplaces.update(extra_marketplaces)
 settings['extraKnownMarketplaces'] = existing_marketplaces
 
-with open('$SETTINGS_FILE', 'w') as f:
+with open(settings_file, 'w') as f:
     json.dump(settings, f, indent=2)
 
 print(f'  Added {added} new plugins ({len(enabled)} total)')
