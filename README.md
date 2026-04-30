@@ -12,6 +12,8 @@
 
 **One source of truth.** 64 modules generate native config for **Claude Code · Cursor · Codex · Windsurf · Copilot · Gemini · Antigravity**. Quality gates run on every commit.
 
+<img src="assets/postcard-stack.png" alt="100x-dev stack at a glance — 10 plugins, 25 slash commands, 39 auto-trigger skills" width="100%" />
+
 </div>
 
 ---

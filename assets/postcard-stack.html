@@ -4,209 +4,190 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1200">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #fafaf7;
+    --paper: #ffffff;
+    --ink: #0f1419;
+    --ink-soft: #4b5563;
+    --ink-mute: #9ca3af;
+    --rule: #e5e7eb;
+    --rule-soft: #f0f0ec;
+    --accent: #1e40af;
+    --accent-soft: #eff4ff;
+  }
 
   body {
     width: 1200px;
     height: 675px;
     overflow: hidden;
     font-family: 'Inter', system-ui, sans-serif;
-    background: #08080f;
-    color: #fff;
-    position: relative;
-  }
-
-  .bg-grid {
-    position: absolute; inset: 0;
-    background-image:
-      linear-gradient(rgba(124,58,237,0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124,58,237,0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-  .blob-1 {
-    position: absolute; top: -140px; left: -80px;
-    width: 460px; height: 460px;
-    background: radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%);
-    border-radius: 50%;
-  }
-  .blob-2 {
-    position: absolute; bottom: -160px; right: -60px;
-    width: 480px; height: 480px;
-    background: radial-gradient(circle, rgba(6,182,212,0.14) 0%, transparent 70%);
-    border-radius: 50%;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
   }
 
   .layout {
-    position: relative; z-index: 1;
     width: 100%; height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 28px 36px 24px;
-    gap: 16px;
+    padding: 36px 44px 28px;
+    gap: 24px;
   }
 
   /* ── HEADER ── */
   .header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule);
   }
   .brand {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 14px;
   }
   .brand-logo {
-    width: 34px; height: 34px;
-    border-radius: 8px;
+    width: 38px; height: 38px;
+    border-radius: 6px;
     object-fit: cover;
   }
+  .brand-text { display: flex; flex-direction: column; gap: 2px; }
   .brand-name {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 17px; font-weight: 700;
-    color: #fff; letter-spacing: -0.3px;
+    font-size: 18px; font-weight: 700;
+    color: var(--ink); letter-spacing: -0.2px;
   }
   .brand-version {
-    background: linear-gradient(135deg, rgba(124,58,237,0.3), rgba(6,182,212,0.3));
-    border: 1px solid rgba(124,58,237,0.5);
-    border-radius: 20px;
-    padding: 3px 11px;
-    font-size: 11px; font-weight: 600;
-    color: #a78bfa;
     font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 500;
+    color: var(--ink-mute);
+    letter-spacing: 0.4px;
   }
-  .header-title {
+  .header-tag {
     font-size: 13px;
-    color: rgba(255,255,255,0.35);
+    color: var(--ink-soft);
     font-weight: 500;
-    letter-spacing: 0.3px;
+    text-align: right;
+    line-height: 1.5;
+  }
+  .header-tag strong {
+    color: var(--ink);
+    font-weight: 700;
   }
 
-  /* ── THREE COLUMNS ── */
+  /* ── COLUMNS ── */
   .columns {
     flex: 1;
     display: grid;
     grid-template-columns: 280px 1fr 1fr;
-    gap: 12px;
+    gap: 32px;
   }
 
-  .col {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 10px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    position: relative;
-    overflow: hidden;
-  }
-  .col::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(124,58,237,0.5), transparent);
-  }
+  .col { display: flex; flex-direction: column; gap: 14px; }
 
   .col-header {
-    display: flex; align-items: center; gap: 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
   }
-  .col-icon { font-size: 14px; }
+  .col-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    letter-spacing: 0.5px;
+  }
   .col-title {
-    font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 1.8px;
-    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.1px;
   }
   .col-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
     margin-left: auto;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 600;
-    color: #a78bfa;
-    background: rgba(124,58,237,0.15);
-    border: 1px solid rgba(124,58,237,0.3);
+    background: var(--accent-soft);
+    padding: 2px 8px;
     border-radius: 4px;
-    padding: 1px 6px;
   }
 
-  /* ── TREE ── */
-  .tree {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    line-height: 1.7;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    justify-content: space-between;
-  }
-
-  .tree-group { }
+  .group { display: flex; flex-direction: column; gap: 5px; }
+  .group + .group { margin-top: 10px; }
 
   .group-label {
-    font-size: 10px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 1.2px;
-    margin-bottom: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 1px;
   }
 
-  /* Plugin column colors */
-  .author-official .group-label { color: #a78bfa; }
-  .author-anthropic .group-label { color: #38bdf8; }
-  .author-community .group-label { color: #34d399; }
-
-  /* Workflow column colors */
-  .wf-lifecycle .group-label { color: #a78bfa; }
-  .wf-quality .group-label { color: #f59e0b; }
-  .wf-assist .group-label { color: #38bdf8; }
-  .wf-cloud .group-label { color: #34d399; }
-  .wf-docs .group-label { color: #fb923c; }
-
-  /* Skills column colors */
-  .sk-eng .group-label { color: #38bdf8; }
-  .sk-mkt .group-label { color: #f472b6; }
-
-  .tree-line {
-    display: flex; align-items: baseline; gap: 0;
-    color: rgba(255,255,255,0.65);
+  .row {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.55;
+    word-spacing: 1px;
   }
-  .branch {
-    color: rgba(124,58,237,0.6);
-    flex-shrink: 0;
-  }
-  .leaf { color: rgba(255,255,255,0.7); }
-  .leaf.cmd { color: #c4b5fd; font-weight: 600; }
-  .leaf.muted { color: rgba(255,255,255,0.35); font-size: 10.5px; }
+  .row.tight { font-size: 11px; line-height: 1.5; }
+
+  .col-1 .row { color: var(--ink); }
+  .col-2 .row .slash { color: var(--accent); font-weight: 600; }
+  .col-3 .row { color: var(--ink-soft); }
+  .col-3 .row.eng { color: var(--ink); }
 
   /* ── FOOTER ── */
   .footer {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    padding: 9px 14px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    gap: 24px;
   }
   .footer-install {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.4);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-weight: 500;
   }
   .footer-install code {
-    color: #a78bfa;
-    background: rgba(124,58,237,0.15);
-    padding: 1px 5px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 4px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    color: var(--ink);
+    font-weight: 500;
   }
+  .or { color: var(--ink-mute); font-size: 10.5px; font-weight: 500; }
   .footer-github {
-    font-size: 11px; font-weight: 600;
-    color: rgba(255,255,255,0.55);
-    display: flex; align-items: center; gap: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    font-weight: 500;
   }
-  .star { color: #fbbf24; }
+  .footer-github strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
-
-<div class="bg-grid"></div>
-<div class="blob-1"></div>
-<div class="blob-2"></div>
 
 <div class="layout">
 
@@ -214,123 +195,113 @@
   <div class="header">
     <div class="brand">
       <img class="brand-logo" src="100x-dev-blogo.png" alt="100x-dev">
-      <span class="brand-name">100x-dev</span>
-      <span class="brand-version">v1.6.0</span>
+      <div class="brand-text">
+        <span class="brand-name">100x-dev</span>
+        <span class="brand-version">v2.0.0 · MIT</span>
+      </div>
     </div>
-    <div class="header-title">Your complete AI developer stack — plugins · workflows · skills</div>
+    <div class="header-tag">
+      <strong>One source. Every AI tool.</strong><br>
+      64 modules · Claude Code · Cursor · Codex · Windsurf · Copilot · Gemini · Antigravity
+    </div>
   </div>
 
   <!-- COLUMNS -->
   <div class="columns">
 
     <!-- COLUMN 1: PLUGINS -->
-    <div class="col">
+    <div class="col col-1">
       <div class="col-header">
-        <span class="col-icon">📦</span>
+        <span class="col-num">01</span>
         <span class="col-title">Plugins</span>
         <span class="col-count">10</span>
       </div>
-      <div class="tree">
 
-        <div class="tree-group author-official">
-          <div class="group-label">claude-plugins-official</div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">superpowers</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">frontend-design</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">playwright</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">github</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">skill-creator</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">code-simplifier</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">pr-review-toolkit</span></div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">hookify</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">claude-plugins-official</div>
+        <div class="row tight">superpowers · frontend-design</div>
+        <div class="row tight">playwright · github · skill-creator</div>
+        <div class="row tight">code-simplifier · pr-review-toolkit · hookify</div>
+      </div>
 
-        <div class="tree-group author-anthropic">
-          <div class="group-label">Anthropic</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">security-guidance</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">anthropic</div>
+        <div class="row tight">security-guidance</div>
+      </div>
 
-        <div class="tree-group author-community">
-          <div class="group-label">thedotmack</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">claude-mem</span></div>
-        </div>
-
+      <div class="group">
+        <div class="group-label">thedotmack</div>
+        <div class="row tight">claude-mem</div>
       </div>
     </div>
 
-    <!-- COLUMN 2: WORKFLOWS -->
-    <div class="col">
+    <!-- COLUMN 2: SLASH COMMANDS -->
+    <div class="col col-2">
       <div class="col-header">
-        <span class="col-icon">⚡</span>
-        <span class="col-title">Workflows</span>
+        <span class="col-num">02</span>
+        <span class="col-title">Slash Commands</span>
         <span class="col-count">25</span>
       </div>
-      <div class="tree">
 
-        <div class="tree-group wf-lifecycle">
-          <div class="group-label">Dev Lifecycle</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/commit &nbsp;/push &nbsp;/pr &nbsp;/branch &nbsp;/release</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Lifecycle</div>
+        <div class="row"><span class="slash">/commit</span> &nbsp;<span class="slash">/push</span> &nbsp;<span class="slash">/pr</span> &nbsp;<span class="slash">/branch</span> &nbsp;<span class="slash">/release</span></div>
+      </div>
 
-        <div class="tree-group wf-quality">
-          <div class="group-label">Quality Gates</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/gate &nbsp;/lint &nbsp;/security &nbsp;/cloud-security &nbsp;/test</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Quality Gates</div>
+        <div class="row"><span class="slash">/gate</span> &nbsp;<span class="slash">/lint</span> &nbsp;<span class="slash">/security</span> &nbsp;<span class="slash">/cloud-security</span> &nbsp;<span class="slash">/test</span></div>
+      </div>
 
-        <div class="tree-group wf-assist">
-          <div class="group-label">AI Assistance</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/fix &nbsp;/spec &nbsp;/grill &nbsp;/orchestrate &nbsp;/techdebt</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Engineering</div>
+        <div class="row"><span class="slash">/fix</span> &nbsp;<span class="slash">/spec</span> &nbsp;<span class="slash">/grill</span> &nbsp;<span class="slash">/orchestrate</span> &nbsp;<span class="slash">/techdebt</span></div>
+      </div>
 
-        <div class="tree-group wf-cloud">
-          <div class="group-label">Cloud &amp; Data</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/connect &nbsp;/db &nbsp;/query &nbsp;/launch</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Cloud &amp; Data</div>
+        <div class="row"><span class="slash">/connect</span> &nbsp;<span class="slash">/db</span> &nbsp;<span class="slash">/query</span> &nbsp;<span class="slash">/launch</span></div>
+      </div>
 
-        <div class="tree-group wf-docs">
-          <div class="group-label">Docs &amp; Discovery</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/docs &nbsp;/issue &nbsp;/context &nbsp;/architect &nbsp;/update-claude</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Docs &amp; Discovery</div>
+        <div class="row"><span class="slash">/docs</span> &nbsp;<span class="slash">/issue</span> &nbsp;<span class="slash">/context</span> &nbsp;<span class="slash">/architect</span> &nbsp;<span class="slash">/update-claude</span></div>
+      </div>
 
-        <div class="tree-group wf-docs">
-          <div class="group-label">Design</div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">/enterprise-design</span></div>
-        </div>
-
+      <div class="group">
+        <div class="group-label">Design</div>
+        <div class="row"><span class="slash">/enterprise-design</span></div>
       </div>
     </div>
 
-    <!-- COLUMN 3: CUSTOM SKILLS -->
-    <div class="col">
+    <!-- COLUMN 3: SKILLS -->
+    <div class="col col-3">
       <div class="col-header">
-        <span class="col-icon">🎯</span>
-        <span class="col-title">Custom Skills</span>
-        <span class="col-count">47</span>
+        <span class="col-num">03</span>
+        <span class="col-title">Skills <span style="color: var(--ink-mute); font-weight: 500;">(auto-trigger)</span></span>
+        <span class="col-count">39</span>
       </div>
-      <div class="tree">
 
-        <div class="tree-group sk-eng">
-          <div class="group-label">Engineering (11)</div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">orchestrate &nbsp;spec &nbsp;fix-bugs &nbsp;grill-me</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">techdebt &nbsp;subagents &nbsp;data-query</span></div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">context-dump &nbsp;update-claude-md &nbsp;terminal-setup</span></div>
-        </div>
+      <div class="group">
+        <div class="group-label">Engineering &amp; Design · 6</div>
+        <div class="row tight eng">subagents · terminal-setup</div>
+        <div class="row tight eng">systems-architect · visual-system-architect</div>
+        <div class="row tight eng">interaction-engineer · figma-translator</div>
+      </div>
 
-        <div class="tree-group sk-mkt">
-          <div class="group-label">Marketing &amp; Growth (36)</div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">copywriting &nbsp;copy-editing &nbsp;conversion-copy</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">seo-audit &nbsp;ai-seo &nbsp;programmatic-seo &nbsp;schema-markup</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">social-content &nbsp;content-strategy &nbsp;email-sequence</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">launch-strategy &nbsp;pricing-strategy &nbsp;paid-ads</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">page-cro &nbsp;signup-flow-cro &nbsp;onboarding-cro</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">paywall-upgrade-cro &nbsp;popup-cro &nbsp;form-cro</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">cold-email &nbsp;sales-enablement &nbsp;revops</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">ab-test-setup &nbsp;analytics-tracking &nbsp;referral-program</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">churn-prevention &nbsp;marketing-psychology</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">systems-architect &nbsp;visual-system-architect</span></div>
-          <div class="tree-line"><span class="branch">├─ </span><span class="leaf cmd">interaction-engineer &nbsp;figma-translator</span></div>
-          <div class="tree-line"><span class="branch">└─ </span><span class="leaf cmd">site-architecture &nbsp;free-tool-strategy &nbsp;ad-creative</span></div>
-        </div>
-
+      <div class="group">
+        <div class="group-label">Marketing &amp; Growth · 33</div>
+        <div class="row tight">copywriting · copy-editing · conversion-copy</div>
+        <div class="row tight">seo-audit · ai-seo · programmatic-seo · schema-markup</div>
+        <div class="row tight">social-content · content-strategy · email-sequence</div>
+        <div class="row tight">launch-strategy · pricing-strategy · paid-ads</div>
+        <div class="row tight">page-cro · signup-flow-cro · onboarding-cro</div>
+        <div class="row tight">paywall-upgrade-cro · popup-cro · form-cro</div>
+        <div class="row tight">cold-email · sales-enablement · revops</div>
+        <div class="row tight">ab-test-setup · analytics-tracking · referral-program</div>
+        <div class="row tight">churn-prevention · marketing-psychology · marketing-ideas</div>
+        <div class="row tight">site-architecture · free-tool-strategy · ad-creative</div>
+        <div class="row tight">competitor-alternatives · product-marketing-context</div>
       </div>
     </div>
 
@@ -339,11 +310,13 @@
   <!-- FOOTER -->
   <div class="footer">
     <div class="footer-install">
-      Install: <code>curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash</code>
-      &nbsp;&nbsp;or&nbsp;&nbsp;<code>npm i -g 100x-dev</code>
+      <span>Install</span>
+      <code>curl -fsSL https://raw.githubusercontent.com/rajitsaha/100x-dev/main/get.sh | bash</code>
+      <span class="or">or</span>
+      <code>npm i -g 100x-dev</code>
     </div>
     <div class="footer-github">
-      <span class="star">★</span> github.com/rajitsaha/100x-dev
+      <strong>github.com/rajitsaha/100x-dev</strong>
     </div>
   </div>
 
