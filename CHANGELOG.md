@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [2.0.1] — 2026-05-02
+
+Documentation patch — no code changes.
+
+### Added
+- `AGENTS.md` — contributor contract for AI agents working in this repo
+- `SECURITY.md` — security policy and reporting guidelines
+- README activation instructions for 100x-dev
+- Custom install location guide in `docs/USAGE.md`
+- v2.0.0 release banner (light theme social card) in `assets/`
+
+### Changed
+- `.gitignore` — exclude `.DS_Store` and `.playwright-mcp/`
+
+---
+
 ## [2.0.0] — 2026-04-30
 
 **Breaking — `workflows/` and `skills/` collapsed into a single `modules/` directory.**
