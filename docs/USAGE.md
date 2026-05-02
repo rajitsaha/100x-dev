@@ -48,6 +48,45 @@ This writes the right instruction file for each enabled tool (`.cursorrules`, `A
 100x-dev check    # check for a newer version without applying it
 ```
 
+### Custom install location
+
+The default `get.sh` installer clones to `~/100x-dev` and writes that path into your `~/.zshrc` (or `~/.bashrc`) and `~/.claude/settings.json` (SessionStart hook for `check-update.sh`).
+
+If you cloned the repo somewhere else — e.g. `~/work/git_udemy/100x-dev` — you'll see errors on every shell login and Claude Code session start:
+
+```
+.zshrc:source: no such file or directory: /Users/<you>/100x-dev/shell/aliases.sh
+SessionStart:startup hook error
+```
+
+**Fix — point both files at your actual clone using `$HOME` (no usernames hardcoded):**
+
+1. **`~/.zshrc`** — replace the 100x-dev source block with a single configurable env var:
+   ```bash
+   # 100x Dev — point this at wherever you cloned/installed the repo
+   export DEV_100X_HOME="$HOME/work/git_udemy/100x-dev"   # adjust to your path
+   [ -f "$DEV_100X_HOME/shell/aliases.sh" ] && source "$DEV_100X_HOME/shell/aliases.sh"
+   ```
+   The `[ -f … ] &&` guard means a missing file fails silently instead of printing on every login.
+
+2. **`~/.claude/settings.json`** — update the SessionStart hook command. Claude Code runs hooks in non-interactive shells that don't source `~/.zshrc`, so use `$HOME` directly (always set by the OS) — `$DEV_100X_HOME` won't be available there:
+   ```json
+   "hooks": {
+     "SessionStart": [
+       {
+         "matcher": "",
+         "hooks": [
+           { "type": "command", "command": "$HOME/work/git_udemy/100x-dev/shell/check-update.sh --claude-hook" }
+         ]
+       }
+     ]
+   }
+   ```
+
+3. **Verify** — open a new terminal (no `source` errors) and start a new Claude Code session (no `SessionStart:startup hook error`).
+
+> Both files are per-user and never committed, so hardcoded paths there don't affect anyone else — but using `$HOME` keeps your config working if your username changes, and the env var keeps the repo path easy to update if you move the clone.
+
 ---
 
 ## Using the Workflows
