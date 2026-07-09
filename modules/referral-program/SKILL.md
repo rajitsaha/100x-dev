@@ -1,68 +1,32 @@
 ---
 name: referral-program
-description: "When the user wants to create, optimize, or analyze a referral program, affiliate program, or word-of-mouth strategy. Also use when the user mentions 'referral,' 'affiliate,' 'ambassador,' 'word of mouth,' 'viral loop,' 'refer a friend,' 'partner program,' 'referral incentive,' 'how to get referrals,' 'customers referring customers,' or 'affiliate payout.' Use this whenever someone wants existing users or partners to bring in new customers. For launch-specific virality, see launch-strategy."
+description: "When the user wants to create, optimize, or analyze a referral, affiliate, or word-of-mouth program — 'ambassador,' 'viral loop,' 'refer a friend,' 'partner program,' 'referral incentive,' 'affiliate payout.' For launch-specific virality, see launch-strategy."
 category: marketing
 tier: on-demand
 ---
 
 # Referral & Affiliate Programs
 
-You are an expert in viral growth and referral marketing. Your goal is to help design and optimize programs that turn customers into growth engines.
+Design and optimize programs that turn customers into growth engines.
 
 ## Before Starting
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Gather this context (ask if not provided):
+Gather (ask if not provided):
 
-### 1. Program Type
-- Customer referral program, affiliate program, or both?
-- B2B or B2C?
-- What's the average customer LTV?
-- What's your current CAC from other channels?
-
-### 2. Current State
-- Existing referral/affiliate program?
-- Current referral rate (% who refer)?
-- What incentives have you tried?
-
-### 3. Product Fit
-- Is your product shareable?
-- Does it have network effects?
-- Do customers naturally talk about it?
-
-### 4. Resources
-- Tools/platforms you use or consider?
-- Budget for referral incentives?
+1. **Program Type** — customer referral, affiliate, or both? B2B or B2C? Average customer LTV? Current CAC from other channels?
+2. **Current State** — existing program? Referral rate (% who refer)? Incentives tried?
+3. **Product Fit** — shareable product? Network effects? Do customers naturally talk about it?
+4. **Resources** — tools/platforms in use or considered? Budget for incentives?
 
 ---
 
 ## Referral vs. Affiliate
 
-### Customer Referral Programs
+**Customer referral programs** — best for existing customers recommending to their network, products with natural word-of-mouth, lower-ticket or self-serve products. Referrer is an existing customer; one-time or limited rewards; higher trust, lower volume.
 
-**Best for:**
-- Existing customers recommending to their network
-- Products with natural word-of-mouth
-- Lower-ticket or self-serve products
-
-**Characteristics:**
-- Referrer is an existing customer
-- One-time or limited rewards
-- Higher trust, lower volume
-
-### Affiliate Programs
-
-**Best for:**
-- Reaching audiences you don't have access to
-- Content creators, influencers, bloggers
-- Higher-ticket products that justify commissions
-
-**Characteristics:**
-- Affiliates may not be customers
-- Ongoing commission relationship
-- Higher volume, variable trust
+**Affiliate programs** — best for reaching audiences you don't have access to (content creators, influencers, bloggers) and higher-ticket products that justify commissions. Affiliates may not be customers; ongoing commission relationship; higher volume, variable trust.
 
 ---
 
@@ -76,15 +40,11 @@ Trigger Moment → Share Action → Convert Referred → Reward → (Loop)
 
 ### Step 1: Identify Trigger Moments
 
-**High-intent moments:**
-- Right after first "aha" moment
-- After achieving a milestone
-- After exceptional support
-- After renewing or upgrading
+High-intent moments: right after first "aha" moment, after achieving a milestone, after exceptional support, after renewing or upgrading.
 
 ### Step 2: Design Share Mechanism
 
-**Ranked by effectiveness:**
+Ranked by effectiveness:
 1. In-product sharing (highest conversion)
 2. Personalized link
 3. Email invitation
@@ -93,11 +53,9 @@ Trigger Moment → Share Action → Convert Referred → Reward → (Loop)
 
 ### Step 3: Choose Incentive Structure
 
-**Single-sided rewards** (referrer only): Simpler, works for high-value products
-
-**Double-sided rewards** (both parties): Higher conversion, win-win framing
-
-**Tiered rewards**: Gamifies referral process, increases engagement
+- **Single-sided** (referrer only): simpler, works for high-value products
+- **Double-sided** (both parties): higher conversion, win-win framing
+- **Tiered**: gamifies referrals, increases engagement
 
 **For examples and incentive sizing**: See [references/program-examples.md](references/program-examples.md)
 
@@ -107,24 +65,15 @@ Trigger Moment → Share Action → Convert Referred → Reward → (Loop)
 
 ### Improving Referral Rate
 
-**If few customers are referring:**
-- Ask at better moments
-- Simplify sharing process
-- Test different incentive types
-- Make referral prominent in product
+**Few customers referring:** ask at better moments, simplify sharing, test different incentive types, make referral prominent in product.
 
-**If referrals aren't converting:**
-- Improve landing experience for referred users
-- Strengthen incentive for new users
-- Ensure referrer's endorsement is visible
+**Referrals not converting:** improve landing experience for referred users, strengthen incentive for new users, make referrer's endorsement visible.
 
 ### A/B Tests to Run
 
-**Incentive tests:** Amount, type, single vs. double-sided, timing
-
-**Messaging tests:** Program description, CTA copy, landing page copy
-
-**Placement tests:** Where and when the referral prompt appears
+- **Incentive:** amount, type, single vs. double-sided, timing
+- **Messaging:** program description, CTA copy, landing page copy
+- **Placement:** where and when the referral prompt appears
 
 ### Common Problems & Fixes
 
@@ -140,24 +89,11 @@ Trigger Moment → Share Action → Convert Referred → Reward → (Loop)
 
 ## Measuring Success
 
-### Key Metrics
+**Program health:** active referrers (referred someone in last 30 days), referral conversion rate, rewards earned/paid.
 
-**Program health:**
-- Active referrers (referred someone in last 30 days)
-- Referral conversion rate
-- Rewards earned/paid
+**Business impact:** % of new customers from referrals, CAC via referral vs. other channels, LTV of referred customers, program ROI.
 
-**Business impact:**
-- % of new customers from referrals
-- CAC via referral vs. other channels
-- LTV of referred customers
-- Referral program ROI
-
-### Typical Findings
-
-- Referred customers have 16-25% higher LTV
-- Referred customers have 18-37% lower churn
-- Referred customers refer others at 2-3x rate
+**Typical findings:** referred customers have 16-25% higher LTV, 18-37% lower churn, and refer others at 2-3x rate.
 
 ---
 
@@ -225,17 +161,17 @@ They get [their reward] too.
 ## Task-Specific Questions
 
 1. What type of program (referral, affiliate, or both)?
-2. What's your customer LTV and current CAC?
+2. Customer LTV and current CAC?
 3. Existing program or starting from scratch?
 4. What tools/platforms are you considering?
-5. What's your budget for rewards/commissions?
+5. Budget for rewards/commissions?
 6. Is your product naturally shareable?
 
 ---
 
 ## Tool Integrations
 
-For implementation, see the [tools registry](../../tools/REGISTRY.md). Key tools for referral programs:
+For implementation, see the [tools registry](../../tools/REGISTRY.md). Key tools:
 
 | Tool | Best For | Guide |
 |------|----------|-------|
@@ -249,7 +185,7 @@ For implementation, see the [tools registry](../../tools/REGISTRY.md). Key tools
 
 ## Related Skills
 
-- **launch-strategy**: For launching referral program effectively
-- **email-sequence**: For referral nurture campaigns
-- **marketing-psychology**: For understanding referral motivation
-- **analytics-tracking**: For tracking referral attribution
+- **launch-strategy** — launching the referral program effectively
+- **email-sequence** — referral nurture campaigns
+- **marketing-psychology** — understanding referral motivation
+- **analytics-tracking** — tracking referral attribution

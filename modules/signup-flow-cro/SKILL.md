@@ -1,48 +1,30 @@
 ---
 name: signup-flow-cro
-description: When the user wants to optimize signup, registration, account creation, or trial activation flows. Also use when the user mentions "signup conversions," "registration friction," "signup form optimization," "free trial signup," "reduce signup dropoff," "account creation flow," "people aren't signing up," "signup abandonment," "trial conversion rate," "nobody completes registration," "too many steps to sign up," or "simplify our signup." Use this whenever the user has a signup or registration flow that isn't performing. For post-signup onboarding, see onboarding-cro. For lead capture forms (not account creation), see form-cro.
+description: When the user wants to optimize signup, registration, account creation, or trial activation flows — "signup conversions," "registration friction," "signup form optimization," "signup abandonment," "reduce signup dropoff," "trial conversion rate," "too many steps to sign up." For post-signup onboarding, see onboarding-cro. For lead capture forms (not account creation), see form-cro.
 category: marketing
 tier: on-demand
 ---
 
 # Signup Flow CRO
 
-You are an expert in optimizing signup and registration flows. Your goal is to reduce friction, increase completion rates, and set users up for successful activation.
+Reduce signup friction, increase completion rates, and set users up for successful activation.
 
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Before providing recommendations, understand:
+Before recommending, understand:
 
-1. **Flow Type**
-   - Free trial signup
-   - Freemium account creation
-   - Paid account creation
-   - Waitlist/early access signup
-   - B2B vs B2C
-
-2. **Current State**
-   - How many steps/screens?
-   - What fields are required?
-   - What's the current completion rate?
-   - Where do users drop off?
-
-3. **Business Constraints**
-   - What data is genuinely needed at signup?
-   - Are there compliance requirements?
-   - What happens immediately after signup?
+1. **Flow Type** — free trial signup, freemium account creation, paid account creation, waitlist/early access, B2B vs B2C
+2. **Current State** — number of steps/screens, required fields, current completion rate, where users drop off
+3. **Business Constraints** — data genuinely needed at signup, compliance requirements, what happens immediately after signup
 
 ---
 
 ## Core Principles
 
 ### 1. Minimize Required Fields
-Every field reduces conversion. For each field, ask:
-- Do we absolutely need this before they can use the product?
-- Can we collect this later through progressive profiling?
-- Can we infer this from other data?
+Every field reduces conversion. For each field ask: Do we absolutely need this before they can use the product? Can we collect it later through progressive profiling? Can we infer it from other data?
 
 **Typical field priority:**
 - Essential: Email (or phone), Password
@@ -50,191 +32,105 @@ Every field reduces conversion. For each field, ask:
 - Usually deferrable: Company, Role, Team size, Phone, Address
 
 ### 2. Show Value Before Asking for Commitment
-- What can you show/give before requiring signup?
-- Can they experience the product before creating an account?
-- Reverse the order: value first, signup second
+What can you show/give before requiring signup? Can they experience the product before creating an account? Reverse the order: value first, signup second.
 
 ### 3. Reduce Perceived Effort
-- Show progress if multi-step
-- Group related fields
-- Use smart defaults
-- Pre-fill when possible
+Show progress if multi-step; group related fields; use smart defaults; pre-fill when possible.
 
 ### 4. Remove Uncertainty
-- Clear expectations ("Takes 30 seconds")
-- Show what happens after signup
-- No surprises (hidden requirements, unexpected steps)
+Clear expectations ("Takes 30 seconds"); show what happens after signup; no surprises (hidden requirements, unexpected steps).
 
 ---
 
 ## Field-by-Field Optimization
 
-### Email Field
-- Single field (no email confirmation field)
-- Inline validation for format
-- Check for common typos (gmial.com → gmail.com)
-- Clear error messages
+### Email
+Single field (no confirmation field); inline format validation; check common typos (gmial.com → gmail.com); clear error messages.
 
-### Password Field
-- Show password toggle (eye icon)
-- Show requirements upfront, not after failure
-- Consider passphrase hints for strength
-- Update requirement indicators in real-time
+### Password
+Show password toggle (eye icon); show requirements upfront, not after failure, with real-time requirement indicators; consider passphrase hints for strength. **Better password UX:** allow paste (don't disable); strength meter instead of rigid rules; consider passwordless options.
 
-**Better password UX:**
-- Allow paste (don't disable)
-- Show strength meter instead of rigid rules
-- Consider passwordless options
-
-### Name Field
-- Single "Full name" field vs. First/Last split (test this)
-- Only require if immediately used (personalization)
-- Consider making optional
+### Name
+Test single "Full name" vs. First/Last split; only require if immediately used (personalization); consider making optional.
 
 ### Social Auth Options
-- Place prominently (often higher conversion than email)
-- Show most relevant options for your audience
-  - B2C: Google, Apple, Facebook
-  - B2B: Google, Microsoft, SSO
-- Clear visual separation from email signup
-- Consider "Sign up with Google" as primary
+Place prominently (often higher conversion than email); show the most relevant options (B2C — Google, Apple, Facebook; B2B — Google, Microsoft, SSO); clear visual separation from email signup; consider "Sign up with Google" as primary.
 
 ### Phone Number
-- Defer unless essential (SMS verification, calling leads)
-- If required, explain why
-- Use proper input type with country code handling
-- Format as they type
+Defer unless essential (SMS verification, calling leads); if required, explain why; proper input type with country code handling; format as they type.
 
 ### Company/Organization
-- Defer if possible
-- Auto-suggest as they type
-- Infer from email domain when possible
+Defer if possible; auto-suggest as they type; infer from email domain when possible.
 
 ### Use Case / Role Questions
-- Defer to onboarding if possible
-- If needed at signup, keep to one question
-- Use progressive disclosure (don't show all options at once)
+Defer to onboarding if possible; if needed at signup, keep to one question; use progressive disclosure (don't show all options at once).
 
 ---
 
 ## Single-Step vs. Multi-Step
 
-### Single-Step Works When:
-- 3 or fewer fields
-- Simple B2C products
-- High-intent visitors (from ads, waitlist)
+**Single-step works when:** 3 or fewer fields; simple B2C products; high-intent visitors (from ads, waitlist).
 
-### Multi-Step Works When:
-- More than 3-4 fields needed
-- Complex B2B products needing segmentation
-- You need to collect different types of info
+**Multi-step works when:** more than 3-4 fields needed; complex B2B products needing segmentation; collecting different types of info.
 
 ### Multi-Step Best Practices
-- Show progress indicator
-- Lead with easy questions (name, email)
-- Put harder questions later (after psychological commitment)
-- Each step should feel completable in seconds
-- Allow back navigation
-- Save progress (don't lose data on refresh)
+Show progress indicator; lead with easy questions (name, email), harder questions later (after psychological commitment); each step completable in seconds; allow back navigation; save progress (don't lose data on refresh).
 
-**Progressive commitment pattern:**
-1. Email only (lowest barrier)
-2. Password + name
-3. Customization questions (optional)
+**Progressive commitment pattern:** 1. Email only (lowest barrier) → 2. Password + name → 3. Customization questions (optional)
 
 ---
 
 ## Trust and Friction Reduction
 
 ### At the Form Level
-- "No credit card required" (if true)
-- "Free forever" or "14-day free trial"
-- Privacy note: "We'll never share your email"
-- Security badges if relevant
-- Testimonial near signup form
+"No credit card required" (if true); "Free forever" or "14-day free trial"; privacy note ("We'll never share your email"); security badges if relevant; testimonial near form.
 
 ### Error Handling
-- Inline validation (not just on submit)
-- Specific error messages ("Email already registered" + recovery path)
-- Don't clear the form on error
-- Focus on the problem field
+Inline validation (not just on submit); specific messages ("Email already registered" + recovery path); don't clear the form on error; focus on the problem field.
 
 ### Microcopy
-- Placeholder text: Use for examples, not labels
-- Labels: Keep visible (not just placeholders) — placeholders disappear when typing, leaving users unsure what they're filling in
-- Help text: Only when needed, placed close to field
+Placeholders: use for examples, not labels. Labels: keep visible (not just placeholders) — placeholders disappear when typing, leaving users unsure what they're filling in. Help text: only when needed, placed close to field.
 
 ---
 
 ## Mobile Signup Optimization
 
-- Larger touch targets (44px+ height)
-- Appropriate keyboard types (email, tel, etc.)
-- Autofill support
-- Reduce typing (social auth, pre-fill)
-- Single column layout
-- Sticky CTA button
-- Test with actual devices
+Larger touch targets (44px+ height); appropriate keyboard types (email, tel, etc.); autofill support; reduce typing (social auth, pre-fill); single column layout; sticky CTA button; test with actual devices.
 
 ---
 
 ## Post-Submit Experience
 
 ### Success State
-- Clear confirmation
-- Immediate next step
-- If email verification required:
-  - Explain what to do
-  - Easy resend option
-  - Check spam reminder
-  - Option to change email if wrong
+Clear confirmation and immediate next step. If email verification required: explain what to do, easy resend option, check-spam reminder, option to change a wrong email.
 
 ### Verification Flows
-- Consider delaying verification until necessary
-- Magic link as alternative to password
-- Let users explore while awaiting verification
-- Clear re-engagement if verification stalls
+Consider delaying verification until necessary; magic link as password alternative; let users explore while awaiting verification; clear re-engagement if verification stalls.
 
 ---
 
 ## Measurement
 
 ### Key Metrics
-- Form start rate (landed → started filling)
-- Form completion rate (started → submitted)
-- Field-level drop-off (which fields lose people)
-- Time to complete
-- Error rate by field
-- Mobile vs. desktop completion
+Form start rate (landed → started filling); form completion rate (started → submitted); field-level drop-off (which fields lose people); time to complete; error rate by field; mobile vs. desktop completion.
 
 ### What to Track
-- Each field interaction (focus, blur, error)
-- Step progression in multi-step
-- Social auth vs. email signup ratio
-- Time between steps
+Each field interaction (focus, blur, error); step progression in multi-step; social auth vs. email signup ratio; time between steps.
 
 ---
 
 ## Output Format
 
 ### Audit Findings
-For each issue found:
-- **Issue**: What's wrong
-- **Impact**: Why it matters (with estimated impact if possible)
-- **Fix**: Specific recommendation
-- **Priority**: High/Medium/Low
+For each issue: **Issue** (what's wrong), **Impact** (why it matters, with estimated impact if possible), **Fix** (specific recommendation), **Priority** (High/Medium/Low).
 
 ### Recommended Changes
-Organized by:
 1. Quick wins (same-day fixes)
 2. High-impact changes (week-level effort)
 3. Test hypotheses (things to A/B test)
 
 ### Form Redesign (if requested)
-- Recommended field set with rationale
-- Field order
-- Copy for labels, placeholders, buttons, errors
-- Visual layout suggestions
+Recommended field set with rationale; field order; copy for labels, placeholders, buttons, errors; visual layout suggestions.
 
 ---
 
@@ -266,78 +162,31 @@ Organized by:
 
 ### Form Design Experiments
 
-**Layout & Structure**
-- Single-step vs. multi-step signup flow
-- Multi-step with progress bar vs. without
-- 1-column vs. 2-column field layout
-- Form embedded on page vs. separate signup page
-- Horizontal vs. vertical field alignment
+**Layout & Structure** — single-step vs. multi-step flow; multi-step with progress bar vs. without; 1-column vs. 2-column layout; form embedded on page vs. separate signup page; horizontal vs. vertical field alignment.
 
-**Field Optimization**
-- Reduce to minimum fields (email + password only)
-- Add or remove phone number field
-- Single "Name" field vs. "First/Last" split
-- Add or remove company/organization field
-- Test required vs. optional field balance
+**Field Optimization** — reduce to minimum fields (email + password only); add/remove phone number field; single "Name" vs. "First/Last" split; add/remove company/organization field; required vs. optional field balance.
 
-**Authentication Options**
-- Add SSO options (Google, Microsoft, GitHub, LinkedIn)
-- SSO prominent vs. email form prominent
-- Test which SSO options resonate (varies by audience)
-- SSO-only vs. SSO + email option
+**Authentication Options** — add SSO options (Google, Microsoft, GitHub, LinkedIn); SSO prominent vs. email form prominent; which SSO options resonate (varies by audience); SSO-only vs. SSO + email.
 
-**Visual Design**
-- Test button colors and sizes for CTA prominence
-- Plain background vs. product-related visuals
-- Test form container styling (card vs. minimal)
-- Mobile-optimized layout testing
-
----
+**Visual Design** — button colors and sizes for CTA prominence; plain background vs. product-related visuals; form container styling (card vs. minimal); mobile-optimized layout testing.
 
 ### Copy & Messaging Experiments
 
-**Headlines & CTAs**
-- Test headline variations above signup form
-- CTA button text: "Create Account" vs. "Start Free Trial" vs. "Get Started"
-- Add clarity around trial length in CTA
-- Test value proposition emphasis in form header
+**Headlines & CTAs** — headline variations above form; CTA button text ("Create Account" vs. "Start Free Trial" vs. "Get Started"); trial-length clarity in CTA; value proposition emphasis in form header.
 
-**Microcopy**
-- Field labels: minimal vs. descriptive
-- Placeholder text optimization
-- Error message clarity and tone
-- Password requirement display (upfront vs. on error)
+**Microcopy** — field labels minimal vs. descriptive; placeholder text; error message clarity and tone; password requirement display (upfront vs. on error).
 
-**Trust Elements**
-- Add social proof next to signup form
-- Test trust badges near form (security, compliance)
-- Add "No credit card required" messaging
-- Include privacy assurance copy
-
----
+**Trust Elements** — social proof next to form; trust badges (security, compliance); "No credit card required" messaging; privacy assurance copy.
 
 ### Trial & Commitment Experiments
 
-**Free Trial Variations**
-- Credit card required vs. not required for trial
-- Test trial length impact (7 vs. 14 vs. 30 days)
-- Freemium vs. free trial model
-- Trial with limited features vs. full access
+**Free Trial Variations** — credit card required vs. not; trial length impact (7 vs. 14 vs. 30 days); freemium vs. free trial model; limited features vs. full access.
 
-**Friction Points**
-- Email verification required vs. delayed vs. removed
-- Test CAPTCHA impact on completion
-- Terms acceptance checkbox vs. implicit acceptance
-- Phone verification for high-value accounts
-
----
+**Friction Points** — email verification required vs. delayed vs. removed; CAPTCHA impact on completion; terms acceptance checkbox vs. implicit acceptance; phone verification for high-value accounts.
 
 ### Post-Submit Experiments
 
-- Clear next steps messaging after signup
-- Instant product access vs. email confirmation first
-- Personalized welcome message based on signup data
-- Auto-login after signup vs. require login
+Clear next-steps messaging after signup; instant product access vs. email confirmation first; personalized welcome message based on signup data; auto-login vs. require login.
 
 ---
 

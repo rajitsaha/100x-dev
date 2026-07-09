@@ -222,16 +222,11 @@ Action:   Committing fix, pushing to main...
 After 3 failed attempts → STOP and escalate:
 
 ```
-╔══════════════════════════════════════════════════════╗
-║         CI RELEASE FAILED — ESCALATING TO HUMAN     ║
-╠══════════════════════════════════════════════════════╣
-║ Attempts:   N/3 exhausted                            ║
-║ Last error: [error summary]                          ║
-║ Diagnosis:  [root cause analysis]                    ║
-║ Suggestion: [recommended fix]                        ║
-╠══════════════════════════════════════════════════════╣
-║ This requires human judgment. Auto-fix not possible. ║
-╚══════════════════════════════════════════════════════╝
+CI RELEASE FAILED — ESCALATING TO HUMAN
+Attempts:   N/3 exhausted
+Last error: [error summary]
+Diagnosis:  [root cause analysis]
+Suggestion: [recommended fix]
 ```
 
 ---

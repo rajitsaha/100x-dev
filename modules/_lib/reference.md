@@ -70,6 +70,12 @@ Add to any workflow that operates without user prompting:
 **GATE: [Condition that must be true before proceeding.]**
 ```
 
+## Product marketing context (paste into every marketing skill, after the intro line)
+
+```
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
+```
+
 ## SaaS credentials
 When a workflow requires cloud or SaaS credentials, reference the **connect** workflow:
 - Run `/connect` to see status of all services

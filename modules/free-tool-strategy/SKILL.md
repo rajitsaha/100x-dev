@@ -1,48 +1,32 @@
 ---
 name: free-tool-strategy
-description: When the user wants to plan, evaluate, or build a free tool for marketing purposes — lead generation, SEO value, or brand awareness. Also use when the user mentions "engineering as marketing," "free tool," "marketing tool," "calculator," "generator," "interactive tool," "lead gen tool," "build a tool for leads," "free resource," "ROI calculator," "grader tool," "audit tool," "should I build a free tool," or "tools for lead gen." Use this whenever someone wants to build something useful and give it away to attract leads or earn links. For content-based lead generation, see content-strategy.
+description: When the user wants to plan or build a free tool for marketing — "engineering as marketing," "lead gen tool," "ROI calculator," "generator," "grader tool," "audit tool," "should I build a free tool," or giving away something useful to attract leads or links. For content-based lead generation, see content-strategy.
 category: marketing
 tier: on-demand
 ---
 
 # Free Tool Strategy (Engineering as Marketing)
 
-You are an expert in engineering-as-marketing strategy. Your goal is to help plan and evaluate free tools that generate leads, attract organic traffic, and build brand awareness.
+Plan and evaluate free tools that generate leads, attract organic traffic, and build brand awareness.
 
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Before designing a tool strategy, understand:
+Understand first:
 
-1. **Business Context** - What's the core product? Who is the target audience? What problems do they have?
-
-2. **Goals** - Lead generation? SEO/traffic? Brand awareness? Product education?
-
-3. **Resources** - Technical capacity to build? Ongoing maintenance bandwidth? Budget for promotion?
+1. **Business Context** - core product? Target audience? Their problems?
+2. **Goals** - lead generation? SEO/traffic? Brand awareness? Product education?
+3. **Resources** - technical capacity to build? Maintenance bandwidth? Promotion budget?
 
 ---
 
 ## Core Principles
 
-### 1. Solve a Real Problem
-- Tool must provide genuine value
-- Solves a problem your audience actually has
-- Useful even without your main product
-
-### 2. Adjacent to Core Product
-- Related to what you sell
-- Natural path from tool to product
-- Educates on problem you solve
-
-### 3. Simple and Focused
-- Does one thing well
-- Low friction to use
-- Immediate value
-
-### 4. Worth the Investment
-- Lead value × expected leads > build cost + maintenance
+1. **Solve a Real Problem** — genuine value for a problem your audience actually has; useful even without your main product.
+2. **Adjacent to Core Product** — related to what you sell; natural path from tool to product; educates on the problem you solve.
+3. **Simple and Focused** — does one thing well, low friction, immediate value.
+4. **Worth the Investment** — lead value × expected leads > build cost + maintenance.
 
 ---
 
@@ -65,20 +49,17 @@ Before designing a tool strategy, understand:
 
 ### Start with Pain Points
 
-1. **What problems does your audience Google?** - Search query research, common questions
-
-2. **What manual processes are tedious?** - Spreadsheet tasks, repetitive calculations
-
-3. **What do they need before buying your product?** - Assessments, planning, comparisons
-
-4. **What information do they wish they had?** - Data they can't easily access, benchmarks
+1. **What does your audience Google?** - search queries, common questions
+2. **What manual processes are tedious?** - spreadsheet tasks, repetitive calculations
+3. **What do they need before buying?** - assessments, planning, comparisons
+4. **What information do they wish they had?** - hard-to-access data, benchmarks
 
 ### Validate the Idea
 
-- **Search demand**: Is there search volume? How competitive?
-- **Uniqueness**: What exists? How can you be 10x better?
-- **Lead quality**: Does this audience match buyers?
-- **Build feasibility**: How complex? Can you scope an MVP?
+- **Search demand**: volume? How competitive?
+- **Uniqueness**: what exists? How can you be 10x better?
+- **Lead quality**: does this audience match buyers?
+- **Build feasibility**: how complex? Can you scope an MVP?
 
 ---
 
@@ -93,52 +74,34 @@ Before designing a tool strategy, understand:
 | Ungated + optional | Maximum reach | Lower capture |
 | Ungated entirely | Pure SEO/brand | No direct leads |
 
-### Lead Capture Best Practices
-- Value exchange clear: "Get your full report"
-- Minimal friction: Email only
-- Show preview of what they'll get
-- Optional: Segment by asking one qualifying question
+**Best practices:** clear value exchange ("Get your full report"); minimal friction (email only); show a preview of what they'll get; optionally segment with one qualifying question.
 
 ---
 
 ## SEO Considerations
 
-### Keyword Strategy
-**Tool landing page**: "[thing] calculator", "[thing] generator", "free [tool type]"
+**Keyword strategy** — tool landing page: "[thing] calculator", "[thing] generator", "free [tool type]"; supporting content: "How to [use case]", "What is [concept]".
 
-**Supporting content**: "How to [use case]", "What is [concept]"
-
-### Link Building
-Free tools attract links because:
-- Genuinely useful (people reference them)
-- Unique (can't link to just any page)
-- Shareable (social amplification)
+**Link building** — free tools attract links: genuinely useful (people reference them), unique (can't link to just any page), shareable (social amplification).
 
 ---
 
 ## Build vs. Buy
 
-### Build Custom
-When: Unique concept, core to brand, high strategic value, have dev capacity
-
-### Use No-Code Tools
-Options: Outgrow, Involve.me, Typeform, Tally, Bubble, Webflow
-When: Speed to market, limited dev resources, testing concept
-
-### Embed Existing
-When: Something good exists, white-label available, not core differentiator
+- **Build custom** when: unique concept, core to brand, high strategic value, dev capacity available
+- **No-code tools** (Outgrow, Involve.me, Typeform, Tally, Bubble, Webflow) when: speed to market, limited dev resources, testing the concept
+- **Embed existing** when: something good exists, white-label available, not a core differentiator
 
 ---
 
 ## MVP Scope
 
-### Minimum Viable Tool
+**Minimum viable tool:**
 1. Core functionality only—does the one thing, works reliably
 2. Essential UX—clear input, obvious output, mobile works
 3. Basic lead capture—email collection, leads go somewhere useful
 
-### What to Skip Initially
-Account creation, saving results, advanced features, perfect design, every edge case
+**Skip initially:** account creation, saving results, advanced features, perfect design, every edge case.
 
 ---
 
@@ -172,7 +135,7 @@ Rate each factor 1-5:
 
 ## Related Skills
 
-- **page-cro**: For optimizing the tool's landing page
-- **seo-audit**: For SEO-optimizing the tool
-- **analytics-tracking**: For measuring tool usage
-- **email-sequence**: For nurturing leads from the tool
+- **page-cro** — optimizing the tool's landing page
+- **seo-audit** — SEO-optimizing the tool
+- **analytics-tracking** — measuring tool usage
+- **email-sequence** — nurturing leads from the tool

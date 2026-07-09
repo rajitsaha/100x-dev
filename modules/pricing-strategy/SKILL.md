@@ -1,40 +1,24 @@
 ---
 name: pricing-strategy
-description: "When the user wants help with pricing decisions, packaging, or monetization strategy. Also use when the user mentions 'pricing,' 'pricing tiers,' 'freemium,' 'free trial,' 'packaging,' 'price increase,' 'value metric,' 'Van Westendorp,' 'willingness to pay,' 'monetization,' 'how much should I charge,' 'my pricing is wrong,' 'pricing page,' 'annual vs monthly,' 'per seat pricing,' or 'should I offer a free plan.' Use this whenever someone is figuring out what to charge or how to structure their plans. For in-app upgrade screens, see paywall-upgrade-cro."
+description: "When the user wants help with pricing, packaging, or monetization — 'pricing tiers,' 'freemium,' 'value metric,' 'Van Westendorp,' 'willingness to pay,' 'how much should I charge,' 'annual vs monthly,' 'per seat pricing,' 'should I offer a free plan.' For in-app upgrade screens, see paywall-upgrade-cro."
 category: marketing
 tier: on-demand
 ---
 
 # Pricing Strategy
 
-You are an expert in SaaS pricing and monetization strategy. Your goal is to help design pricing that captures value, drives growth, and aligns with customer willingness to pay.
+Design pricing that captures value, drives growth, and aligns with customer willingness to pay.
 
 ## Before Starting
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Gather this context (ask if not provided):
+Gather (ask if not provided):
 
-### 1. Business Context
-- What type of product? (SaaS, marketplace, e-commerce, service)
-- What's your current pricing (if any)?
-- What's your target market? (SMB, mid-market, enterprise)
-- What's your go-to-market motion? (self-serve, sales-led, hybrid)
-
-### 2. Value & Competition
-- What's the primary value you deliver?
-- What alternatives do customers consider?
-- How do competitors price?
-
-### 3. Current Performance
-- What's your current conversion rate?
-- What's your ARPU and churn rate?
-- Any feedback on pricing from customers/prospects?
-
-### 4. Goals
-- Optimizing for growth, revenue, or profitability?
-- Moving upmarket or expanding downmarket?
+1. **Business Context** — product type (SaaS, marketplace, e-commerce, service); current pricing; target market (SMB, mid-market, enterprise); GTM motion (self-serve, sales-led, hybrid)
+2. **Value & Competition** — primary value delivered; alternatives customers consider; competitor pricing
+3. **Current Performance** — conversion rate, ARPU, churn; pricing feedback from customers/prospects
+4. **Goals** — optimizing for growth, revenue, or profitability? Moving upmarket or downmarket?
 
 ---
 
@@ -42,26 +26,13 @@ Gather this context (ask if not provided):
 
 ### The Three Pricing Axes
 
-**1. Packaging** — What's included at each tier?
-- Features, limits, support level
-- How tiers differ from each other
-
-**2. Pricing Metric** — What do you charge for?
-- Per user, per usage, flat fee
-- How price scales with value
-
-**3. Price Point** — How much do you charge?
-- The actual dollar amounts
-- Perceived value vs. cost
+1. **Packaging** — what's included at each tier (features, limits, support level) and how tiers differ
+2. **Pricing Metric** — what you charge for (per user, per usage, flat fee) and how price scales with value
+3. **Price Point** — actual dollar amounts; perceived value vs. cost
 
 ### Value-Based Pricing
 
-Price should be based on value delivered, not cost to serve:
-
-- **Customer's perceived value** — The ceiling
-- **Your price** — Between alternatives and perceived value
-- **Next best alternative** — The floor for differentiation
-- **Your cost to serve** — Only a baseline, not the basis
+Price on value delivered, not cost to serve: **customer's perceived value** is the ceiling; **next best alternative** is the floor for differentiation; **your cost to serve** is only a baseline, not the basis.
 
 **Key insight:** Price between the next best alternative and perceived value.
 
@@ -69,15 +40,7 @@ Price should be based on value delivered, not cost to serve:
 
 ## Value Metrics
 
-### What is a Value Metric?
-
-The value metric is what you charge for—it should scale with the value customers receive.
-
-**Good value metrics:**
-- Align price with value delivered
-- Are easy to understand
-- Scale as customer grows
-- Are hard to game
+The value metric is what you charge for — it should scale with the value customers receive. Good value metrics align price with value delivered, are easy to understand, scale as the customer grows, and are hard to game.
 
 ### Common Value Metrics
 
@@ -92,9 +55,7 @@ The value metric is what you charge for—it should scale with the value custome
 
 ### Choosing Your Value Metric
 
-Ask: "As a customer uses more of [metric], do they get more value?"
-- If yes → good value metric
-- If no → price doesn't align with value
+Ask: "As a customer uses more of [metric], do they get more value?" Yes → good value metric; no → price doesn't align with value.
 
 ---
 
@@ -102,16 +63,9 @@ Ask: "As a customer uses more of [metric], do they get more value?"
 
 ### Good-Better-Best Framework
 
-**Good tier (Entry):** Core features, limited usage, low price
-**Better tier (Recommended):** Full features, reasonable limits, anchor price
-**Best tier (Premium):** Everything, advanced features, 2-3x Better price
+**Good (Entry):** core features, limited usage, low price. **Better (Recommended):** full features, reasonable limits, anchor price. **Best (Premium):** everything, advanced features, 2-3x Better price.
 
-### Tier Differentiation
-
-- **Feature gating** — Basic vs. advanced features
-- **Usage limits** — Same features, different limits
-- **Support level** — Email → Priority → Dedicated
-- **Access** — API, SSO, custom branding
+**Tier differentiation:** feature gating (basic vs. advanced), usage limits (same features, different limits), support level (Email → Priority → Dedicated), access (API, SSO, custom branding).
 
 **For detailed tier structures and persona-based packaging**: See [references/tier-structure.md](references/tier-structure.md)
 
@@ -121,20 +75,17 @@ Ask: "As a customer uses more of [metric], do they get more value?"
 
 ### Van Westendorp Method
 
-Four questions that identify acceptable price range:
+Four questions that identify the acceptable price range:
 1. Too expensive (wouldn't consider)
 2. Too cheap (question quality)
 3. Expensive but might consider
 4. A bargain
 
-Analyze intersections to find optimal pricing zone.
+Analyze intersections to find the optimal pricing zone.
 
 ### MaxDiff Analysis
 
-Identifies which features customers value most:
-- Show sets of features
-- Ask: Most important? Least important?
-- Results inform tier packaging
+Show sets of features; ask which is most/least important; results inform tier packaging.
 
 **For detailed research methods**: See [references/research-methods.md](references/research-methods.md)
 
@@ -144,50 +95,26 @@ Identifies which features customers value most:
 
 ### Signs It's Time
 
-**Market signals:**
-- Competitors have raised prices
-- Prospects don't flinch at price
-- "It's so cheap!" feedback
-
-**Business signals:**
-- Very high conversion rates (>40%)
-- Very low churn (<3% monthly)
-- Strong unit economics
-
-**Product signals:**
-- Significant value added since last pricing
-- Product more mature/stable
+- **Market:** competitors raised prices; prospects don't flinch; "It's so cheap!" feedback
+- **Business:** very high conversion (>40%); very low churn (<3% monthly); strong unit economics
+- **Product:** significant value added since last pricing; product more mature/stable
 
 ### Price Increase Strategies
 
-1. **Grandfather existing** — New price for new customers only
-2. **Delayed increase** — Announce 3-6 months out
-3. **Tied to value** — Raise price but add features
-4. **Plan restructure** — Change plans entirely
+1. **Grandfather existing** — new price for new customers only
+2. **Delayed increase** — announce 3-6 months out
+3. **Tied to value** — raise price but add features
+4. **Plan restructure** — change plans entirely
 
 ---
 
 ## Pricing Page Best Practices
 
-### Above the Fold
-- Clear tier comparison table
-- Recommended tier highlighted
-- Monthly/annual toggle
-- Primary CTA for each tier
+**Above the fold:** clear tier comparison table, recommended tier highlighted, monthly/annual toggle, primary CTA per tier.
 
-### Common Elements
-- Feature comparison table
-- Who each tier is for
-- FAQ section
-- Annual discount callout (17-20%)
-- Money-back guarantee
-- Customer logos/trust signals
+**Common elements:** feature comparison table, who each tier is for, FAQ, annual discount callout (17-20%), money-back guarantee, customer logos/trust signals.
 
-### Pricing Psychology
-- **Anchoring:** Show higher-priced option first
-- **Decoy effect:** Middle tier should be best value
-- **Charm pricing:** $49 vs. $50 (for value-focused)
-- **Round pricing:** $50 vs. $49 (for premium)
+**Psychology:** anchoring (show higher-priced option first); decoy effect (middle tier = best value); charm pricing ($49 vs. $50, for value-focused); round pricing ($50 vs. $49, for premium).
 
 ---
 
@@ -212,20 +139,20 @@ Identifies which features customers value most:
 ## Task-Specific Questions
 
 1. What pricing research have you done?
-2. What's your current ARPU and conversion rate?
-3. What's your primary value metric?
-4. Who are your main pricing personas?
-5. Are you self-serve, sales-led, or hybrid?
+2. Current ARPU and conversion rate?
+3. Primary value metric?
+4. Main pricing personas?
+5. Self-serve, sales-led, or hybrid?
 6. What pricing changes are you considering?
 
 ---
 
 ## Related Skills
 
-- **churn-prevention**: For cancel flows, save offers, and reducing revenue churn
-- **page-cro**: For optimizing pricing page conversion
-- **copywriting**: For pricing page copy
-- **marketing-psychology**: For pricing psychology principles
-- **ab-test-setup**: For testing pricing changes
-- **revops**: For deal desk processes and pipeline pricing
-- **sales-enablement**: For proposal templates and pricing presentations
+- **churn-prevention** — cancel flows, save offers, reducing revenue churn
+- **page-cro** — pricing page conversion
+- **copywriting** — pricing page copy
+- **marketing-psychology** — pricing psychology principles
+- **ab-test-setup** — testing pricing changes
+- **revops** — deal desk processes and pipeline pricing
+- **sales-enablement** — proposal templates and pricing presentations

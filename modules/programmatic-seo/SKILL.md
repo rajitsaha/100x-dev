@@ -1,69 +1,34 @@
 ---
 name: programmatic-seo
-description: When the user wants to create SEO-driven pages at scale using templates and data. Also use when the user mentions "programmatic SEO," "template pages," "pages at scale," "directory pages," "location pages," "[keyword] + [city] pages," "comparison pages," "integration pages," "building many pages for SEO," "pSEO," "generate 100 pages," "data-driven pages," or "templated landing pages." Use this whenever someone wants to create many similar pages targeting different keywords or locations. For auditing existing SEO issues, see seo-audit. For content strategy planning, see content-strategy.
+description: When the user wants SEO pages generated at scale from templates plus a dataset — "programmatic SEO," "pSEO," "directory pages," "location pages," "[keyword] + [city] pages," "integration pages," "generate 100 pages," "templated landing pages." For auditing an existing site, see seo-audit. For planning, see content-strategy.
 category: marketing
 tier: on-demand
 ---
 
 # Programmatic SEO
 
-You are an expert in programmatic SEO—building SEO-optimized pages at scale using templates and data. Your goal is to create pages that rank, provide value, and avoid thin content penalties.
+Build template- and data-driven SEO pages at scale that rank, provide value, and avoid thin-content penalties.
 
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Before designing a programmatic SEO strategy, understand:
+Understand first:
 
-1. **Business Context**
-   - What's the product/service?
-   - Who is the target audience?
-   - What's the conversion goal for these pages?
-
-2. **Opportunity Assessment**
-   - What search patterns exist?
-   - How many potential pages?
-   - What's the search volume distribution?
-
-3. **Competitive Landscape**
-   - Who ranks for these terms now?
-   - What do their pages look like?
-   - Can you realistically compete?
+1. **Business Context** — product/service? Target audience? Conversion goal for these pages?
+2. **Opportunity** — what search patterns exist? How many potential pages? Search volume distribution?
+3. **Competition** — who ranks now? What do their pages look like? Can you realistically compete?
 
 ---
 
 ## Core Principles
 
-### 1. Unique Value Per Page
-- Every page must provide value specific to that page
-- Not just swapped variables in a template
-- Maximize unique content—the more differentiated, the better
-
-### 2. Proprietary Data Wins
-Hierarchy of data defensibility:
-1. Proprietary (you created it)
-2. Product-derived (from your users)
-3. User-generated (your community)
-4. Licensed (exclusive access)
-5. Public (anyone can use—weakest)
-
-### 3. Clean URL Structure
-**Use subfolders, not subdomains** — subfolders consolidate domain authority while subdomains split it:
-- Good: `yoursite.com/templates/resume/`
-- Bad: `templates.yoursite.com/resume/`
-
-### 4. Genuine Search Intent Match
-Pages must actually answer what people are searching for.
-
-### 5. Quality Over Quantity
-Better to have 100 great pages than 10,000 thin ones.
-
-### 6. Avoid Google Penalties
-- No doorway pages
-- No keyword stuffing
-- No duplicate content
-- Genuine utility for users
+1. **Unique value per page** — value specific to that page, not just swapped variables in a template; the more differentiated, the better.
+2. **Proprietary data wins** — data defensibility hierarchy: (1) proprietary (you created it), (2) product-derived (from your users), (3) user-generated (your community), (4) licensed (exclusive access), (5) public (anyone can use—weakest).
+3. **Clean URL structure** — use subfolders, not subdomains; subfolders consolidate domain authority, subdomains split it. Good: `yoursite.com/templates/resume/`. Bad: `templates.yoursite.com/resume/`.
+4. **Genuine search intent match** — pages must actually answer what people search for.
+5. **Quality over quantity** — better 100 great pages than 10,000 thin ones.
+6. **Avoid Google penalties** — no doorway pages, keyword stuffing, or duplicate content; genuine utility for users.
 
 ---
 
@@ -101,63 +66,30 @@ Better to have 100 great pages than 10,000 thin ones.
 | Content/expertise | Glossary, Curation |
 | Competitor landscape | Comparisons |
 
-You can layer multiple playbooks (e.g., "Best coworking spaces in San Diego").
+Playbooks can layer (e.g., "Best coworking spaces in San Diego").
 
 ---
 
 ## Implementation Framework
 
 ### 1. Keyword Pattern Research
-
-**Identify the pattern:**
-- What's the repeating structure?
-- What are the variables?
-- How many unique combinations exist?
-
-**Validate demand:**
-- Aggregate search volume
-- Volume distribution (head vs. long tail)
-- Trend direction
+Identify the pattern: repeating structure, variables, number of unique combinations. Validate demand: aggregate search volume, distribution (head vs. long tail), trend direction.
 
 ### 2. Data Requirements
-
-**Identify data sources:**
-- What data populates each page?
-- Is it first-party, scraped, licensed, public?
-- How is it updated?
+What data populates each page? First-party, scraped, licensed, or public? How is it updated?
 
 ### 3. Template Design
+**Page structure:** header with target keyword; unique intro (not just variables swapped); data-driven sections; related pages/internal links; CTAs appropriate to intent.
 
-**Page structure:**
-- Header with target keyword
-- Unique intro (not just variables swapped)
-- Data-driven sections
-- Related pages / internal links
-- CTAs appropriate to intent
-
-**Ensuring uniqueness:**
-- Each page needs unique value
-- Conditional content based on data
-- Original insights/analysis per page
+**Uniqueness:** unique value per page, conditional content based on data, original insights/analysis per page.
 
 ### 4. Internal Linking Architecture
+**Hub and spoke:** hub = main category page; spokes = individual programmatic pages; cross-links between related spokes.
 
-**Hub and spoke model:**
-- Hub: Main category page
-- Spokes: Individual programmatic pages
-- Cross-links between related spokes
-
-**Avoid orphan pages:**
-- Every page reachable from main site
-- XML sitemap for all pages
-- Breadcrumbs with structured data
+**No orphan pages:** every page reachable from main site, XML sitemap for all pages, breadcrumbs with structured data.
 
 ### 5. Indexation Strategy
-
-- Prioritize high-volume patterns
-- Noindex very thin variations
-- Manage crawl budget thoughtfully
-- Separate sitemaps by page type
+Prioritize high-volume patterns; noindex very thin variations; manage crawl budget thoughtfully; separate sitemaps by page type.
 
 ---
 
@@ -188,34 +120,24 @@ You can layer multiple playbooks (e.g., "Best coworking spaces in San Diego").
 
 ### Post-Launch Monitoring
 
-Track: Indexation rate, Rankings, Traffic, Engagement, Conversion
-
-Watch for: Thin content warnings, Ranking drops, Manual actions, Crawl errors
+Track: indexation rate, rankings, traffic, engagement, conversion. Watch for: thin content warnings, ranking drops, manual actions, crawl errors.
 
 ---
 
 ## Common Mistakes
 
-- **Thin content**: Just swapping city names in identical content
-- **Keyword cannibalization**: Multiple pages targeting same keyword
-- **Over-generation**: Creating pages with no search demand
-- **Poor data quality**: Outdated or incorrect information
-- **Ignoring UX**: Pages exist for Google, not users
+- **Thin content**: just swapping city names in identical content
+- **Keyword cannibalization**: multiple pages targeting same keyword
+- **Over-generation**: pages with no search demand
+- **Poor data quality**: outdated or incorrect information
+- **Ignoring UX**: pages exist for Google, not users
 
 ---
 
 ## Output Format
 
-### Strategy Document
-- Opportunity analysis
-- Implementation plan
-- Content guidelines
-
-### Page Template
-- URL structure
-- Title/meta templates
-- Content outline
-- Schema markup
+**Strategy Document:** opportunity analysis, implementation plan, content guidelines.
+**Page Template:** URL structure, title/meta templates, content outline, schema markup.
 
 ---
 
@@ -232,7 +154,7 @@ Watch for: Thin content warnings, Ranking drops, Manual actions, Crawl errors
 
 ## Related Skills
 
-- **seo-audit**: For auditing programmatic pages after launch
-- **schema-markup**: For adding structured data
-- **site-architecture**: For page hierarchy, URL structure, and internal linking
-- **competitor-alternatives**: For comparison page frameworks
+- **seo-audit** — auditing programmatic pages after launch
+- **schema-markup** — adding structured data
+- **site-architecture** — page hierarchy, URL structure, internal linking
+- **competitor-alternatives** — comparison page frameworks

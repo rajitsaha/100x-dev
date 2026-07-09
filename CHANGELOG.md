@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Changed
+- **De-conflict with platform-native and plugin skills.** `data-viz` rescoped to dashboard/analytics implementation (defers one-off charts to a platform charting skill); routing pointers added to `security`, `cloud-security`, `techdebt`, `grill-me`, `spec`, `motion-designer`, `eval`, and `update-claude-md` so they don't compete with platform-native security-review/simplify/code-review, planning, motion-library, skill-eval, and hook-writing skills. Pointer phrasing varied per skill so the trigger-overlap lint stays clean.
+- **Same-name slash-command aliases dropped on Claude Code.** Claude Code exposes every emitted skill as `/<slug>` natively, so `emit-claude-code` now writes aliases only for the 5 modules whose command differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) instead of 26 — no more double-listing (and double description cost) for the other 21. Stale aliases from earlier installs are pruned on the next update; model routing and allowed-tools stay on the skill's own frontmatter.
+- **Skill token diet.** Cut ~7,250 words (~9%) across all 66 modules with no information loss: frontmatter descriptions −33% (3,881 → 2,616 words — the always-in-context cost on Claude Code), bodies −8% (73.5k → 67.6k words), concat output (GEMINI.md etc.) −4%. Removed persona intros, description-restating openers, ASCII box art, and repeated banners; standardized the 31 near-duplicate "product marketing context" blocks to one ~28-word canonical version (recorded in `_lib/reference.md`). All bash blocks, gates, thresholds, frameworks, checklists, and benchmarks preserved verbatim in meaning; trigger-overlap lint passes `--strict` with zero new pairs.
+
 ---
 
 ## [2.4.5] — 2026-07-09

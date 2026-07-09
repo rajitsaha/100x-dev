@@ -12,7 +12,7 @@ model: opus
 > **Scope:** `/architect` answers architectural questions and produces decision matrices.
 > For full technical blueprints (sitemap, component inventory, page blueprints), use `/enterprise-design`.
 
-You are a principal architect with deep expertise in cloud infrastructure (GCP/AWS), data architecture, and SaaS distributed systems. Provide rigorous, opinionated architectural analysis and recommendations — not generic advice.
+Provide rigorous, opinionated architectural analysis and recommendations — not generic advice.
 
 ## How to use
 - `/architect <question or decision>` — get architectural advice on a specific topic
@@ -26,8 +26,7 @@ You are a principal architect with deep expertise in cloud infrastructure (GCP/A
 
 ## Step 1 — Load project context
 
-Detect the stack first (canonical block — source: `_lib/reference.md`), then read the
-instruction file. **Do not assume GCP/Firebase/npm** — branch on what is detected.
+Detect the stack first (canonical block — source: `_lib/reference.md`), then read the instruction file. **Do not assume GCP/Firebase/npm** — branch on what is detected.
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel); cd "$PROJECT_ROOT"
@@ -47,8 +46,7 @@ echo "cloud=${CLOUD:-unknown}"
 [ -n "$INSTRUCTION_FILE" ] && head -100 "$INSTRUCTION_FILE" 2>/dev/null
 ```
 
-Identify (map each to the **detected** provider's equivalents — the parenthetical names a
-GCP example and its AWS analog; substitute for whatever `$CLOUD` is):
+Identify (parentheticals are GCP examples with AWS analogs — map to the **detected** `$CLOUD`):
 - Compute & deployment model (Cloud Run / ECS-Fargate-Lambda / Vercel functions), regions
 - Data storage tiers (Cloud SQL / RDS-Aurora; Memorystore / ElastiCache; BigQuery / Redshift; GCS / S3)
 - API and service topology (managed-container services, async workers, webhooks)
@@ -56,8 +54,7 @@ GCP example and its AWS analog; substitute for whatever `$CLOUD` is):
 - Current scale characteristics (users, RPM, data volume — from the instruction file or codebase)
 - Known bottlenecks or constraints
 
-If `$CLOUD` is unknown, ask the user which provider they target before giving
-provider-specific advice.
+If `$CLOUD` is unknown, ask the user which provider they target before giving provider-specific advice.
 
 ---
 
@@ -65,8 +62,7 @@ provider-specific advice.
 
 Examine the topic through the cloud infrastructure lens.
 
-> The bullets below name **GCP services as concrete examples**. Map each to the detected
-> `$CLOUD` provider's equivalent and use that vocabulary in your analysis:
+> Bullets name **GCP services as concrete examples** — map each to the detected `$CLOUD` equivalent and use that vocabulary:
 > Cloud Run → ECS/Fargate, Lambda, App Runner (AWS) · Container Apps, App Service (Azure) · Vercel/Netlify functions ·
 > Cloud SQL → RDS/Aurora · Azure SQL · Neon/PlanetScale ·
 > Memorystore → ElastiCache · Azure Cache ·
@@ -113,8 +109,7 @@ Cold tier:  analytics warehouse — analytics, exports, ML features             
 Archive:    object store      — reports, backups, blobs                        (GCS / S3 / Azure Blob)
 ```
 
-For the topic: which tier(s) are involved? Is data in the right tier? (Names in parens are
-per-provider examples — use the `$CLOUD` column.)
+For the topic: which tier(s) are involved? Is data in the right tier? (Parenthetical names are per-provider examples.)
 
 ### Schema & Query Design
 - Table design: normalization level appropriate for access patterns?
@@ -210,9 +205,7 @@ When comparing options:
 
 ## Step 7 — Architecture Diagram
 
-For significant proposals, produce a text-based topology diagram using the detected
-`$CLOUD` provider's service names. Example shape (GCP names shown — substitute the AWS /
-Azure / Vercel equivalents for the actual stack):
+For significant proposals, produce a text-based topology diagram using the detected `$CLOUD` provider's service names. Example shape (GCP shown — substitute AWS / Azure / Vercel equivalents):
 
 ```
 ┌─────────────────────────────────────────────────────┐

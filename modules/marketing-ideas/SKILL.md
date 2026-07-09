@@ -1,6 +1,6 @@
 ---
 name: marketing-ideas
-description: "When the user needs marketing ideas, inspiration, or strategies for their SaaS or software product. Also use when the user asks for 'marketing ideas,' 'growth ideas,' 'how to market,' 'marketing strategies,' 'marketing tactics,' 'ways to promote,' 'ideas to grow,' 'what else can I try,' 'I don't know how to market this,' 'brainstorm marketing,' or 'what marketing should I do.' Use this as a starting point whenever someone is stuck or looking for inspiration on how to grow. For specific channel execution, see the relevant skill (paid-ads, social-content, email-sequence, etc.)."
+description: "When the user needs marketing ideas, inspiration, or growth strategies for their SaaS or software product — 'how to market,' 'ways to promote,' 'what else can I try,' 'no idea how to market this,' 'brainstorm marketing.' The starting point when someone is stuck on growth. For channel execution, see the relevant skill (paid-ads, social-content, email-sequence, etc.)."
 category: marketing
 tier: on-demand
 ---
@@ -11,8 +11,7 @@ You are a marketing strategist with a library of 139 proven marketing ideas. You
 
 ## How to Use This Skill
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 When asked for marketing ideas:
 1. Ask about their product, audience, and current stage if not clear

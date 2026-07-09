@@ -1,40 +1,35 @@
 ---
 name: social-content
-description: "When the user wants help creating, scheduling, or optimizing social media content for LinkedIn, Twitter/X, Instagram, TikTok, Facebook, or other platforms. Also use when the user mentions 'LinkedIn post,' 'Twitter thread,' 'social media,' 'content calendar,' 'social scheduling,' 'engagement,' 'viral content,' 'what should I post,' 'repurpose this content,' 'tweet ideas,' 'LinkedIn carousel,' 'social media strategy,' or 'grow my following.' Use this for any social media content creation, repurposing, or scheduling task. For broader content strategy, see content-strategy."
+description: "When the user wants to create, schedule, or optimize social media content for LinkedIn, Twitter/X, Instagram, TikTok, or Facebook — 'LinkedIn post,' 'Twitter thread,' 'content calendar,' 'viral content,' 'what should I post,' 'repurpose this content,' 'grow my following.' For broader strategy, see content-strategy."
 category: marketing
 tier: on-demand
 ---
 
 # Social Content
 
-You are an expert social media strategist. Your goal is to help create engaging content that builds audience, drives engagement, and supports business goals.
+Expert social media strategist mode: create engaging content that builds audience, drives engagement, and supports business goals.
 
 ## Before Creating Content
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
 ### 1. Goals
-- What's the primary objective? (Brand awareness, leads, traffic, community)
-- What action do you want people to take?
-- Are you building personal brand, company brand, or both?
+- Primary objective? (Brand awareness, leads, traffic, community)
+- What action should people take?
+- Personal brand, company brand, or both?
 
 ### 2. Audience
-- Who are you trying to reach?
-- What platforms are they most active on?
+- Who are you reaching? Which platforms are they most active on?
 - What content do they engage with?
 
 ### 3. Brand Voice
-- What's your tone? (Professional, casual, witty, authoritative)
-- Any topics to avoid?
-- Any specific terminology or style guidelines?
+- Tone? (Professional, casual, witty, authoritative)
+- Topics to avoid? Terminology or style guidelines?
 
 ### 4. Resources
-- How much time can you dedicate to social?
-- Do you have existing content to repurpose?
-- Can you create video content?
+- Time available for social? Existing content to repurpose? Can you create video?
 
 ---
 
@@ -48,13 +43,13 @@ Gather this context (ask if not provided):
 | TikTok | Brand awareness, younger audiences | 1-4x/day | Short-form video |
 | Facebook | Communities, local businesses | 1-2x/day | Groups, native video |
 
-**For detailed platform strategies**: See [references/platforms.md](references/platforms.md)
+**Detailed platform strategies**: See [references/platforms.md](references/platforms.md)
 
 ---
 
 ## Content Pillars Framework
 
-Build your content around 3-5 pillars that align with your expertise and audience interests.
+Build content around 3-5 pillars aligned with your expertise and audience interests.
 
 ### Example for a SaaS Founder
 
@@ -68,7 +63,7 @@ Build your content around 3-5 pillars that align with your expertise and audienc
 
 ### Pillar Development Questions
 
-For each pillar, ask:
+For each pillar:
 1. What unique perspective do you have?
 2. What questions does your audience ask?
 3. What content has performed well before?
@@ -101,13 +96,13 @@ The first line determines whether anyone reads the rest.
 - "[Common advice] is wrong. Here's why:"
 - "I stopped [common practice] and [positive result]."
 
-**For post templates and more hooks**: See [references/post-templates.md](references/post-templates.md)
+**Post templates and more hooks**: See [references/post-templates.md](references/post-templates.md)
 
 ---
 
 ## Content Repurposing System
 
-Turn one piece of content into many:
+Turn one piece of content into many.
 
 ### Blog Post → Social Content
 
@@ -170,10 +165,8 @@ Turn one piece of content into many:
 
 ### Building Relationships
 
-- Identify 20-50 accounts in your space
-- Consistently engage with their content
-- Share their content with credit
-- Eventually collaborate (podcasts, co-created content)
+- Identify 20-50 accounts in your space; consistently engage with their content
+- Share their content with credit; eventually collaborate (podcasts, co-created content)
 
 ---
 
@@ -181,49 +174,33 @@ Turn one piece of content into many:
 
 ### Metrics That Matter
 
-**Awareness:** Impressions, Reach, Follower growth rate
+**Awareness:** impressions, reach, follower growth rate
 
-**Engagement:** Engagement rate, Comments (higher value than likes), Shares/reposts, Saves
+**Engagement:** engagement rate, comments (higher value than likes), shares/reposts, saves
 
-**Conversion:** Link clicks, Profile visits, DMs received, Leads attributed
+**Conversion:** link clicks, profile visits, DMs received, leads attributed
 
 ### Weekly Review
 
-- Top 3 performing posts (why did they work?)
-- Bottom 3 posts (what can you learn?)
-- Follower growth trend
-- Engagement rate trend
+- Top 3 posts (why did they work?) and bottom 3 (what can you learn?)
+- Follower growth and engagement rate trends
 - Best posting times (from data)
 
 ### Optimization Actions
 
-**If engagement is low:**
-- Test new hooks
-- Post at different times
-- Try different formats
-- Increase engagement with others
+**If engagement is low:** test new hooks, post at different times, try different formats, increase engagement with others.
 
-**If reach is declining:**
-- Avoid external links in post body
-- Increase posting frequency
-- Engage more in comments
-- Test video/visual content
+**If reach is declining:** avoid external links in post body, increase posting frequency, engage more in comments, test video/visual content.
 
 ---
 
 ## Content Ideas by Situation
 
 ### When You're Starting Out
-- Document your journey
-- Share what you're learning
-- Curate and comment on industry content
-- Engage heavily with established accounts
+Document your journey; share what you're learning; curate and comment on industry content; engage heavily with established accounts.
 
 ### When You're Stuck
-- Repurpose old high-performing content
-- Ask your audience what they want
-- Comment on industry news
-- Share a failure or lesson learned
+Repurpose old high-performing content; ask your audience what they want; comment on industry news; share a failure or lesson learned.
 
 ---
 
@@ -231,42 +208,40 @@ Turn one piece of content into many:
 
 ### When to Schedule vs. Post Live
 
-**Schedule:** Core content posts, Threads, Carousels, Evergreen content
+**Schedule:** core content posts, threads, carousels, evergreen content.
 
-**Post live:** Real-time commentary, Responses to news/trends, Engagement with others
+**Post live:** real-time commentary, responses to news/trends, engagement with others.
 
 ### Queue Management
 
-- Maintain 1-2 weeks of scheduled content
-- Review queue weekly for relevance
-- Leave gaps for spontaneous posts
-- Adjust timing based on performance data
+- Maintain 1-2 weeks of scheduled content; review queue weekly for relevance
+- Leave gaps for spontaneous posts; adjust timing based on performance data
 
 ---
 
 ## Reverse Engineering Viral Content
 
-Instead of guessing, analyze what's working for top creators in your niche:
+Analyze what's working for top creators in your niche instead of guessing:
 
 1. **Find creators** — 10-20 accounts with high engagement
 2. **Collect data** — 500+ posts for analysis
-3. **Analyze patterns** — Hooks, formats, CTAs that work
-4. **Codify playbook** — Document repeatable patterns
-5. **Layer your voice** — Apply patterns with authenticity
-6. **Convert** — Bridge attention to business results
+3. **Analyze patterns** — hooks, formats, CTAs that work
+4. **Codify playbook** — document repeatable patterns
+5. **Layer your voice** — apply patterns with authenticity
+6. **Convert** — bridge attention to business results
 
-**For the complete framework**: See [references/reverse-engineering.md](references/reverse-engineering.md)
+**Complete framework**: See [references/reverse-engineering.md](references/reverse-engineering.md)
 
 ---
 
 ## Task-Specific Questions
 
 1. What platform(s) are you focusing on?
-2. What's your current posting frequency?
-3. Do you have existing content to repurpose?
+2. Current posting frequency?
+3. Existing content to repurpose?
 4. What content has performed well in the past?
-5. How much time can you dedicate weekly?
-6. Are you building personal brand, company brand, or both?
+5. Weekly time available?
+6. Personal brand, company brand, or both?
 
 ---
 

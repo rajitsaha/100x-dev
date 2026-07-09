@@ -9,8 +9,6 @@ model: haiku
 
 # Connect — SaaS CLI Connection Manager
 
-Connect, authenticate, and verify any SaaS CLI tool. Reads credentials from `.env`. Never prints secrets.
-
 ## Usage
 
 ```
@@ -42,8 +40,7 @@ else
 fi
 ```
 
-Detect the requested service from the argument (e.g. `/connect github` → SERVICE=github).
-If no argument, run Phase 3 (status dashboard) for ALL services.
+Detect SERVICE from the argument (e.g. `/connect github` → SERVICE=github). If no argument, run Phase 3 (status dashboard) for ALL services.
 
 ---
 
@@ -66,7 +63,7 @@ brew_install() { brew install "$1" && echo "✅ $1 installed" || echo "❌ insta
 
 ## Phase 2 — Service sections
 
-Run ONLY the section matching the requested SERVICE. If `/connect` with no arg, run status checks for all.
+Run ONLY the section matching the requested SERVICE.
 
 ---
 
@@ -798,7 +795,7 @@ fi
 
 ## Phase 3 — Status Dashboard (no-arg mode)
 
-When `/connect` is called with no argument, run status checks for ALL services and print this summary:
+Run status checks for ALL services and print this summary:
 
 ```bash
 echo ""
@@ -860,7 +857,7 @@ echo "╚═══════════════════════�
 
 ## Phase 4 — Hook guidance
 
-After a successful connection, suggest the user add this to their shell profile to auto-load `.env` on project entry:
+After a successful connection, suggest adding this to the shell profile to auto-load `.env` on project entry:
 
 ```bash
 # ~/.zshrc or ~/.bashrc — auto-load .env when entering a project directory
@@ -873,7 +870,7 @@ autoload_env() {
 # bash: PROMPT_COMMAND="autoload_env; $PROMPT_COMMAND"
 ```
 
-And suggest adding Claude Code hook in `.claude/settings.json` to warn on missing credentials:
+And suggest this Claude Code hook in `.claude/settings.json` to warn on missing credentials:
 
 ```json
 {

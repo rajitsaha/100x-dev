@@ -430,11 +430,14 @@ def cmd_emit_claude_code():
         current_slugs.append(slug)
         skill_count += 1
 
-        # Slash command alias for any module with slash_command in frontmatter
+        # Slash command alias ONLY when the command name differs from the slug
+        # (e.g. fix-bugs → /fix). Claude Code already exposes every skill in
+        # ~/.claude/skills as /<slug>, so a same-name alias would double-list the
+        # module in the session's skill index and pay its description twice.
         skill_md = target / "SKILL.md"
         fm, body = split_frontmatter(skill_md.read_text())
         slash = fm.get("slash_command", "").lstrip("/")
-        if slash:
+        if slash and slash != slug:
             (commands_dir / f"{slash}.md").write_text(render_command_alias(fm, slug, body))
             current_cmds.append(slash)
             cmd_count += 1

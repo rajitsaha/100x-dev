@@ -6,20 +6,16 @@ tier: on-demand
 allowed-tools: Read Write Bash
 ---
 
-You are a Senior Accessibility Engineer. Audit the target against **WCAG 2.2 Level AA** plus pragmatic real-world a11y patterns. Report findings as actionable fixes, not academic citations.
+Audit the target against **WCAG 2.2 Level AA** plus pragmatic real-world a11y patterns. Report findings as actionable fixes, not academic citations.
 
 ## Required Input
 
-Provide at least one of:
+At least one of:
 - **URL** or path to a built page
 - **Component source** (HTML / JSX / Vue / Svelte)
-- **Design** (Figma frame / screenshot) — note this restricts checks to visual-only
+- **Design** (Figma frame / screenshot) — restricts checks to visual-only
 
-Optional context that sharpens the audit:
-- **Target users**: e.g. enterprise B2B, K-12, government (each implies different baselines)
-- **Assistive tech in scope**: VoiceOver, NVDA, JAWS, TalkBack, Switch Control
-- **Locale / RTL** requirements
-- **Existing a11y posture**: VPAT, prior audits, known waivers
+Optional context that sharpens the audit: **target users** (e.g. enterprise B2B, K-12, government — each implies different baselines), **assistive tech in scope** (VoiceOver, NVDA, JAWS, TalkBack, Switch Control), **locale / RTL** requirements, **existing a11y posture** (VPAT, prior audits, known waivers).
 
 ## Audit Coverage
 
@@ -41,7 +37,7 @@ Optional context that sharpens the audit:
 ### 3. Understandable
 - **Language** — `<html lang>` set; switches declared with `lang` attribute.
 - **Form labels** — every input has a programmatic label (`<label for>`, `aria-label`, or `aria-labelledby`).
-- **Error identification** — errors named in text, associated with the field via `aria-describedby`, announced to AT.
+- **Error identification** — errors named in text, associated via `aria-describedby`, announced to AT.
 - **Predictable interaction** — no context change on focus/input without warning.
 - **Consistent navigation** — same nav patterns across pages.
 
@@ -75,7 +71,7 @@ For any custom widget, apply this order:
 
 ## Screen Reader Test Plan
 
-For each critical user flow, walk through with at least one pairing:
+Walk each critical user flow with at least one pairing:
 
 | Screen reader | Browser | OS |
 |---|---|---|
@@ -110,14 +106,14 @@ Severity ladder:
 - **Minor** — polish (decorative icon missing `aria-hidden`).
 
 ### 2. Focus Order Map
-Numbered diagram or ordered list of every tabstop on the page, in DOM order, with the visual position annotated. Call out any mismatch.
+Numbered list of every tabstop in DOM order, visual position annotated. Call out any mismatch.
 
 ### 3. Contrast Report
-Every text/UI color pair on the page with computed ratio, minimum required, and pass/fail.
+Every text/UI color pair with computed ratio, minimum required, and pass/fail.
 
 ## Verification Commands
 
-When auditing a running page, prefer these checks before delivering findings:
+For a running page, run these before delivering findings:
 
 ```bash
 # axe-core CLI scan (most accurate automated baseline)
@@ -130,7 +126,7 @@ npx lighthouse "$URL" --only-categories=accessibility --output=json
 npx pa11y "$URL" --standard WCAG2AA
 ```
 
-Automated tools catch ~30% of issues. The remaining 70% — focus order, labels that read poorly, motion sickness triggers, cognitive load — requires manual review using the screen reader test plan above.
+Automated tools catch ~30% of issues; the other 70% — focus order, labels that read poorly, motion sickness triggers, cognitive load — requires manual review via the screen reader test plan above.
 
 ## Anti-Patterns to Flag Immediately
 
@@ -148,4 +144,4 @@ Automated tools catch ~30% of issues. The remaining 70% — focus order, labels 
 
 ## Output Goal
 
-A developer reading the report should be able to fix every Critical and Serious finding without asking a follow-up question. Every finding names the exact element, the exact SC, and the exact change — code-level when source is available, behavior-level when only design is available.
+Every finding names the exact element, the exact SC, and the exact change — code-level when source is available, behavior-level when only design is available — so a developer can fix every Critical and Serious finding without a follow-up question.
