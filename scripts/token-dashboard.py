@@ -31,7 +31,6 @@ Pricing for the cost estimate is per-model (see pricing.py's RATES table);
 unmatched model ids fall back to Opus-tier rates and are flagged in fallback_pct.
 """
 import argparse
-import glob
 import json
 import os
 import socket
