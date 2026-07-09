@@ -45,7 +45,7 @@ class TestPricing(unittest.TestCase):
     def test_known_model_not_flagged_fallback(self):
         rates, is_fallback = pricing.rates_for_model("claude-sonnet-4-5-20251001")
         self.assertFalse(is_fallback)
-        self.assertEqual(rates, dict(r for k, r in pricing.RATES if k == "sonnet"))
+        self.assertEqual(rates, next(r for k, r in pricing.RATES if k == "sonnet"))
 
     def test_unknown_model_falls_back_and_is_flagged(self):
         rates, is_fallback = pricing.rates_for_model("some-future-model-xyz")
@@ -68,7 +68,7 @@ class TestPricing(unittest.TestCase):
             "totally-unknown-model": {"input": 0, "output": 500_000, "cache_read": 0, "cache_write": 0},
         }
         total, fallback_tokens = pricing.cost_by_model(by_model)
-        sonnet_rates = dict(r for k, r in pricing.RATES if k == "sonnet")
+        sonnet_rates = next(r for k, r in pricing.RATES if k == "sonnet")
         expected_sonnet = 1_000_000 / 1_000_000 * sonnet_rates["input"]
         expected_fallback = 500_000 / 1_000_000 * pricing._FALLBACK_RATES["output"]
         self.assertAlmostEqual(total, expected_sonnet + expected_fallback, places=6)
@@ -77,7 +77,7 @@ class TestPricing(unittest.TestCase):
     def test_gpt_5_pattern_matches_dotted_minor_versions(self):
         rates, is_fallback = pricing.rates_for_model("gpt-5.5")
         self.assertFalse(is_fallback)
-        self.assertEqual(rates, dict(r for k, r in pricing.RATES if k == "gpt-5"))
+        self.assertEqual(rates, next(r for k, r in pricing.RATES if k == "gpt-5"))
 
 
 if __name__ == "__main__":
@@ -1702,8 +1702,8 @@ class TestRunManifest(unittest.TestCase):
              "project": "repo", "mtime": 0},
         ]
         result = run_manifest.run_cost(m, summaries)
-        sonnet_rates = dict(r for k, r in pricing.RATES if k == "sonnet")
-        gpt5_rates = dict(r for k, r in pricing.RATES if k == "gpt-5")
+        sonnet_rates = next(r for k, r in pricing.RATES if k == "sonnet")
+        gpt5_rates = next(r for k, r in pricing.RATES if k == "gpt-5")
         self.assertAlmostEqual(result["coder"], sonnet_rates["input"], places=4)
         self.assertAlmostEqual(result["reviewer"], gpt5_rates["output"], places=4)
         self.assertAlmostEqual(result["total"], result["coder"] + result["reviewer"], places=4)
