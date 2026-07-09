@@ -96,9 +96,16 @@ test('concat output surfaces the tier hint for a routed core module', () => {
   }
 })
 
-test('slash-command aliases carry routing + guardrail frontmatter', () => {
+test('slash-command aliases: only renamed commands, carrying routing frontmatter', () => {
   const home = emitClaudeCode()
-  const cmd = (name) => fs.readFileSync(path.join(home, '.claude', 'commands', `${name}.md`), 'utf8')
+  const commandsDir = path.join(home, '.claude', 'commands')
+  const cmd = (name) => fs.readFileSync(path.join(commandsDir, `${name}.md`), 'utf8')
+
+  // Only modules whose slash command differs from the slug get an alias —
+  // Claude Code already exposes every skill as /<slug>, so a same-name alias
+  // would double-list the module and pay its description twice per session.
+  const aliases = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.md')).sort()
+  assert.deepEqual(aliases, ['context.md', 'fix.md', 'grill.md', 'query.md', 'update-claude.md'])
 
   // data-query (/query): routed to sonnet, declares allowed-tools, no $ARGUMENTS → no arg hint.
   const query = cmd('query')
@@ -108,15 +115,11 @@ test('slash-command aliases carry routing + guardrail frontmatter', () => {
   assert.ok(!/argument-hint:/.test(query), 'query takes no positional args → no hint')
   assert.match(query, /Use the `data-query` skill\./)
 
-  // architect (/architect): routed to opus AND consumes $ARGUMENTS → gets a generic arg hint.
-  const architect = cmd('architect')
-  assert.match(architect, /^model: opus$/m)
-  assert.match(architect, /^argument-hint: \[arguments\]$/m)
-
-  // lint (/lint): haiku, no allowed-tools declared, no args.
-  const lint = cmd('lint')
-  assert.match(lint, /^model: haiku$/m)
-  assert.ok(!/allowed-tools:/.test(lint), 'lint declares no tools → no allowed-tools line')
+  // Same-name modules keep their routing via the skill's own frontmatter instead.
+  const skill = (slug) =>
+    fs.readFileSync(path.join(home, '.claude', 'skills', slug, 'SKILL.md'), 'utf8')
+  assert.match(skill('architect'), /^model: opus$/m)
+  assert.match(skill('lint'), /^model: haiku$/m)
 })
 
 test('cursor .mdc maps tier to alwaysApply', () => {

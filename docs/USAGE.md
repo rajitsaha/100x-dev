@@ -34,7 +34,7 @@ npm install -g 100xprism && 100xprism install
 
 The installer:
 1. Emits all 66 modules to `~/.claude/skills/`
-2. Creates 26 slash command aliases in `~/.claude/commands/`
+2. Creates slash command aliases in `~/.claude/commands/` for the modules whose command name differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) — every other module is invoked as `/<skill-name>` directly
 3. Merges 14 Claude Code plugins into `~/.claude/settings.json`
 4. Adds shell aliases (`cc`, `ccc`, `100x-update`, `100x-check`)
 5. Copies 4 project templates to `~/100x-templates/`

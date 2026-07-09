@@ -1,6 +1,6 @@
 ---
 name: eval
-description: Run a module's evals to check it triggers correctly and produces good output. Use when the user wants to evaluate a skill, run evals, grade eval assertions, score skill quality, or asks "do my skills still trigger correctly" or "did this change break a skill". Fans eval cases out to parallel subagents and has Haiku 4.5 grade each assertion into a pass/fail scorecard.
+description: Run a 100xprism module's evals to check it triggers correctly and produces good output — "do my skills still trigger correctly," "did this change break a skill." Fans eval cases out to parallel subagents with Haiku-graded pass/fail scorecards. For authoring or benchmarking general-purpose skills, prefer a skill-creator plugin when present.
 category: quality
 tier: on-demand
 slash_command: /eval

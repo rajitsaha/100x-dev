@@ -1,6 +1,6 @@
 ---
 name: cloud-security
-description: Rigorous security and data privacy scan for cloud deployments. Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security, container security, and compliance.
+description: Rigorous security and data privacy scan for cloud deployments. Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security, container security, and compliance. Audits deployed infrastructure and config — not a code-diff review.
 category: quality
 tier: on-demand
 slash_command: /cloud-security

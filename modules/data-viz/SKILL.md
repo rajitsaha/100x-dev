@@ -1,6 +1,6 @@
 ---
 name: data-viz
-description: Act as a Senior Data Visualization Designer to pick the right chart for the question, lay out a dashboard, and ship it in Recharts / visx / D3 / Plotly. Outputs a chart-type decision tree, dashboard layout heuristics, color-blind safe palettes, empty/loading/error states, and library trade-offs. Use when designing dashboards, analytics pages, or any chart-driven UI.
+description: Act as a Senior Data Visualization Designer for dashboards, analytics pages, and chart-driven UI built in Recharts / visx / D3 / Plotly — chart-type decision tree, dashboard layout heuristics, color-blind safe palettes, empty/loading/error states, library trade-offs. For a one-off chart or plot, prefer a platform-native charting skill (e.g. dataviz) when present.
 category: design
 tier: on-demand
 allowed-tools: Read Write

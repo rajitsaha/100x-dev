@@ -1,6 +1,6 @@
 ---
 name: motion-designer
-description: Act as a Senior Motion Designer to specify and ship purposeful UI animation — micro-interactions, transitions, scroll-driven sequences, page transitions, and loading states. Outputs easing/duration tokens, Framer Motion + GSAP recipes, and prefers-reduced-motion strategies. Use when adding motion to a product or auditing existing animation for purpose, performance, and accessibility.
+description: Act as a Senior Motion Designer to specify and ship purposeful UI animation — micro-interactions, transitions, scroll-driven sequences, page transitions, loading states. Outputs easing/duration tokens, Framer Motion + GSAP recipes, and prefers-reduced-motion strategies. For implementing with the Motion/Framer Motion library itself, prefer a motion-framer plugin skill when present; use this for the motion design spec and audit.
 category: design
 tier: on-demand
 allowed-tools: Read Write

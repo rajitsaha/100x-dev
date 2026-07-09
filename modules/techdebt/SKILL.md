@@ -1,6 +1,6 @@
 ---
 name: techdebt
-description: Find and eliminate technical debt — duplicated code, dead code, redundant abstractions. Use at the end of a coding session or when the codebase feels bloated. Scans, reports, and fixes issues with user confirmation.
+description: Find and eliminate technical debt across the whole codebase — duplicated code, dead code, redundant abstractions. Use at the end of a coding session or when the codebase feels bloated. Reports findings and fixes them with user confirmation. Cleanups limited to the current working changes belong in a native simplify flow instead.
 category: engineering
 tier: on-demand
 slash_command: /techdebt
