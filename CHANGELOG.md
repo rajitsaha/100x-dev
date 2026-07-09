@@ -9,6 +9,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [2.4.5] — 2026-07-09
+
+(Minor maintenance release)
+
+---
+
 ## [2.4.4] — 2026-06-27
 
 ### Fixed
