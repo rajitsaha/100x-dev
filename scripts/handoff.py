@@ -48,8 +48,8 @@ def append_reviewer_round(path, n, tool, findings, verdict):
 
 
 def parse_verdict(reviewer_output):
-    m = _VERDICT_RE.search(reviewer_output or "")
-    return m.group(1) if m else None
+    matches = _VERDICT_RE.findall(reviewer_output or "")
+    return matches[-1] if matches else None
 
 
 def parse_findings(reviewer_output):

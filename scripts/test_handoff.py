@@ -46,6 +46,16 @@ class TestHandoff(unittest.TestCase):
     def test_parse_verdict_missing_returns_none(self):
         self.assertIsNone(handoff.parse_verdict("no verdict line here"))
 
+    def test_parse_verdict_uses_last_match_not_first(self):
+        text = (
+            "For example, a prior review might say VERDICT: APPROVED if the fix "
+            "were complete, but that's not the case here.\n"
+            "### Findings\n"
+            "1. [correctness] foo.py:10 — still broken\n"
+            "VERDICT: CHANGES_REQUESTED\n"
+        )
+        self.assertEqual(handoff.parse_verdict(text), "CHANGES_REQUESTED")
+
     def test_parse_findings_numbered_list(self):
         text = (
             "### Findings\n"
