@@ -162,8 +162,10 @@ def append_reviewer_round(path, n, tool, findings, verdict):
 
 
 def parse_verdict(reviewer_output):
-    m = _VERDICT_RE.search(reviewer_output or "")
-    return m.group(1) if m else None
+    # Last match wins, not first — a stray earlier "VERDICT: ..."-shaped
+    # mention in reviewer prose must not override the real final-line verdict.
+    matches = _VERDICT_RE.findall(reviewer_output or "")
+    return matches[-1] if matches else None
 
 
 def parse_findings(reviewer_output):
