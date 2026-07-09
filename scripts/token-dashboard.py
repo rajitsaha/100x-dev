@@ -600,20 +600,46 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _token_summary() -> str | None:
-    """Return a short cached-token summary string, or None if no cache."""
-    files = load_cache()
-    if not files:
+    """Return a short cached-token summary string (+ budget glyph), or None."""
+    cc_cache = claude_code.load_cache()
+    cx_cache = codex.load_cache()
+    if not cc_cache and not cx_cache:
         return None
     tot = _empty()
-    for s in files.values():
-        t = s.get("totals", {})
-        _add(tot, t.get("input", 0), t.get("output", 0),
-             t.get("cache_read", 0), t.get("cache_write", 0))
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    week_start = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+    today_by_model, week_models = defaultdict(_empty), defaultdict(_empty)
+    for cache in (cc_cache, cx_cache):
+        for s in cache.values():
+            t = s.get("totals", {})
+            _add(tot, t.get("input", 0), t.get("output", 0), t.get("cache_read", 0), t.get("cache_write", 0))
+            for day, models in s.get("by_day_model", {}).items():
+                for model, d in models.items():
+                    if day == today_str:
+                        _add(today_by_model[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+                    if day >= week_start:
+                        _add(week_models[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
     if not any(tot.values()):
         return None
-    cost = sum(tot[k] / 1_000_000 * RATES[k] for k in RATES)
-    return (f"{fmt(tot['output'])} out · "
-            f"{fmt(tot['cache_read'])} ctx · ~${cost:,.0f}")
+    by_model_total = _bucket_by_model(cc_cache, cx_cache)
+    cost, _ = pricing.cost_by_model(by_model_total)
+    today_cost, _ = pricing.cost_by_model(today_by_model)
+    week_cost, _ = pricing.cost_by_model(week_models)
+    budget = _budget.budget_summary(today_cost, week_cost)
+    suffix = _budget.oneline_suffix(budget)
+    line = f"{fmt(tot['output'])} out · {fmt(tot['cache_read'])} ctx · ~${cost:,.0f}"
+    if suffix:
+        line += f" · {suffix}"
+    return line
+
+
+def _bucket_by_model(cc_cache, cx_cache):
+    agg = defaultdict(_empty)
+    for cache in (cc_cache, cx_cache):
+        for s in cache.values():
+            for model, d in s.get("by_model", {}).items():
+                _add(agg[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+    return dict(agg)
 
 
 def _oneline():
@@ -723,7 +749,9 @@ def main():
         while True:
             time.sleep(REFRESH_SECONDS)
             try:
-                _rebuild()
+                data = _rebuild()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                _budget.maybe_notify(data["budget"], today_str)
             except Exception:
                 pass
 
