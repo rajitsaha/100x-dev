@@ -8,7 +8,7 @@ slash_command: /cloud-security
 
 # Cloud Security — Cloud Security & Data Privacy Scan
 
-Rigorous security and data privacy scan for cloud deployments. Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security, container security, and compliance.
+Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security, container security, and compliance.
 
 ## Do NOT ask for permission — scan everything, fix what you can, report the rest.
 
@@ -158,8 +158,6 @@ fi
 ---
 
 ## Section 8 — Data Privacy: PII in Source Code
-
-Scan for PII patterns that should never appear in source code or logs.
 
 ```bash
 echo "=== PII in Source Code ==="

@@ -1,43 +1,37 @@
 ---
 name: site-architecture
-description: When the user wants to plan, map, or restructure their website's page hierarchy, navigation, URL structure, or internal linking. Also use when the user mentions "sitemap," "site map," "visual sitemap," "site structure," "page hierarchy," "information architecture," "IA," "navigation design," "URL structure," "breadcrumbs," "internal linking strategy," "website planning," "what pages do I need," "how should I organize my site," or "site navigation." Use this whenever someone is planning what pages a website should have and how they connect. NOT for XML sitemaps (that's technical SEO — see seo-audit). For SEO audits, see seo-audit. For structured data, see schema-markup.
+description: When the user wants to plan, map, or restructure a website's page hierarchy, navigation, URL structure, or internal linking — "sitemap," "information architecture," "IA," "breadcrumbs," "what pages do I need," "how should I organize my site." NOT for XML sitemaps (technical SEO — see seo-audit). For structured data, see schema-markup.
 category: marketing
 tier: on-demand
 ---
 
 # Site Architecture
 
-You are an information architecture expert. Your goal is to help plan website structure — page hierarchy, navigation, URL patterns, and internal linking — so the site is intuitive for users and optimized for search engines.
+Plan website structure — page hierarchy, navigation, URL patterns, and internal linking — so the site is intuitive for users and optimized for search engines.
 
 ## Before Planning
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
 ### 1. Business Context
 - What does the company do?
-- Who are the primary audiences?
-- What are the top 3 goals for the site? (conversions, SEO traffic, education, support)
+- Primary audiences?
+- Top 3 site goals? (conversions, SEO traffic, education, support)
 
 ### 2. Current State
-- New site or restructuring an existing one?
+- New site or restructuring?
 - If restructuring: what's broken? (high bounce, poor SEO, users can't find things)
 - Existing URLs that must be preserved (for redirects)?
 
 ### 3. Site Type
-- SaaS marketing site
-- Content/blog site
-- E-commerce
-- Documentation
-- Hybrid (SaaS + content)
-- Small business / local
+SaaS marketing site, content/blog, e-commerce, documentation, hybrid (SaaS + content), or small business/local.
 
 ### 4. Content Inventory
 - How many pages exist or are planned?
-- What are the most important pages? (by traffic, conversions, or business value)
-- Any planned sections or expansions?
+- Most important pages? (by traffic, conversions, or business value)
+- Planned sections or expansions?
 
 ---
 
@@ -60,7 +54,7 @@ Gather this context (ask if not provided):
 
 ### The 3-Click Rule
 
-Users should reach any important page within 3 clicks from the homepage. This isn't absolute, but if critical pages are buried 4+ levels deep, something is wrong.
+Users should reach any important page within 3 clicks from the homepage. Not absolute, but critical pages buried 4+ levels deep signal a problem.
 
 ### Flat vs Deep
 
@@ -106,9 +100,7 @@ Homepage (/)
 └── Contact (/contact)
 ```
 
-**When to use ASCII vs Mermaid**:
-- ASCII: quick hierarchy drafts, text-only contexts, simple structures
-- Mermaid: visual presentations, complex relationships, showing nav zones or linking patterns
+**ASCII vs Mermaid**: ASCII for quick hierarchy drafts, text-only contexts, simple structures; Mermaid for visual presentations, complex relationships, showing nav zones or linking patterns.
 
 ---
 
@@ -131,7 +123,7 @@ Homepage (/)
 - **CTA button** goes rightmost (e.g., "Start Free Trial," "Get Started")
 - **Logo** links to homepage (left side)
 - **Order by priority**: most important/visited pages first
-- If you have a mega menu, limit to 3-4 columns
+- Mega menus: limit to 3-4 columns
 
 ### Footer Organization
 
@@ -148,7 +140,7 @@ Home > Features > Analytics
 Home > Blog > SEO Category > Post Title
 ```
 
-Breadcrumbs should mirror the URL hierarchy. Every breadcrumb segment should be a clickable link except the current page.
+Breadcrumbs mirror the URL hierarchy; every segment is a clickable link except the current page.
 
 **For detailed navigation patterns**: See [references/navigation-patterns.md](references/navigation-patterns.md)
 
@@ -184,16 +176,14 @@ Breadcrumbs should mirror the URL hierarchy. Every breadcrumb segment should be 
 
 ### Common Mistakes
 
-- **Dates in blog URLs** — `/blog/2024/01/15/post-title` adds no value and makes URLs long. Use `/blog/post-title`.
-- **Over-nesting** — `/products/category/subcategory/item/detail` is too deep. Flatten where possible.
-- **Changing URLs without redirects** — Every old URL needs a 301 redirect to its new URL. Without them, you lose backlink equity and create broken pages for anyone with the old URL bookmarked or linked.
-- **IDs in URLs** — `/product/12345` is not human-readable. Use slugs.
-- **Query parameters for content** — `/blog?id=123` should be `/blog/post-title`.
-- **Inconsistent patterns** — Don't mix `/features/analytics` and `/product/automation`. Pick one parent.
+- **Dates in blog URLs** — `/blog/2024/01/15/post-title` adds no value; use `/blog/post-title`
+- **Over-nesting** — `/products/category/subcategory/item/detail` is too deep; flatten where possible
+- **Changing URLs without redirects** — every old URL needs a 301 to its new URL, or you lose backlink equity and break bookmarks and inbound links
+- **IDs in URLs** — `/product/12345` isn't human-readable; use slugs
+- **Query parameters for content** — `/blog?id=123` should be `/blog/post-title`
+- **Inconsistent patterns** — don't mix `/features/analytics` and `/product/automation`; pick one parent
 
 ### Breadcrumb-URL Alignment
-
-The breadcrumb trail should mirror the URL path:
 
 | URL | Breadcrumb |
 |-----|-----------|
@@ -205,7 +195,7 @@ The breadcrumb trail should mirror the URL path:
 
 ## Visual Sitemap Output (Mermaid)
 
-Use Mermaid `graph TD` for visual sitemaps. This makes hierarchy relationships clear and can annotate navigation zones.
+Use Mermaid `graph TD` for visual sitemaps — it makes hierarchy relationships clear and can annotate navigation zones.
 
 ### Basic Hierarchy
 
@@ -269,7 +259,7 @@ graph TD
 
 ### Internal Linking Rules
 
-1. **No orphan pages** — every page must have at least one internal link pointing to it
+1. **No orphan pages** — every page needs at least one internal link pointing to it
 2. **Descriptive anchor text** — "our analytics features" not "click here"
 3. **5-10 internal links per 1000 words** of content (approximate guideline)
 4. **Link to important pages more often** — homepage, key feature pages, pricing
@@ -288,7 +278,7 @@ Hub: /blog/seo-guide (comprehensive overview)
 └── Spoke: /blog/link-building (links back to hub)
 ```
 
-Each spoke links back to the hub. The hub links to all spokes. Spokes link to each other where relevant.
+Each spoke links back to the hub; the hub links to all spokes; spokes link to each other where relevant.
 
 ### Link Audit Checklist
 
@@ -304,13 +294,13 @@ Each spoke links back to the hub. The hub links to all spokes. Spokes link to ea
 
 ## Output Format
 
-When creating a site architecture plan, provide these deliverables:
+A site architecture plan includes these deliverables:
 
 ### 1. Page Hierarchy (ASCII Tree)
-Full site structure with URLs at each node. Use the ASCII tree format from the Page Hierarchy Design section.
+Full site structure with URLs at each node, in the ASCII tree format above.
 
 ### 2. Visual Sitemap (Mermaid)
-Mermaid diagram showing page relationships and navigation zones. Use `graph TD` with subgraphs for nav zones where helpful.
+`graph TD` diagram of page relationships, with subgraphs for nav zones where helpful.
 
 ### 3. URL Map Table
 

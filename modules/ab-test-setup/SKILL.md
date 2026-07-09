@@ -1,20 +1,17 @@
 ---
 name: ab-test-setup
-description: When the user wants to plan, design, or implement an A/B test or experiment. Also use when the user mentions "A/B test," "split test," "experiment," "test this change," "variant copy," "multivariate test," "hypothesis," "should I test this," "which version is better," "test two versions," "statistical significance," or "how long should I run this test." Use this whenever someone is comparing two approaches and wants to measure which performs better. For tracking implementation, see analytics-tracking. For page-level conversion optimization, see page-cro.
+description: When the user wants to plan, design, or implement an A/B test or experiment — "split test," "variant copy," "multivariate test," "hypothesis," "statistical significance," "how long should I run this test," or comparing two versions. For tracking implementation, see analytics-tracking. For page-level conversion optimization, see page-cro.
 category: marketing
 tier: on-demand
 ---
 
 # A/B Test Setup
 
-You are an expert in experimentation and A/B testing. Your goal is to help design tests that produce statistically valid, actionable results.
-
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Before designing a test, understand:
+Establish:
 
 1. **Test Context** - What are you trying to improve? What change are you considering?
 2. **Current State** - Baseline conversion rate? Current traffic volume?
@@ -25,23 +22,16 @@ Before designing a test, understand:
 ## Core Principles
 
 ### 1. Start with a Hypothesis
-- Not just "let's see what happens"
-- Specific prediction of outcome
-- Based on reasoning or data
+Not "let's see what happens" — a specific prediction of outcome, based on reasoning or data.
 
 ### 2. Test One Thing
-- Single variable per test
-- Otherwise you don't know what worked
+Single variable per test; otherwise you don't know what worked.
 
 ### 3. Statistical Rigor
-- Pre-determine sample size
-- Don't peek and stop early
-- Commit to the methodology
+Pre-determine sample size, don't peek and stop early, commit to the methodology.
 
 ### 4. Measure What Matters
-- Primary metric tied to business value
-- Secondary metrics for context
-- Guardrail metrics to prevent harm
+Primary metric tied to business value, secondary metrics for context, guardrail metrics to prevent harm.
 
 ---
 
@@ -91,24 +81,15 @@ We'll know this is true when [metrics].
 - [Evan Miller's](https://www.evanmiller.org/ab-testing/sample-size.html)
 - [Optimizely's](https://www.optimizely.com/sample-size-calculator/)
 
-**For detailed sample size tables and duration calculations**: See [references/sample-size-guide.md](references/sample-size-guide.md)
+Detailed sample size tables and duration calculations: [references/sample-size-guide.md](references/sample-size-guide.md)
 
 ---
 
 ## Metrics Selection
 
-### Primary Metric
-- Single metric that matters most
-- Directly tied to hypothesis
-- What you'll use to call the test
-
-### Secondary Metrics
-- Support primary metric interpretation
-- Explain why/how the change worked
-
-### Guardrail Metrics
-- Things that shouldn't get worse
-- Stop test if significantly negative
+- **Primary Metric** — the single metric that matters most, directly tied to the hypothesis; what you'll use to call the test.
+- **Secondary Metrics** — support interpretation; explain why/how the change worked.
+- **Guardrail Metrics** — things that shouldn't get worse; stop the test if significantly negative.
 
 ### Example: Pricing Page Test
 - **Primary**: Plan selection rate
@@ -129,9 +110,7 @@ We'll know this is true when [metrics].
 | Content | Information included, order, amount, social proof |
 
 ### Best Practices
-- Single, meaningful change
-- Bold enough to make a difference
-- True to the hypothesis
+Single, meaningful change — bold enough to make a difference, true to the hypothesis.
 
 ---
 
@@ -143,23 +122,14 @@ We'll know this is true when [metrics].
 | Conservative | 90/10, 80/20 | Limit risk of bad variant |
 | Ramping | Start small, increase | Technical risk mitigation |
 
-**Considerations:**
-- Consistency: Users see same variant on return
-- Balanced exposure across time of day/week
+**Considerations:** users see the same variant on return; balanced exposure across time of day/week.
 
 ---
 
 ## Implementation
 
-### Client-Side
-- JavaScript modifies page after load
-- Quick to implement, can cause flicker
-- Tools: PostHog, Optimizely, VWO
-
-### Server-Side
-- Variant determined before render
-- No flicker, requires dev work
-- Tools: PostHog, LaunchDarkly, Split
+- **Client-Side** — JavaScript modifies page after load. Quick to implement, can cause flicker. Tools: PostHog, Optimizely, VWO.
+- **Server-Side** — variant determined before render. No flicker, requires dev work. Tools: PostHog, LaunchDarkly, Split.
 
 ---
 
@@ -175,27 +145,19 @@ We'll know this is true when [metrics].
 
 ### During the Test
 
-**DO:**
-- Monitor for technical issues
-- Check segment quality
-- Document external factors
+**DO:** monitor for technical issues, check segment quality, document external factors.
 
-**Avoid:**
-- Peek at results and stop early
-- Make changes to variants
-- Add traffic from new sources
+**Avoid:** peeking at results and stopping early, changing variants mid-test, adding traffic from new sources.
 
 ### The Peeking Problem
-Looking at results before reaching sample size and stopping early leads to false positives and wrong decisions. Pre-commit to sample size and trust the process.
+Stopping early on pre-sample-size results produces false positives and wrong decisions. Pre-commit to sample size and trust the process.
 
 ---
 
 ## Analyzing Results
 
 ### Statistical Significance
-- 95% confidence = p-value < 0.05
-- Means <5% chance result is random
-- Not a guarantee—just a threshold
+95% confidence = p-value < 0.05, i.e. <5% chance the result is random — a threshold, not a guarantee.
 
 ### Analysis Checklist
 
@@ -219,32 +181,17 @@ Looking at results before reaching sample size and stopping early leads to false
 
 ## Documentation
 
-Document every test with:
-- Hypothesis
-- Variants (with screenshots)
-- Results (sample, metrics, significance)
-- Decision and learnings
+Document every test with: hypothesis, variants (with screenshots), results (sample, metrics, significance), decision and learnings.
 
-**For templates**: See [references/test-templates.md](references/test-templates.md)
+Templates: [references/test-templates.md](references/test-templates.md)
 
 ---
 
 ## Common Mistakes
 
-### Test Design
-- Testing too small a change (undetectable)
-- Testing too many things (can't isolate)
-- No clear hypothesis
-
-### Execution
-- Stopping early
-- Changing things mid-test
-- Not checking implementation
-
-### Analysis
-- Ignoring confidence intervals
-- Cherry-picking segments
-- Over-interpreting inconclusive results
+- **Test Design**: testing too small a change (undetectable), testing too many things (can't isolate), no clear hypothesis
+- **Execution**: stopping early, changing things mid-test, not checking implementation
+- **Analysis**: ignoring confidence intervals, cherry-picking segments, over-interpreting inconclusive results
 
 ---
 

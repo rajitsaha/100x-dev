@@ -1,58 +1,39 @@
 ---
 name: churn-prevention
-description: "When the user wants to reduce churn, build cancellation flows, set up save offers, recover failed payments, or implement retention strategies. Also use when the user mentions 'churn,' 'cancel flow,' 'offboarding,' 'save offer,' 'dunning,' 'failed payment recovery,' 'win-back,' 'retention,' 'exit survey,' 'pause subscription,' 'involuntary churn,' 'people keep canceling,' 'churn rate is too high,' 'how do I keep users,' or 'customers are leaving.' Use this whenever someone is losing subscribers or wants to build systems to prevent it. For post-cancel win-back email sequences, see email-sequence. For in-app upgrade paywalls, see paywall-upgrade-cro."
+description: "When the user wants to reduce churn or build retention systems — 'cancel flow,' 'save offer,' 'dunning,' 'failed payment recovery,' 'win-back,' 'exit survey,' 'pause subscription,' 'involuntary churn,' 'customers are leaving.' For post-cancel win-back sequences, see email-sequence. For in-app upgrade paywalls, see paywall-upgrade-cro."
 category: marketing
 tier: on-demand
 ---
 
 # Churn Prevention
 
-You are an expert in SaaS retention and churn prevention. Your goal is to help reduce both voluntary churn (customers choosing to cancel) and involuntary churn (failed payments) through well-designed cancel flows, dynamic save offers, proactive retention, and dunning strategies.
+Reduce voluntary churn (customers choosing to cancel) and involuntary churn (failed payments) via cancel flows, dynamic save offers, proactive retention, and dunning.
 
 ## Before Starting
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
-### 1. Current Churn Situation
-- What's your monthly churn rate? (Voluntary vs. involuntary if known)
-- How many active subscribers?
-- What's the average MRR per customer?
-- Do you have a cancel flow today, or does cancel happen instantly?
-
-### 2. Billing & Platform
-- What billing provider? (Stripe, Chargebee, Paddle, Recurly, Braintree)
-- Monthly, annual, or both billing intervals?
-- Do you support plan pausing or downgrades?
-- Any existing retention tooling? (Churnkey, ProsperStack, Raaft)
-
-### 3. Product & Usage Data
-- Do you track feature usage per user?
-- Can you identify engagement drop-offs?
-- Do you have cancellation reason data from past churns?
-- What's your activation metric? (What do retained users do that churned users don't?)
-
-### 4. Constraints
-- B2B or B2C? (Affects flow design)
-- Self-serve cancellation required? (Some regulations mandate easy cancel)
-- Brand tone for offboarding? (Empathetic, direct, playful)
+1. **Current churn situation** — Monthly churn rate (voluntary vs. involuntary if known)? Active subscribers? Average MRR per customer? Existing cancel flow, or instant cancel?
+2. **Billing & platform** — Provider (Stripe, Chargebee, Paddle, Recurly, Braintree)? Monthly, annual, or both intervals? Pausing or downgrades supported? Retention tooling (Churnkey, ProsperStack, Raaft)?
+3. **Product & usage data** — Feature usage tracked per user? Engagement drop-offs identifiable? Cancellation reason data from past churns? Activation metric (what do retained users do that churned users don't)?
+4. **Constraints** — B2B or B2C (affects flow design)? Self-serve cancellation required (some regulations mandate easy cancel)? Offboarding brand tone (empathetic, direct, playful)?
 
 ---
 
 ## How This Skill Works
 
-Churn has two types requiring different strategies:
+Two churn types, two strategies:
 
 | Type | Cause | Solution |
 |------|-------|----------|
 | **Voluntary** | Customer chooses to cancel | Cancel flows, save offers, exit surveys |
 | **Involuntary** | Payment fails | Dunning emails, smart retries, card updaters |
 
-Voluntary churn is typically 50-70% of total churn. Involuntary churn is 30-50% but is often easier to fix.
+Voluntary is typically 50-70% of total churn; involuntary is 30-50% but often easier to fix.
 
-This skill supports three modes:
+Three modes:
 
 1. **Build a cancel flow** — Design from scratch with survey, save offers, and confirmation
 2. **Optimize an existing flow** — Analyze cancel data and improve save rates
@@ -64,30 +45,19 @@ This skill supports three modes:
 
 ### The Cancel Flow Structure
 
-Every cancel flow follows this sequence:
-
 ```
 Trigger → Survey → Dynamic Offer → Confirmation → Post-Cancel
 ```
 
-**Step 1: Trigger**
-Customer clicks "Cancel subscription" in account settings.
-
-**Step 2: Exit Survey**
-Ask why they're cancelling. This determines which save offer to show.
-
-**Step 3: Dynamic Save Offer**
-Present a targeted offer based on their reason (discount, pause, downgrade, etc.)
-
-**Step 4: Confirmation**
-If they still want to cancel, confirm clearly with end-of-billing-period messaging.
-
-**Step 5: Post-Cancel**
-Set expectations, offer easy reactivation path, trigger win-back sequence.
+1. **Trigger** — Customer clicks "Cancel subscription" in account settings.
+2. **Exit Survey** — Ask why; the reason determines which save offer to show.
+3. **Dynamic Save Offer** — Targeted offer based on reason (discount, pause, downgrade, etc.)
+4. **Confirmation** — If they still cancel, confirm clearly with end-of-billing-period messaging.
+5. **Post-Cancel** — Set expectations, offer easy reactivation, trigger win-back sequence.
 
 ### Exit Survey Design
 
-The exit survey is the foundation. Good reason categories:
+The survey is the foundation. Good reason categories:
 
 | Reason | What It Tells You |
 |--------|-------------------|
@@ -103,15 +73,12 @@ The exit survey is the foundation. Good reason categories:
 **Survey best practices:**
 - 1 question, single-select with optional free text
 - 5-8 reason options max (avoid decision fatigue)
-- Put most common reasons first (review data quarterly)
-- Don't make it feel like a guilt trip
-- "Help us improve" framing works better than "Why are you leaving?"
+- Most common reasons first (review data quarterly)
+- No guilt trips — "Help us improve" framing beats "Why are you leaving?"
 
 ### Dynamic Save Offers
 
-The key insight: **match the offer to the reason.** A discount won't save someone who isn't using the product. A feature roadmap won't save someone who can't afford it.
-
-**Offer-to-reason mapping:**
+**Match the offer to the reason.** A discount won't save someone who isn't using the product; a roadmap won't save someone who can't afford it.
 
 | Cancel Reason | Primary Offer | Fallback Offer |
 |---------------|---------------|----------------|
@@ -126,32 +93,24 @@ The key insight: **match the offer to the reason.** A discount won't save someon
 ### Save Offer Types
 
 **Discount**
-- 20-30% off for 2-3 months is the sweet spot
-- Avoid 50%+ discounts (trains customers to cancel for deals)
-- Time-limit the offer ("This offer expires when you leave this page")
-- Show the dollar amount saved, not just the percentage
+- 20-30% off for 2-3 months is the sweet spot; avoid 50%+ (trains customers to cancel for deals)
+- Time-limit it ("This offer expires when you leave this page")
+- Show dollar amount saved, not just the percentage
 
 **Pause subscription**
-- 1-3 month pause maximum (longer pauses rarely reactivate)
+- 1-3 month maximum (longer pauses rarely reactivate)
 - 60-80% of pausers eventually return to active
-- Auto-reactivation with advance notice email
-- Keep their data and settings intact
+- Auto-reactivation with advance notice email; keep data and settings intact
 
 **Plan downgrade**
-- Offer a lower tier instead of full cancellation
-- Show what they keep vs. what they lose
-- Position as "right-size your plan" not "downgrade"
-- Easy path back up when ready
+- Lower tier instead of full cancellation; show what they keep vs. lose
+- Position as "right-size your plan," with an easy path back up
 
 **Feature unlock / extension**
-- Unlock a premium feature they haven't tried
-- Extend trial of a higher tier
-- Works best for "not getting enough value" reasons
+- Unlock an untried premium feature or extend a higher-tier trial; best for "not getting enough value" reasons
 
 **Personal outreach**
-- For high-value accounts (top 10-20% by MRR)
-- Route to customer success for a call
-- Personal email from founder for smaller companies
+- For high-value accounts (top 10-20% by MRR): route to customer success for a call, or a personal founder email at smaller companies
 
 ### Cancel Flow UI Patterns
 
@@ -195,7 +154,7 @@ The key insight: **match the offer to the reason.** A discount won't save someon
 ```
 
 **UI principles:**
-- Keep the "continue cancelling" option visible (no dark patterns)
+- Keep "continue cancelling" visible (no dark patterns)
 - One primary offer + one fallback, not a wall of options
 - Show specific dollar savings, not abstract percentages
 - Use the customer's name and account data when possible
@@ -211,7 +170,7 @@ The best save happens before the customer ever clicks "Cancel."
 
 ### Risk Signals
 
-Track these leading indicators of churn:
+Leading indicators of churn:
 
 | Signal | Risk Level | Timeframe |
 |--------|-----------|-----------|
@@ -226,7 +185,7 @@ Track these leading indicators of churn:
 
 ### Health Score Model
 
-Build a simple health score (0-100) from weighted signals:
+Simple health score (0-100) from weighted signals:
 
 ```
 Health Score = (
@@ -246,8 +205,6 @@ Health Score = (
 | 0-39 | Critical | Personal outreach |
 
 ### Proactive Interventions
-
-**Before they think about cancelling:**
 
 | Trigger | Intervention |
 |---------|-------------|
@@ -279,7 +236,7 @@ Pre-dunning → Smart retry → Dunning emails → Grace period → Hard cancel
 
 ### Smart Retry Logic
 
-Not all failures are the same. Retry strategy by decline type:
+Retry strategy by decline type:
 
 | Decline Type | Examples | Retry Strategy |
 |-------------|----------|----------------|
@@ -287,7 +244,7 @@ Not all failures are the same. Retry strategy by decline type:
 | Hard decline (permanent) | Card stolen, account closed | Don't retry — ask for new card |
 | Authentication required | 3D Secure, SCA | Send customer to update payment |
 
-**Retry timing best practices:**
+**Retry timing:**
 - Retry 1: 24 hours after failure
 - Retry 2: 3 days after failure
 - Retry 3: 5 days after failure
@@ -309,8 +266,8 @@ Not all failures are the same. Retry strategy by decline type:
 - Direct link to payment update page (no login required if possible)
 - Show what they'll lose (their data, their team's access)
 - Don't blame ("your payment failed" not "you failed to pay")
-- Include support contact for help
-- Plain text performs better than designed emails for dunning
+- Include support contact
+- Plain text outperforms designed emails for dunning
 
 ### Recovery Benchmarks
 
@@ -360,7 +317,7 @@ Test one variable at a time:
 | Offer presentation (modal vs full page) | Full page gets more attention | Save rate |
 | Copy tone (empathetic vs direct) | Empathetic reduces friction | Save rate |
 
-**How to run cancel flow experiments:** Use the **ab-test-setup** skill to design statistically rigorous tests. PostHog is a good fit for cancel flow experiments — its feature flags can split users into different flows server-side, and its funnel analytics track each step of the cancel flow (survey → offer → accept/decline → confirm). See the [PostHog integration guide](../../tools/integrations/posthog.md) for setup.
+**Running experiments:** Use the **ab-test-setup** skill for statistically rigorous tests. PostHog fits cancel flow experiments — feature flags split users into flows server-side, and funnel analytics track each step (survey → offer → accept/decline → confirm). See the [PostHog integration guide](../../tools/integrations/posthog.md) for setup.
 
 ---
 
@@ -375,7 +332,7 @@ Test one variable at a time:
 - **Guilt-trip copy** — "Are you sure you want to abandon us?" damages brand trust
 - **Not tracking save offer LTV** — A "saved" customer who churns 30 days later wasn't really saved
 - **Pausing too long** — Pauses beyond 3 months rarely reactivate. Set limits.
-- **No post-cancel path** — Make reactivation easy and trigger win-back emails, because some churned users will want to come back
+- **No post-cancel path** — Make reactivation easy and trigger win-back emails; some churned users will want to come back
 
 ---
 

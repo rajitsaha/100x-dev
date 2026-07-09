@@ -1,56 +1,40 @@
 ---
 name: sales-enablement
-description: "When the user wants to create sales collateral, pitch decks, one-pagers, objection handling docs, or demo scripts. Also use when the user mentions 'sales deck,' 'pitch deck,' 'one-pager,' 'leave-behind,' 'objection handling,' 'deal-specific ROI analysis,' 'demo script,' 'talk track,' 'sales playbook,' 'proposal template,' 'buyer persona card,' 'help my sales team,' 'sales materials,' or 'what should I give my sales reps.' Use this for any document or asset that helps a sales team close deals. For competitor comparison pages and battle cards, see competitor-alternatives. For marketing website copy, see copywriting. For cold outreach emails, see cold-email."
+description: "When the user wants sales collateral — 'pitch deck,' 'one-pager,' 'objection handling,' 'demo script,' 'talk track,' 'sales playbook,' 'proposal template,' 'buyer persona card,' 'help my sales team' — any asset that helps reps close deals. For comparison pages and battle cards, see competitor-alternatives; website copy, copywriting; prospecting, cold-email."
 category: marketing
 tier: on-demand
 ---
 
 # Sales Enablement
 
-You are an expert in B2B sales enablement. Your goal is to create sales collateral that reps actually use — decks, one-pagers, objection docs, demo scripts, and playbooks that help close deals.
+Create B2B sales collateral reps actually use — decks, one-pagers, objection docs, demo scripts, and playbooks that help close deals.
 
 ## Before Starting
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
-1. **Value Proposition & Differentiators**
-   - What do you sell and who is it for?
-   - What makes you different from the next best alternative?
-   - What outcomes can you prove?
-
-2. **Sales Motion**
-   - How do you sell? (self-serve, inside sales, field sales, hybrid)
-   - Average deal size and sales cycle length
-   - Key personas involved in the buying decision
-
-3. **Collateral Needs**
-   - What specific assets do you need?
-   - What stage of the funnel are they for?
-   - Who will use them? (AE, SDR, champion, prospect)
-
-4. **Current State**
-   - What materials exist today?
-   - What's working and what's not?
-   - What do reps ask for most?
+1. **Value Proposition & Differentiators** — What do you sell and who is it for? What makes you different from the next best alternative? What outcomes can you prove?
+2. **Sales Motion** — How do you sell (self-serve, inside sales, field sales, hybrid)? Average deal size and cycle length? Key personas in the buying decision?
+3. **Collateral Needs** — What specific assets, for what funnel stage, used by whom (AE, SDR, champion, prospect)?
+4. **Current State** — What materials exist, what's working and what's not, what do reps ask for most?
 
 ---
 
 ## Core Principles
 
 ### Sales Uses What Sales Trusts
-Involve reps in creation. Use their language, not marketing's. If reps rewrite your deck before sending it, you wrote the wrong deck. Test drafts with your top performers first.
+Involve reps in creation and use their language, not marketing's. If reps rewrite your deck before sending it, you wrote the wrong deck. Test drafts with top performers first.
 
 ### Situation-Specific, Not Generic
-Tailor to persona, deal stage, and use case. A deck for a CTO should look different from one for a VP of Sales. A one-pager for post-meeting follow-up serves a different purpose than one for a trade show.
+Tailor to persona, deal stage, and use case. A CTO deck differs from a VP of Sales deck; a post-meeting one-pager differs from a trade show handout.
 
 ### Scannable Over Comprehensive
-Reps need information in 3 seconds, not 30. Use bold headers, short bullets, and visual hierarchy. If a rep can't find the answer mid-call, the doc has failed.
+Reps need information in 3 seconds, not 30 — bold headers, short bullets, visual hierarchy. If a rep can't find the answer mid-call, the doc has failed.
 
 ### Tie Back to Business Outcomes
-Every claim connects to revenue, efficiency, or risk reduction. Features mean nothing without the "so what." Replace "AI-powered analytics" with "cut reporting time by 80%."
+Every claim connects to revenue, efficiency, or risk reduction. Replace "AI-powered analytics" with "cut reporting time by 80%."
 
 ---
 
@@ -72,9 +56,9 @@ Every claim connects to revenue, efficiency, or risk reduction. Features mean no
 
 ### Deck Principles
 
-- **Story arc, not feature tour.** Every deck tells a story: the world has a problem, there's a better way, here's proof, here's how to get there.
-- **One idea per slide.** If you need two points, use two slides.
-- **Design for presenting, not reading.** Slides support the conversation — they don't replace it. Minimal text, strong visuals.
+- **Story arc, not feature tour.** The world has a problem, there's a better way, here's proof, here's how to get there.
+- **One idea per slide.** Two points = two slides.
+- **Design for presenting, not reading.** Slides support the conversation, not replace it — minimal text, strong visuals.
 
 ### Customization by Buyer Type
 
@@ -107,9 +91,9 @@ Every claim connects to revenue, efficiency, or risk reduction. Features mean no
 ### Design Principles
 
 - One page, literally. Front only, or front and back maximum.
-- Scannable in 30 seconds. Bold headers, short bullets, whitespace.
+- Scannable in 30 seconds: bold headers, short bullets, whitespace.
 - Include your logo, website, and a specific contact (not info@).
-- Match your brand but keep it clean — this is a sales tool, not a brand piece.
+- Match your brand but keep it clean — a sales tool, not a brand piece.
 
 **For templates by use case**: See [references/one-pager-templates.md](references/one-pager-templates.md)
 
@@ -151,21 +135,11 @@ For each objection, document:
 
 ### Calculator Design
 
-**Inputs** (current state metrics the prospect provides):
-- Time spent on manual processes
-- Current tool costs
-- Error rates or inefficiency metrics
-- Team size
+**Inputs** (current-state metrics from the prospect): time spent on manual processes, current tool costs, error rates or inefficiency metrics, team size.
 
-**Calculations** (your formula for value):
-- Time saved per week/month/year
-- Cost reduction (tools, headcount, errors)
-- Revenue impact (faster deals, higher conversion)
+**Calculations** (your formula for value): time saved per week/month/year, cost reduction (tools, headcount, errors), revenue impact (faster deals, higher conversion).
 
-**Outputs** (what the prospect sees):
-- Annual ROI percentage
-- Payback period in months
-- Total 3-year value
+**Outputs** (what the prospect sees): annual ROI percentage, payback period in months, total 3-year value.
 
 ### Value Prop by Persona
 
@@ -205,9 +179,9 @@ For each objection, document:
 
 ### Key Principles
 
-- **Demo after discovery, not before.** If you don't know their pain, you're guessing which features matter.
-- **Customize to their use case.** Use their terminology, their data (if possible), their workflow.
-- **Leave time for questions.** A demo where the prospect doesn't talk is a demo that doesn't close.
+- **Demo after discovery, not before.** Without their pain, you're guessing which features matter.
+- **Customize to their use case.** Their terminology, their data (if possible), their workflow.
+- **Leave time for questions.** A demo where the prospect doesn't talk doesn't close.
 
 **For full script templates**: See [references/demo-scripts.md](references/demo-scripts.md)
 
@@ -215,9 +189,7 @@ For each objection, document:
 
 ## Case Study Briefs (Sales Format)
 
-### How Sales Case Studies Differ
-
-Marketing case studies tell a story. Sales case studies arm reps with fast-access proof. Keep them short, outcome-focused, and tagged for retrieval.
+Marketing case studies tell a story; sales case studies arm reps with fast-access proof. Keep them short, outcome-focused, and tagged for retrieval.
 
 ### Structure
 
@@ -230,7 +202,7 @@ Marketing case studies tell a story. Sales case studies arm reps with fast-acces
 
 ### Organization
 
-Organize case studies so reps can find the right one instantly:
+Organize so reps find the right one instantly:
 - **By industry** — "Show me a case study for healthcare"
 - **By use case** — "Show me someone who used us for X"
 - **By company size** — "Show me an enterprise example"
@@ -256,7 +228,7 @@ Organize case studies so reps can find the right one instantly:
 
 ### Common Mistakes
 
-- **Too long** — If it's over 10 pages, it won't get read. Aim for 5-7.
+- **Too long** — Over 10 pages won't get read. Aim for 5-7.
 - **Too generic** — Templated proposals signal low effort. Customize the exec summary at minimum.
 - **Burying the price** — Don't make them hunt for it. Be transparent and confident.
 
@@ -282,7 +254,7 @@ Organize case studies so reps can find the right one instantly:
 
 ### Keeping It Living
 
-Playbooks die when they're not updated. Review quarterly, get input from top reps, and remove anything outdated. Assign an owner — if nobody owns it, it rots.
+Playbooks die when not updated. Review quarterly, get input from top reps, remove anything outdated, and assign an owner — unowned playbooks rot.
 
 ---
 
@@ -311,8 +283,6 @@ Playbooks die when they're not updated. Review quarterly, get input from top rep
 ---
 
 ## Output Format
-
-Deliver the right format for each asset type:
 
 | Asset | Deliverable |
 |-------|-------------|

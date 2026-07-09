@@ -1,35 +1,23 @@
 ---
 name: seo-audit
-description: When the user wants to audit, review, or diagnose SEO issues on their site. Also use when the user mentions "SEO audit," "technical SEO," "why am I not ranking," "SEO issues," "on-page SEO," "meta tags review," "SEO health check," "my traffic dropped," "lost rankings," "not showing up in Google," "site isn't ranking," "Google update hit me," "page speed," "core web vitals," "crawl errors," or "indexing issues." Use this even if the user just says something vague like "my SEO is bad" or "help with SEO" — start with an audit. For building pages at scale to target keywords, see programmatic-seo. For adding structured data, see schema-markup. For AI search optimization, see ai-seo.
+description: When the user wants to audit or diagnose SEO issues — "technical SEO," "why am I not ranking," "meta tags review," "my traffic dropped," "Google update hit me," "core web vitals," "crawl errors," "indexing issues," or even a vague "my SEO is bad." For pages at scale, see programmatic-seo. For structured data, see schema-markup. For AI search, see ai-seo.
 category: marketing
 tier: on-demand
 ---
 
 # SEO Audit
 
-You are an expert in search engine optimization. Your goal is to identify SEO issues and provide actionable recommendations to improve organic search performance.
+Identify SEO issues and provide actionable recommendations to improve organic search performance.
 
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Before auditing, understand:
 
-1. **Site Context**
-   - What type of site? (SaaS, e-commerce, blog, etc.)
-   - What's the primary business goal for SEO?
-   - What keywords/topics are priorities?
-
-2. **Current State**
-   - Any known issues or concerns?
-   - Current organic traffic level?
-   - Recent changes or migrations?
-
-3. **Scope**
-   - Full site audit or specific pages?
-   - Technical + on-page, or one focus area?
-   - Access to Search Console / analytics?
+1. **Site Context** — site type (SaaS, e-commerce, blog, etc.); primary business goal for SEO; priority keywords/topics
+2. **Current State** — known issues or concerns; current organic traffic level; recent changes or migrations
+3. **Scope** — full site or specific pages; technical + on-page or one focus area; access to Search Console / analytics
 
 ---
 
@@ -37,16 +25,12 @@ Before auditing, understand:
 
 ### Schema Markup Detection Limitation
 
-**`web_fetch` and `curl` cannot reliably detect structured data / schema markup.**
+**`web_fetch` and `curl` cannot reliably detect structured data / schema markup.** Many CMS plugins (AIOSEO, Yoast, RankMath) inject JSON-LD via client-side JavaScript — it won't appear in static HTML or `web_fetch` output (which strips `<script>` tags during conversion). Reporting "no schema found" based solely on `web_fetch` or `curl` produces false audit findings.
 
-Many CMS plugins (AIOSEO, Yoast, RankMath) inject JSON-LD via client-side JavaScript — it won't appear in static HTML or `web_fetch` output (which strips `<script>` tags during conversion).
-
-**To accurately check for schema markup, use one of these methods:**
+**To accurately check schema markup, use one of:**
 1. **Browser tool** — render the page and run: `document.querySelectorAll('script[type="application/ld+json"]')`
 2. **Google Rich Results Test** — https://search.google.com/test/rich-results
 3. **Screaming Frog export** — if the client provides one, use it (SF renders JavaScript)
-
-Reporting "no schema found" based solely on `web_fetch` or `curl` leads to false audit findings — these tools can't see JS-injected schema.
 
 ### Priority Order
 1. **Crawlability & Indexation** (can Google find and index it?)
@@ -61,97 +45,41 @@ Reporting "no schema found" based solely on `web_fetch` or `curl` leads to false
 
 ### Crawlability
 
-**Robots.txt**
-- Check for unintentional blocks
-- Verify important pages allowed
-- Check sitemap reference
+**Robots.txt** — no unintentional blocks; important pages allowed; sitemap reference present.
 
-**XML Sitemap**
-- Exists and accessible
-- Submitted to Search Console
-- Contains only canonical, indexable URLs
-- Updated regularly
-- Proper formatting
+**XML Sitemap** — exists and accessible; submitted to Search Console; contains only canonical, indexable URLs; updated regularly; proper formatting.
 
-**Site Architecture**
-- Important pages within 3 clicks of homepage
-- Logical hierarchy
-- Internal linking structure
-- No orphan pages
+**Site Architecture** — important pages within 3 clicks of homepage; logical hierarchy; internal linking structure; no orphan pages.
 
-**Crawl Budget Issues** (for large sites)
-- Parameterized URLs under control
-- Faceted navigation handled properly
-- Infinite scroll with pagination fallback
-- Session IDs not in URLs
+**Crawl Budget Issues** (large sites) — parameterized URLs under control; faceted navigation handled properly; infinite scroll with pagination fallback; no session IDs in URLs.
 
 ### Indexation
 
-**Index Status**
-- site:domain.com check
-- Search Console coverage report
-- Compare indexed vs. expected
+**Index Status** — site:domain.com check; Search Console coverage report; compare indexed vs. expected.
 
-**Indexation Issues**
-- Noindex tags on important pages
-- Canonicals pointing wrong direction
-- Redirect chains/loops
-- Soft 404s
-- Duplicate content without canonicals
+**Indexation Issues** — noindex tags on important pages; canonicals pointing wrong direction; redirect chains/loops; soft 404s; duplicate content without canonicals.
 
-**Canonicalization**
-- All pages have canonical tags
-- Self-referencing canonicals on unique pages
-- HTTP → HTTPS canonicals
-- www vs. non-www consistency
-- Trailing slash consistency
+**Canonicalization** — all pages have canonical tags; self-referencing canonicals on unique pages; HTTP → HTTPS canonicals; www vs. non-www consistency; trailing slash consistency.
 
 ### Site Speed & Core Web Vitals
 
-**Core Web Vitals**
-- LCP (Largest Contentful Paint): < 2.5s
-- INP (Interaction to Next Paint): < 200ms
-- CLS (Cumulative Layout Shift): < 0.1
+**Core Web Vitals** — LCP (Largest Contentful Paint) < 2.5s; INP (Interaction to Next Paint) < 200ms; CLS (Cumulative Layout Shift) < 0.1.
 
-**Speed Factors**
-- Server response time (TTFB)
-- Image optimization
-- JavaScript execution
-- CSS delivery
-- Caching headers
-- CDN usage
-- Font loading
+**Speed Factors** — server response time (TTFB), image optimization, JavaScript execution, CSS delivery, caching headers, CDN usage, font loading.
 
-**Tools**
-- PageSpeed Insights
-- WebPageTest
-- Chrome DevTools
-- Search Console Core Web Vitals report
+**Tools** — PageSpeed Insights, WebPageTest, Chrome DevTools, Search Console Core Web Vitals report.
 
 ### Mobile-Friendliness
 
-- Responsive design (not separate m. site)
-- Tap target sizes
-- Viewport configured
-- No horizontal scroll
-- Same content as desktop
-- Mobile-first indexing readiness
+Responsive design (not separate m. site); tap target sizes; viewport configured; no horizontal scroll; same content as desktop; mobile-first indexing readiness.
 
 ### Security & HTTPS
 
-- HTTPS across entire site
-- Valid SSL certificate
-- No mixed content
-- HTTP → HTTPS redirects
-- HSTS header (bonus)
+HTTPS across entire site; valid SSL certificate; no mixed content; HTTP → HTTPS redirects; HSTS header (bonus).
 
 ### URL Structure
 
-- Readable, descriptive URLs
-- Keywords in URLs where natural
-- Consistent structure
-- No unnecessary parameters
-- Lowercase and hyphen-separated
+Readable, descriptive URLs; keywords where natural; consistent structure; no unnecessary parameters; lowercase and hyphen-separated.
 
 ---
 
@@ -159,104 +87,43 @@ Reporting "no schema found" based solely on `web_fetch` or `curl` leads to false
 
 ### Title Tags
 
-**Check for:**
-- Unique titles for each page
-- Primary keyword near beginning
-- 50-60 characters (visible in SERP)
-- Compelling and click-worthy
-- Brand name placement (end, usually)
+**Check for:** unique titles per page; primary keyword near beginning; 50-60 characters (visible in SERP); compelling and click-worthy; brand name placement (end, usually).
 
-**Common issues:**
-- Duplicate titles
-- Too long (truncated)
-- Too short (wasted opportunity)
-- Keyword stuffing
-- Missing entirely
+**Common issues:** duplicate titles; too long (truncated); too short (wasted opportunity); keyword stuffing; missing entirely.
 
 ### Meta Descriptions
 
-**Check for:**
-- Unique descriptions per page
-- 150-160 characters
-- Includes primary keyword
-- Clear value proposition
-- Call to action
+**Check for:** unique descriptions per page; 150-160 characters; includes primary keyword; clear value proposition; call to action.
 
-**Common issues:**
-- Duplicate descriptions
-- Auto-generated garbage
-- Too long/short
-- No compelling reason to click
+**Common issues:** duplicate descriptions; auto-generated garbage; too long/short; no compelling reason to click.
 
 ### Heading Structure
 
-**Check for:**
-- One H1 per page
-- H1 contains primary keyword
-- Logical hierarchy (H1 → H2 → H3)
-- Headings describe content
-- Not just for styling
+**Check for:** one H1 per page; H1 contains primary keyword; logical hierarchy (H1 → H2 → H3); headings describe content, not just styling.
 
-**Common issues:**
-- Multiple H1s
-- Skip levels (H1 → H3)
-- Headings used for styling only
-- No H1 on page
+**Common issues:** multiple H1s; skipped levels (H1 → H3); headings used for styling only; no H1.
 
 ### Content Optimization
 
-**Primary Page Content**
-- Keyword in first 100 words
-- Related keywords naturally used
-- Sufficient depth/length for topic
-- Answers search intent
-- Better than competitors
+**Primary Page Content** — keyword in first 100 words; related keywords naturally used; sufficient depth/length for topic; answers search intent; better than competitors.
 
-**Thin Content Issues**
-- Pages with little unique content
-- Tag/category pages with no value
-- Doorway pages
-- Duplicate or near-duplicate content
+**Thin Content Issues** — pages with little unique content; tag/category pages with no value; doorway pages; duplicate or near-duplicate content.
 
 ### Image Optimization
 
-**Check for:**
-- Descriptive file names
-- Alt text on all images
-- Alt text describes image
-- Compressed file sizes
-- Modern formats (WebP)
-- Lazy loading implemented
-- Responsive images
+Descriptive file names; alt text on all images that describes the image; compressed file sizes; modern formats (WebP); lazy loading; responsive images.
 
 ### Internal Linking
 
-**Check for:**
-- Important pages well-linked
-- Descriptive anchor text
-- Logical link relationships
-- No broken internal links
-- Reasonable link count per page
+**Check for:** important pages well-linked; descriptive anchor text; logical link relationships; no broken internal links; reasonable link count per page.
 
-**Common issues:**
-- Orphan pages (no internal links)
-- Over-optimized anchor text
-- Important pages buried
-- Excessive footer/sidebar links
+**Common issues:** orphan pages (no internal links); over-optimized anchor text; important pages buried; excessive footer/sidebar links.
 
 ### Keyword Targeting
 
-**Per Page**
-- Clear primary keyword target
-- Title, H1, URL aligned
-- Content satisfies search intent
-- Not competing with other pages (cannibalization)
+**Per Page** — clear primary keyword target; title, H1, URL aligned; content satisfies search intent; not competing with other pages (cannibalization).
 
-**Site-Wide**
-- Keyword mapping document
-- No major gaps in coverage
-- No keyword cannibalization
-- Logical topical clusters
+**Site-Wide** — keyword mapping document; no major gaps in coverage; no keyword cannibalization; logical topical clusters.
 
 ---
 
@@ -264,73 +131,37 @@ Reporting "no schema found" based solely on `web_fetch` or `curl` leads to false
 
 ### E-E-A-T Signals
 
-**Experience**
-- First-hand experience demonstrated
-- Original insights/data
-- Real examples and case studies
+**Experience** — first-hand experience demonstrated; original insights/data; real examples and case studies.
 
-**Expertise**
-- Author credentials visible
-- Accurate, detailed information
-- Properly sourced claims
+**Expertise** — author credentials visible; accurate, detailed information; properly sourced claims.
 
-**Authoritativeness**
-- Recognized in the space
-- Cited by others
-- Industry credentials
+**Authoritativeness** — recognized in the space; cited by others; industry credentials.
 
-**Trustworthiness**
-- Accurate information
-- Transparent about business
-- Contact information available
-- Privacy policy, terms
-- Secure site (HTTPS)
+**Trustworthiness** — accurate information; transparent about business; contact information available; privacy policy, terms; secure site (HTTPS).
 
 ### Content Depth
 
-- Comprehensive coverage of topic
-- Answers follow-up questions
-- Better than top-ranking competitors
-- Updated and current
+Comprehensive coverage; answers follow-up questions; better than top-ranking competitors; updated and current.
 
 ### User Engagement Signals
 
-- Time on page
-- Bounce rate in context
-- Pages per session
-- Return visits
+Time on page; bounce rate in context; pages per session; return visits.
 
 ---
 
 ## Common Issues by Site Type
 
 ### SaaS/Product Sites
-- Product pages lack content depth
-- Blog not integrated with product pages
-- Missing comparison/alternative pages
-- Feature pages thin on content
-- No glossary/educational content
+Product pages lack content depth; blog not integrated with product pages; missing comparison/alternative pages; thin feature pages; no glossary/educational content.
 
 ### E-commerce
-- Thin category pages
-- Duplicate product descriptions
-- Missing product schema
-- Faceted navigation creating duplicates
-- Out-of-stock pages mishandled
+Thin category pages; duplicate product descriptions; missing product schema; faceted navigation creating duplicates; mishandled out-of-stock pages.
 
 ### Content/Blog Sites
-- Outdated content not refreshed
-- Keyword cannibalization
-- No topical clustering
-- Poor internal linking
-- Missing author pages
+Outdated content not refreshed; keyword cannibalization; no topical clustering; poor internal linking; missing author pages.
 
 ### Local Business
-- Inconsistent NAP
-- Missing local schema
-- No Google Business Profile optimization
-- Missing location pages
-- No local content
+Inconsistent NAP; missing local schema; no Google Business Profile optimization; missing location pages; no local content.
 
 ---
 
@@ -338,24 +169,11 @@ Reporting "no schema found" based solely on `web_fetch` or `curl` leads to false
 
 ### Audit Report Structure
 
-**Executive Summary**
-- Overall health assessment
-- Top 3-5 priority issues
-- Quick wins identified
+**Executive Summary** — overall health assessment; top 3-5 priority issues; quick wins identified.
 
-**Technical SEO Findings**
-For each issue:
-- **Issue**: What's wrong
-- **Impact**: SEO impact (High/Medium/Low)
-- **Evidence**: How you found it
-- **Fix**: Specific recommendation
-- **Priority**: 1-5 or High/Medium/Low
+**Technical SEO Findings** — for each issue: **Issue** (what's wrong), **Impact** (SEO impact, High/Medium/Low), **Evidence** (how you found it), **Fix** (specific recommendation), **Priority** (1-5 or High/Medium/Low).
 
-**On-Page SEO Findings**
-Same format as above
-
-**Content Findings**
-Same format as above
+**On-Page SEO Findings** and **Content Findings** — same format.
 
 **Prioritized Action Plan**
 1. Critical fixes (blocking indexation/ranking)
@@ -374,21 +192,11 @@ Same format as above
 
 ## Tools Referenced
 
-**Free Tools**
-- Google Search Console (essential)
-- Google PageSpeed Insights
-- Bing Webmaster Tools
-- Rich Results Test (**use this for schema validation — it renders JavaScript**)
-- Mobile-Friendly Test
-- Schema Validator
+**Free** — Google Search Console (essential); Google PageSpeed Insights; Bing Webmaster Tools; Rich Results Test (**use this for schema validation — it renders JavaScript**); Mobile-Friendly Test; Schema Validator.
 
-> **Note on schema detection:** `web_fetch` strips `<script>` tags (including JSON-LD) and cannot detect JS-injected schema. Use the browser tool, Rich Results Test, or Screaming Frog instead — they render JavaScript and capture dynamically-injected markup. See the Schema Markup Detection Limitation section above.
+**Paid** (if available) — Screaming Frog; Ahrefs / Semrush; Sitebulb; ContentKing.
 
-**Paid Tools** (if available)
-- Screaming Frog
-- Ahrefs / Semrush
-- Sitebulb
-- ContentKing
+> **Schema detection:** `web_fetch`/`curl` can't see JS-injected schema — use the browser tool, Rich Results Test, or Screaming Frog (they render JavaScript). See Schema Markup Detection Limitation above.
 
 ---
 

@@ -8,7 +8,7 @@ slash_command: /issue
 
 # Issue — Investigate & Create Detailed GitHub Issue
 
-You are a senior engineering lead and product architect. Given an observation, bug, or gap, conduct a thorough multi-dimensional investigation, find the root cause, plan the resolution, and create a detailed actionable GitHub issue.
+Given an observation, bug, or gap: investigate multi-dimensionally, find the root cause, plan the resolution, and create a detailed actionable GitHub issue.
 
 ## Do NOT ask for permission — investigate thoroughly, then create the issue.
 
@@ -34,7 +34,7 @@ echo "stack: cloud=${CLOUD:-none} ci=${CI_SYSTEM:-none}"
 ```
 
 1. Search for all code relevant to the observation (routes, components, services, DB queries, migrations, tests)
-2. Read the relevant source files — do not guess at behavior, read the actual code
+2. Read the relevant source files — never guess at behavior
 3. Check recent commits in the affected area:
    ```bash
    git log --oneline --since="60 days ago" -- <relevant-paths>
@@ -46,11 +46,9 @@ echo "stack: cloud=${CLOUD:-none} ci=${CI_SYSTEM:-none}"
    command -v gh >/dev/null 2>&1 && gh issue list --state all --limit 100 \
      --json number,title,body -q '.[] | "#\(.number) \(.title)\n\(.body)\n---"' 2>/dev/null
    ```
-   Read the results and judge whether any existing issue describes the same underlying
-   problem; if so, reference or update it instead of filing a duplicate.
+   If an existing issue describes the same underlying problem, reference or update it instead of filing a duplicate.
 5. Check current test coverage for the affected code paths
-6. **If this is a production issue and `CLOUD=gcp`**, check Cloud Run logs (resolve the
-   project from gcloud config — never pass a literal placeholder):
+6. **If a production issue and `CLOUD=gcp`**, check Cloud Run logs (resolve the project from gcloud config — never pass a literal placeholder):
    ```bash
    if [ "$CLOUD" = gcp ]; then
      PROJECT=$(gcloud config get-value project 2>/dev/null)
@@ -58,15 +56,13 @@ echo "stack: cloud=${CLOUD:-none} ci=${CI_SYSTEM:-none}"
        --project="$PROJECT" --limit=20 --format="value(textPayload)" 2>/dev/null || true
    fi
    ```
-   For other providers, read logs the platform-appropriate way (AWS: `aws logs tail`;
-   Vercel: `vercel logs`; or the project's configured log viewer). Skip if not a
-   production issue.
+   For other providers, read logs the platform-appropriate way (AWS: `aws logs tail`; Vercel: `vercel logs`; or the project's configured log viewer). Skip if not a production issue.
 
 ---
 
 ## Phase 2 — Multi-Dimensional Impact Analysis
 
-Analyze from ALL FIVE perspectives before forming a resolution plan.
+Analyze from ALL FIVE perspectives before planning a resolution.
 
 ### 2.1 Product & Business
 - Which feature/journey/tier is affected? Regression or known gap?
@@ -116,8 +112,8 @@ src/lib/subscriptionTiers.ts        — add missing feature key
 ```
 
 ### Code changes needed
-Be precise about what changes are required:
-- Exact logic that needs to change (not a full diff, but specific enough to implement)
+Be precise:
+- Exact logic to change (not a full diff, but specific enough to implement)
 - Validation or error handling to add
 - Type guards, null checks, or defensive coding needed
 - New abstractions or helpers required

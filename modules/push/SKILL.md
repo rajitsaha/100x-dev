@@ -8,11 +8,7 @@ slash_command: /push
 
 # Push — Gate → Push → Monitor CI/CD
 
-Quality gate re-runs before pushing. **Do NOT push if any gate fails.**
-
-## Do NOT ask for permission. Do NOT use `--no-verify` or `--force`.
-
----
+Quality gate re-runs before pushing. **Do NOT push if any gate fails.** Do NOT ask for permission; never use `--no-verify` or `--force`.
 
 ## Phase 0 — Quality Gate (MANDATORY)
 
@@ -152,16 +148,11 @@ Action:   Committing fix, re-running gate, re-pushing...
 - Unknown error codes or tools
 
 ```
-╔══════════════════════════════════════════════════════╗
-║            CI FAILED — ESCALATING TO HUMAN            ║
-╠══════════════════════════════════════════════════════╣
-║ Attempts:   N/3 exhausted (or unfamiliar failure)    ║
-║ Last error: [error summary]                          ║
-║ Diagnosis:  [root cause analysis]                    ║
-║ Suggestion: [recommended fix]                        ║
-╠══════════════════════════════════════════════════════╣
-║ This requires human judgment. Auto-fix not possible.  ║
-╚══════════════════════════════════════════════════════╝
+CI FAILED — ESCALATING TO HUMAN
+Attempts:   N/3 exhausted (or unfamiliar failure)
+Last error: [error summary]
+Diagnosis:  [root cause analysis]
+Suggestion: [recommended fix]
 ```
 
 **After 3 failed auto-fix attempts → STOP. Report all attempted fixes and escalate.**

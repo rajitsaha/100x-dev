@@ -1,45 +1,44 @@
 ---
 name: revops
-description: "When the user wants help with revenue operations, lead lifecycle management, or marketing-to-sales handoff processes. Also use when the user mentions 'RevOps,' 'revenue operations,' 'lead scoring,' 'lead routing,' 'MQL,' 'SQL,' 'pipeline stages,' 'deal desk,' 'CRM automation,' 'marketing-to-sales handoff,' 'data hygiene,' 'leads aren't getting to sales,' 'pipeline management,' 'lead qualification,' or 'when should marketing hand off to sales.' Use this for anything involving the systems and processes that connect marketing to revenue. For cold outreach emails, see cold-email. For email drip campaigns, see email-sequence. For pricing decisions, see pricing-strategy."
+description: "When the user wants help with revenue operations or the marketing-to-sales handoff — 'RevOps,' 'lead scoring,' 'lead routing,' 'MQL,' 'SQL,' 'pipeline stages,' 'deal desk,' 'CRM automation,' 'data hygiene,' 'leads aren't getting to sales.' For prospecting, see cold-email; drip campaigns, email-sequence; pricing, pricing-strategy."
 category: marketing
 tier: on-demand
 ---
 
 # RevOps
 
-You are an expert in revenue operations. Your goal is to help design and optimize the systems that connect marketing, sales, and customer success into a unified revenue engine.
+Design and optimize the systems that connect marketing, sales, and customer success into a unified revenue engine.
 
 ## Before Starting
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
 1. **GTM motion** — Product-led (PLG), sales-led, or hybrid?
-2. **ACV range** — What's the average contract value?
+2. **ACV range** — Average contract value?
 3. **Sales cycle length** — Days from first touch to closed-won?
 4. **Current stack** — CRM, marketing automation, scheduling, enrichment tools?
 5. **Current state** — How are leads managed today? What's working and what's not?
 6. **Goals** — Increase conversion? Reduce speed-to-lead? Fix handoff leaks? Build from scratch?
 
-Work with whatever the user gives you. If they have a clear problem area, start there. Don't block on missing inputs — use what you have and note what would strengthen the solution.
+Work with what the user gives you; start at their problem area. Don't block on missing inputs — note what would strengthen the solution.
 
 ---
 
 ## Core Principles
 
 ### Single Source of Truth
-One system of record for every lead and account. If data lives in multiple places, it will conflict. Pick a CRM as the canonical source and sync everything to it.
+One system of record for every lead and account — data in multiple places will conflict. Pick a CRM as canonical and sync everything to it.
 
 ### Define Before Automate
-Get stage definitions, scoring criteria, and routing rules right on paper before building workflows. Automating a broken process just creates broken results faster.
+Get stage definitions, scoring criteria, and routing rules right on paper before building workflows. Automating a broken process creates broken results faster.
 
 ### Measure Every Handoff
-Every handoff between teams is a potential leak. Marketing-to-sales, SDR-to-AE, AE-to-CS — each needs an SLA, a tracking mechanism, and someone accountable for follow-through.
+Every handoff is a potential leak. Marketing-to-sales, SDR-to-AE, AE-to-CS — each needs an SLA, a tracking mechanism, and someone accountable for follow-through.
 
 ### Revenue Team Alignment
-Marketing, sales, and customer success must agree on definitions. If marketing calls something an MQL but sales won't work it, the definition is wrong. Alignment meetings aren't optional.
+Marketing, sales, and CS must agree on definitions. If marketing calls something an MQL but sales won't work it, the definition is wrong. Alignment meetings aren't optional.
 
 ---
 
@@ -59,16 +58,11 @@ Marketing, sales, and customer success must agree on definitions. If marketing c
 
 ### MQL Definition
 
-An MQL requires both **fit** and **engagement**:
-
-- **Fit score** — Does this person match your ICP? (company size, industry, role, tech stack)
-- **Engagement score** — Have they shown buying intent? (pricing page, demo request, multiple visits)
-
-Neither alone is sufficient. A perfect-fit company that never engages isn't an MQL. A student downloading every ebook isn't an MQL.
+An MQL requires both **fit** (matches your ICP — company size, industry, role, tech stack) and **engagement** (shows buying intent — pricing page, demo request, multiple visits). Neither alone suffices: a perfect-fit company that never engages isn't an MQL; a student downloading every ebook isn't either.
 
 ### MQL-to-SQL Handoff SLA
 
-Define response times and document them:
+Define and document response times:
 - MQL alert sent to assigned rep
 - Rep contacts within **4 hours** (business hours)
 - Rep qualifies or rejects within **48 hours**
@@ -82,22 +76,11 @@ Define response times and document them:
 
 ### Scoring Dimensions
 
-**Explicit scoring (fit)** — Who they are:
-- Company size, industry, revenue
-- Job title, seniority, department
-- Tech stack, geography
+**Explicit scoring (fit)** — Who they are: company size, industry, revenue; job title, seniority, department; tech stack, geography.
 
-**Implicit scoring (engagement)** — What they do:
-- Page visits (especially pricing, demo, case studies)
-- Content downloads, webinar attendance
-- Email engagement (opens, clicks)
-- Product usage (for PLG)
+**Implicit scoring (engagement)** — What they do: page visits (especially pricing, demo, case studies); content downloads, webinar attendance; email opens and clicks; product usage (for PLG).
 
-**Negative scoring** — Disqualifying signals:
-- Competitor email domains
-- Student/personal email
-- Unsubscribes, spam complaints
-- Job title mismatches (intern, student)
+**Negative scoring** — Disqualifying signals: competitor email domains; student/personal email; unsubscribes, spam complaints; job title mismatches (intern, student).
 
 ### Building a Scoring Model
 
@@ -111,7 +94,7 @@ Define response times and document them:
 ### Common Scoring Mistakes
 
 - Weighting content downloads too heavily (research ≠ buying intent)
-- Not including negative scoring (lets bad leads through)
+- No negative scoring (lets bad leads through)
 - Setting and forgetting (buyer behavior changes; recalibrate quarterly)
 - Scoring all page visits equally (pricing page ≠ blog post)
 
@@ -144,7 +127,7 @@ Response time is the single biggest factor in lead conversion:
 - After **30 minutes**, conversion drops by 10x
 - After **24 hours**, the lead is effectively cold
 
-Build routing rules that prioritize speed. Alert reps immediately. Escalate if SLA is missed.
+Build routing rules that prioritize speed. Alert reps immediately; escalate if SLA is missed.
 
 **For routing decision trees and platform-specific setup**: See [references/routing-rules.md](references/routing-rules.md)
 
@@ -166,8 +149,8 @@ Build routing rules that prioritize speed. Alert reps immediately. Escalate if S
 
 ### Stage Hygiene
 
-- **Required fields per stage** — Don't let reps advance a deal without filling in required data
-- **Stale deal alerts** — Flag deals that sit in a stage beyond the average time (e.g., 2x average days)
+- **Required fields per stage** — Don't let reps advance a deal without required data
+- **Stale deal alerts** — Flag deals sitting in a stage beyond average time (e.g., 2x average days)
 - **Stage skip detection** — Alert when deals jump stages (Qualified → Proposal skipping Discovery)
 - **Close date discipline** — Push dates must include a reason; no silent pushes
 
@@ -232,7 +215,7 @@ Build routing rules that prioritize speed. Alert reps immediately. Escalate if S
 
 ### Non-Standard Terms Handling
 
-Document every exception. Track which non-standard terms get requested most — if everyone asks for the same exception, it should become standard. Review quarterly.
+Document every exception and track which non-standard terms get requested most — if everyone asks for the same exception, make it standard. Review quarterly.
 
 ---
 
@@ -242,12 +225,11 @@ Document every exception. Track which non-standard terms get requested most — 
 
 - **Matching rules** — Email domain + company name + phone as primary match keys
 - **Merge priority** — CRM record wins over marketing automation; most recent activity wins for fields
-- **Scheduled dedup** — Run weekly automated dedup with manual review for edge cases
+- **Scheduled dedup** — Weekly automated dedup with manual review for edge cases
 
 ### Required Fields Enforcement
 
-- Enforce required fields at each lifecycle stage
-- Block stage advancement if fields are empty
+- Enforce required fields at each lifecycle stage; block stage advancement if empty
 - Use progressive profiling — don't require everything upfront
 
 ### Enrichment Tools
@@ -294,7 +276,7 @@ Build three views:
 
 ## Output Format
 
-When delivering RevOps recommendations, provide:
+Deliver RevOps recommendations as:
 
 1. **Lifecycle stage document** — Stage definitions with entry/exit criteria, owners, and SLAs
 2. **Scoring specification** — Fit and engagement attributes with point values and MQL threshold

@@ -7,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Changed
+- **Skill token diet.** Cut ~7,250 words (~9%) across all 66 modules with no information loss: frontmatter descriptions −33% (3,881 → 2,616 words — the always-in-context cost on Claude Code), bodies −8% (73.5k → 67.6k words), concat output (GEMINI.md etc.) −4%. Removed persona intros, description-restating openers, ASCII box art, and repeated banners; standardized the 31 near-duplicate "product marketing context" blocks to one ~28-word canonical version (recorded in `_lib/reference.md`). All bash blocks, gates, thresholds, frameworks, checklists, and benchmarks preserved verbatim in meaning; trigger-overlap lint passes `--strict` with zero new pairs.
+
 ---
 
 ## [2.4.4] — 2026-06-27

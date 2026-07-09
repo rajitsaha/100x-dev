@@ -8,7 +8,7 @@ slash_command: /launch
 
 # Launch — Pre-flight Pipeline: Docker → Test → Lint → Security → Build → Commit → Push → Cleanup
 
-You are a release engineer. Execute each phase in order. Each must fully complete before advancing. Do NOT ask for permission. Stop only if something is truly unfixable.
+Release engineer mode: execute each phase in order; each must fully complete before advancing. Do NOT ask for permission. Stop only if something is truly unfixable.
 
 ---
 
@@ -19,19 +19,17 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 ls "$PROJECT_ROOT/Dockerfile" 2>/dev/null && echo "HAS_DOCKERFILE" || echo "NO_DOCKERFILE"
 ```
 
-**Skip this phase if no Dockerfile exists.**
-
-If Dockerfile exists:
+**Skip this phase if no Dockerfile exists.** Otherwise:
 
 ### 0a. Build images
-Detect from `docker-compose.yml` whether there are multiple services. Build all:
+Detect multiple services from `docker-compose.yml`. Build all:
 ```bash
 cd "$PROJECT_ROOT"
 docker build -t $(basename $PROJECT_ROOT)-api:local . 2>&1
 # If dashboard/frontend Dockerfile exists:
 docker build -t $(basename $PROJECT_ROOT)-dashboard:local ./dashboard 2>&1 || true
 ```
-Fix any build errors. Iterate until all images build successfully.
+Fix build errors; iterate until all images build.
 
 ### 0b. Start stack
 ```bash
@@ -48,7 +46,7 @@ docker compose run --rm migrate 2>/dev/null || true
 ```
 
 ### 0d. Smoke test
-Read the project instruction file or `README.md` for health endpoint. Fall back to common defaults:
+Read the project instruction file or `README.md` for the health endpoint; fall back to common defaults:
 ```bash
 curl -s http://localhost:8000/health 2>/dev/null || \
 curl -s http://localhost:3000/health 2>/dev/null || \
@@ -66,7 +64,7 @@ docker compose down 2>/dev/null || true
 
 ## Phase 1 — Tests
 
-Run the **test** workflow. The test workflow will:
+Run the **test** workflow, which will:
 1. Auto-start required Docker services (DB, Redis, etc.) for integration tests
 2. Run unit tests against real services — no DB mocks
 3. Run integration tests against a real Docker DB
@@ -81,14 +79,13 @@ Thresholds: Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches �
 
 ## Phases 2–4 — Lint ‖ Security ‖ Build (fan out)
 
-Phase 1 (tests) is the long pole and must pass first. **Phases 2, 3, and 4 — lint,
-security, and build — are mutually independent** (they read the tree, not each other's
-results), so run them in parallel rather than serially. Use the fan-out ladder from the
-`subagents` skill: prefer the `Workflow` tool (one stage per phase, `schema`-validated
-return), else parallel `Agent`/`Task` subagents, else run them serially.
-
-Each returns `{ phase, status, findings[] }`; **all three must report `passed`** before
-the gate-cache write below. The phase descriptions that follow define what each one does.
+Phase 1 (tests) is the long pole and must pass first. **Phases 2–4 — lint, security,
+build — are mutually independent** (they read the tree, not each other's results), so run
+them in parallel via the fan-out ladder from the `subagents` skill: prefer the `Workflow`
+tool (one stage per phase, `schema`-validated return), else parallel `Agent`/`Task`
+subagents, else serial. Each returns `{ phase, status, findings[] }`; **all three must
+report `passed`** before the gate-cache write below. The phase descriptions that follow
+define each one.
 
 ---
 
@@ -120,7 +117,7 @@ Detect and run applicable builds:
 - **npm backend**: `cd api && npm run build`
 - **Python**: `./venv/bin/python -m build 2>/dev/null || true`
 
-Fix any compiler errors. Re-build only the failing target.
+Fix compiler errors; re-build only the failing target.
 
 **GATE: All applicable builds succeed with zero errors.**
 
@@ -157,7 +154,7 @@ INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .git
 
 ### Step 1 — Health checks
 
-Read health endpoint URLs from the project instruction file, README, or use common defaults:
+Read health endpoint URLs from the project instruction file, README, or common defaults:
 
 ```bash
 # From project instruction file
@@ -168,7 +165,7 @@ Read health endpoint URLs from the project instruction file, README, or use comm
 ```
 
 Hit each endpoint with a **bounded exponential backoff** loop — a fresh deploy may still
-be rolling out, so don't hammer it at a fixed interval or wait forever:
+be rolling out, so don't hammer at a fixed interval or wait forever:
 
 ```bash
 HEALTH_URL="$1"   # resolved above
@@ -197,10 +194,8 @@ If E2E or smoke tests exist, run a targeted subset against production:
 ls tests/smoke/ e2e/smoke/ tests/critical/ 2>/dev/null || true
 ```
 
-Detection patterns:
-- Directories: `tests/smoke/`, `e2e/smoke/`, `tests/critical/`
-- Tagged tests: `@smoke`, `@critical`, `mark.smoke`
-- If no smoke tests exist, skip this step gracefully
+Detection patterns: directories `tests/smoke/`, `e2e/smoke/`, `tests/critical/`; tagged
+tests `@smoke`, `@critical`, `mark.smoke`. If none exist, skip this step gracefully.
 
 Run detected smoke tests against the production URL configured in the project instruction file:
 
@@ -219,12 +214,9 @@ If a monitoring URL is configured in the project instruction file:
 [ -n "$INSTRUCTION_FILE" ] && grep -iE "monitoring|grafana|datadog|newrelic" "$INSTRUCTION_FILE" 2>/dev/null | head -1
 ```
 
-If found:
-- Note the monitoring URL for manual review
-- Check for error rate information if accessible via API
-- Flag if error rate appears elevated compared to normal
-
-If no monitoring URL configured, skip this step gracefully.
+If found: note the monitoring URL for manual review, check error rate information if
+accessible via API, and flag if error rate appears elevated compared to normal. If no
+monitoring URL configured, skip this step gracefully.
 
 ### Step 4 — Auto-rollback (on failure)
 
@@ -246,34 +238,26 @@ After rollback:
 3. Provide full diagnosis
 
 ```
-╔══════════════════════════════════════════════════════╗
-║           DEPLOYMENT FAILED — ROLLED BACK             ║
-╠══════════════════════════════════════════════════════╣
-║ Health:      ✅ PASSED / ❌ FAILED                    ║
-║ Smoke tests: ✅ PASSED / ❌ FAILED (details)          ║
-║ Metrics:     ✅ NORMAL / ⚠️ ELEVATED / skipped        ║
-║ Action:      Auto-reverted commit <hash>              ║
-║ Rollback:    ✅ Health confirms rollback OK            ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: ROLLED BACK — human review required           ║
-║ Diagnosis:   [what failed and why]                    ║
-╚══════════════════════════════════════════════════════╝
+DEPLOYMENT FAILED — ROLLED BACK
+Health:      ✅ PASSED / ❌ FAILED
+Smoke tests: ✅ PASSED / ❌ FAILED (details)
+Metrics:     ✅ NORMAL / ⚠️ ELEVATED / skipped
+Action:      Auto-reverted commit <hash>
+Rollback:    ✅ Health confirms rollback OK
+STATUS: ROLLED BACK — human review required
+Diagnosis:   [what failed and why]
 ```
 
-If rollback is set to `manual` in the project instruction file (`rollback: manual`), report the failure but do NOT auto-revert. Wait for human decision.
+If the project instruction file sets `rollback: manual`, report the failure but do NOT auto-revert. Wait for human decision.
 
 ### Verification output (on success)
 
 ```
-╔══════════════════════════════════════════════════════╗
-║           DEPLOYMENT VERIFIED                         ║
-╠══════════════════════════════════════════════════════╣
-║ Health:      ✅ All endpoints responding (200)        ║
-║ Smoke tests: ✅ N/N passed | skipped                  ║
-║ Metrics:     ✅ Error rate normal | skipped            ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: DEPLOYED & VERIFIED ✅                        ║
-╚══════════════════════════════════════════════════════╝
+DEPLOYMENT VERIFIED
+Health:      ✅ All endpoints responding (200)
+Smoke tests: ✅ N/N passed | skipped
+Metrics:     ✅ Error rate normal | skipped
+STATUS: DEPLOYED & VERIFIED ✅
 ```
 
 ---

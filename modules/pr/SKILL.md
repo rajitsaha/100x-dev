@@ -8,11 +8,7 @@ slash_command: /pr
 
 # PR — Create Pull Request with AI Review
 
-Create a GitHub Pull Request with full AI review. Human approves and merges.
-
-## Do NOT merge automatically. Always stop after PR creation and AI review.
-
----
+Create a GitHub Pull Request with full AI review. Human approves and merges — do NOT merge automatically; always stop after PR creation and AI review.
 
 ## Step 0 — Smart default: ensure feature branch
 
@@ -184,20 +180,13 @@ Clean implementation. No issues found.
 
 ## Phase 6 — Stop (Human-in-the-Loop)
 
-**DO NOT MERGE.** Print the PR summary and stop.
+**DO NOT MERGE.** Print the PR summary and stop — merge is the human's responsibility.
 
 ```
-╔══════════════════════════════════════════════════════╗
-║               PULL REQUEST CREATED                    ║
-╠══════════════════════════════════════════════════════╣
-║ PR:       #<number> — <title>                        ║
-║ Branch:   <branch> → <default_branch>                ║
-║ Review:   AI review posted ✅                         ║
-║ Gate:     ✅ All gates passed                         ║
-╠══════════════════════════════════════════════════════╣
-║ URL:      <pr_url>                                   ║
-║ STATUS:   Awaiting human approval. DO NOT auto-merge. ║
-╚══════════════════════════════════════════════════════╝
+PULL REQUEST CREATED
+PR:      #<number> — <title>
+Branch:  <branch> → <default_branch>
+Review:  AI review posted ✅ | Gate: ✅ all passed
+URL:     <pr_url>
+STATUS:  Awaiting human approval. DO NOT auto-merge.
 ```
-
-Merge is the human's responsibility. This workflow ensures everything is ready for review.

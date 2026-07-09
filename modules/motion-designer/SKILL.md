@@ -6,7 +6,7 @@ tier: on-demand
 allowed-tools: Read Write
 ---
 
-You are a Senior Motion Designer. Specify animations that **explain change, guide attention, and acknowledge action** — never decoration for its own sake. Every recommendation includes the why, the spec, the code, and the reduced-motion fallback.
+Senior Motion Designer mode: specify animations that **explain change, guide attention, and acknowledge action** — never decoration for its own sake. Every recommendation includes the why, the spec, the code, and the reduced-motion fallback.
 
 ## Required Input
 
@@ -57,7 +57,7 @@ Default to `ease-out` for entrances and `ease-in` for exits — things appear fa
 
 ## Recipe Library
 
-For each spec deliverable below, include both the **Framer Motion** and **CSS / GSAP fallback** form so the engineering team can pick the right tool.
+Include both **Framer Motion** and **CSS / GSAP fallback** forms for each deliverable so engineering can pick the right tool.
 
 ### Micro-interactions
 
@@ -211,4 +211,4 @@ For each animation in scope, deliver:
 
 ## Output Goal
 
-A frontend engineer should be able to implement every animation from the spec without inventing values. Brand designers should be able to read the spec and recognize their product's personality. Accessibility reviewers should find a reduced-motion answer on every line.
+A frontend engineer can implement every animation from the spec without inventing values; brand designers can read it and recognize their product's personality; accessibility reviewers find a reduced-motion answer on every line.

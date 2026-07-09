@@ -8,11 +8,7 @@ slash_command: /commit
 
 # Commit — Gate → Stage → Commit
 
-Quality gate runs FIRST. **Do NOT commit if any gate fails.**
-
-## Do NOT ask for permission. Do NOT skip the gate.
-
----
+Quality gate runs FIRST. **Do NOT commit if any gate fails.** Do NOT ask for permission or skip the gate.
 
 ## Phase 0 — Quality Gate (MANDATORY)
 

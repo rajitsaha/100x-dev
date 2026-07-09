@@ -1,39 +1,34 @@
 ---
 name: copywriting
-description: When the user wants to write, rewrite, or improve marketing copy for any page — including homepage, landing pages, pricing pages, feature pages, about pages, or product pages. Also use when the user says "write copy for," "improve this copy," "rewrite this page," "marketing copy," "headline help," "CTA copy," "value proposition," "tagline," "subheadline," "hero section copy," "above the fold," "this copy is weak," "make this more compelling," "conversion copy," "complete website copy," or "help me describe my product." Use this whenever someone is working on website text that needs to persuade or convert — including complete, Figma-ready full-page copy (see Full-Page Mode below). For email copy, see email-sequence. For popup copy, see popup-cro. For editing existing copy, see copy-editing.
+description: When the user wants to write, rewrite, or improve marketing copy for any page — homepage, landing, pricing, feature, about, or product pages; "headline help," "CTA copy," "value proposition," "tagline," "hero section," "make this more compelling," "conversion copy," or complete Figma-ready full-page copy (see Full-Page Mode below). For email copy, see email-sequence. For popups, see popup-cro. For editing existing copy, see copy-editing.
 category: marketing
 tier: on-demand
 ---
 
 # Copywriting
 
-You are an expert conversion copywriter. Your goal is to write marketing copy that is clear, compelling, and drives action.
+Expert conversion copywriter mode: write marketing copy that is clear, compelling, and drives action.
 
 ## Before Writing
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
 Gather this context (ask if not provided):
 
 ### 1. Page Purpose
-- What type of page? (homepage, landing page, pricing, feature, about)
-- What is the ONE primary action you want visitors to take?
+- Page type? (homepage, landing page, pricing, feature, about)
+- The ONE primary action visitors should take?
 
 ### 2. Audience
-- Who is the ideal customer?
-- What problem are they trying to solve?
-- What objections or hesitations do they have?
-- What language do they use to describe their problem?
+- Ideal customer, and the problem they're trying to solve?
+- Objections or hesitations? What language do they use to describe the problem?
 
 ### 3. Product/Offer
-- What are you selling or offering?
-- What makes it different from alternatives?
-- What's the key transformation or outcome?
-- Any proof points (numbers, testimonials, case studies)?
+- What are you selling? What makes it different from alternatives?
+- Key transformation or outcome? Proof points (numbers, testimonials, case studies)?
 
 ### 4. Context
-- Where is traffic coming from? (ads, organic, email)
+- Traffic source? (ads, organic, email)
 - What do visitors already know before arriving?
 
 ---
@@ -41,20 +36,19 @@ Gather this context (ask if not provided):
 ## Copywriting Principles
 
 ### Clarity Over Cleverness
-If you have to choose between clear and creative, choose clear.
+If forced to choose between clear and creative, choose clear.
 
 ### Benefits Over Features
-Features: What it does. Benefits: What that means for the customer.
+Features: what it does. Benefits: what that means for the customer.
 
 ### Specificity Over Vagueness
-- Vague: "Save time on your workflow"
-- Specific: "Cut your weekly reporting from 4 hours to 15 minutes"
+Not "Save time on your workflow" — "Cut your weekly reporting from 4 hours to 15 minutes."
 
 ### Customer Language Over Company Language
-Use words your customers use. Mirror voice-of-customer from reviews, interviews, support tickets.
+Mirror voice-of-customer from reviews, interviews, support tickets.
 
 ### One Idea Per Section
-Each section should advance one argument. Build a logical flow down the page.
+Each section advances one argument; build a logical flow down the page.
 
 ---
 
@@ -71,10 +65,8 @@ Each section should advance one argument. Build a logical flow down the page.
 
 ### Quick Quality Check
 
-- Jargon that could confuse outsiders?
-- Sentences trying to do too much?
-- Passive voice constructions?
-- Exclamation points? (remove them)
+- Jargon that could confuse outsiders? Sentences trying to do too much?
+- Passive voice? Exclamation points? (remove them)
 - Marketing buzzwords without substance?
 
 For thorough line-by-line review, use the **copy-editing** skill after your draft.
@@ -84,22 +76,20 @@ For thorough line-by-line review, use the **copy-editing** skill after your draf
 ## Best Practices
 
 ### Be Direct
-Get to the point. Don't bury the value in qualifications.
+Get to the point; don't bury the value in qualifications.
 
 ❌ Slack lets you share files instantly, from documents to images, directly in your conversations
 
 ✅ Need to share a screenshot? Send as many documents, images, and audio files as your heart desires.
 
 ### Use Rhetorical Questions
-Questions engage readers and make them think about their own situation.
-- "Hate returning stuff to Amazon?"
-- "Tired of chasing approvals?"
+They engage readers and make them think about their own situation: "Hate returning stuff to Amazon?" "Tired of chasing approvals?"
 
 ### Use Analogies When Helpful
 Analogies make abstract concepts concrete and memorable.
 
 ### Pepper in Humor (When Appropriate)
-Puns and wit make copy memorable—but only if it fits the brand and doesn't undermine clarity.
+Puns and wit make copy memorable — only if it fits the brand and doesn't undermine clarity.
 
 ---
 
@@ -107,10 +97,7 @@ Puns and wit make copy memorable—but only if it fits the brand and doesn't und
 
 ### Above the Fold
 
-**Headline**
-- Your single most important message
-- Communicate core value proposition
-- Specific > generic
+**Headline** — your single most important message; communicate the core value proposition; specific > generic.
 
 **Example formulas:**
 - "{Achieve outcome} without {pain point}"
@@ -118,18 +105,13 @@ Puns and wit make copy memorable—but only if it fits the brand and doesn't und
 - "Never {unpleasant event} again"
 - "{Question highlighting main pain point}"
 
-**For comprehensive headline formulas**: See [references/copy-frameworks.md](references/copy-frameworks.md)
+**Comprehensive headline formulas**: See [references/copy-frameworks.md](references/copy-frameworks.md)
 
-**For natural transition phrases**: See [references/natural-transitions.md](references/natural-transitions.md)
+**Natural transition phrases**: See [references/natural-transitions.md](references/natural-transitions.md)
 
-**Subheadline**
-- Expands on headline
-- Adds specificity
-- 1-2 sentences max
+**Subheadline** — expands on the headline, adds specificity, 1-2 sentences max.
 
-**Primary CTA**
-- Action-oriented button text
-- Communicate what they get: "Start Free Trial" > "Sign Up"
+**Primary CTA** — action-oriented button text that communicates what they get: "Start Free Trial" > "Sign Up."
 
 ### Core Sections
 
@@ -142,104 +124,66 @@ Puns and wit make copy memorable—but only if it fits the brand and doesn't und
 | Objection Handling | FAQ, comparisons, guarantees |
 | Final CTA | Recap value, repeat CTA, risk reversal |
 
-**For detailed section types and page templates**: See [references/copy-frameworks.md](references/copy-frameworks.md)
+**Detailed section types and page templates**: See [references/copy-frameworks.md](references/copy-frameworks.md)
 
 ---
 
 ## CTA Copy Guidelines
 
-**Weak CTAs (avoid):**
-- Submit, Sign Up, Learn More, Click Here, Get Started
+**Weak CTAs (avoid):** Submit, Sign Up, Learn More, Click Here, Get Started
 
-**Strong CTAs (use):**
-- Start Free Trial
-- Get [Specific Thing]
-- See [Product] in Action
-- Create Your First [Thing]
-- Download the Guide
+**Strong CTAs (use):** Start Free Trial; Get [Specific Thing]; See [Product] in Action; Create Your First [Thing]; Download the Guide
 
 **Formula:** [Action Verb] + [What They Get] + [Qualifier if needed]
 
-Examples:
-- "Start My Free Trial"
-- "Get the Complete Checklist"
-- "See Pricing for My Team"
+Examples: "Start My Free Trial" — "Get the Complete Checklist" — "See Pricing for My Team"
 
 ---
 
 ## Page-Specific Guidance
 
 ### Homepage
-- Serve multiple audiences without being generic
-- Lead with broadest value proposition
-- Provide clear paths for different visitor intents
+Serve multiple audiences without being generic; lead with the broadest value proposition; give clear paths for different visitor intents.
 
 ### Landing Page
-- Single message, single CTA
-- Match headline to ad/traffic source
-- Complete argument on one page
+Single message, single CTA; match headline to ad/traffic source; complete argument on one page.
 
 ### Pricing Page
-- Help visitors choose the right plan
-- Address "which is right for me?" anxiety
-- Make recommended plan obvious
+Help visitors choose the right plan; address "which is right for me?" anxiety; make the recommended plan obvious.
 
 ### Feature Page
-- Connect feature → benefit → outcome
-- Show use cases and examples
-- Clear path to try or buy
+Connect feature → benefit → outcome; show use cases and examples; clear path to try or buy.
 
 ### About Page
-- Tell the story of why you exist
-- Connect mission to customer benefit
-- Still include a CTA
+Tell the story of why you exist; connect mission to customer benefit; still include a CTA.
 
 ---
 
 ## Voice and Tone
 
-Before writing, establish:
+Establish before writing:
 
-**Formality level:**
-- Casual/conversational
-- Professional but friendly
-- Formal/enterprise
+**Formality level:** casual/conversational, professional but friendly, or formal/enterprise.
 
-**Brand personality:**
-- Playful or serious?
-- Bold or understated?
-- Technical or accessible?
+**Brand personality:** playful or serious? Bold or understated? Technical or accessible?
 
-Maintain consistency, but adjust intensity:
-- Headlines can be bolder
-- Body copy should be clearer
-- CTAs should be action-oriented
+Maintain consistency but adjust intensity: headlines can be bolder, body copy should be clearer, CTAs should be action-oriented.
 
 ---
 
 ## Output Format
 
-When writing copy, provide:
-
 ### Page Copy
-Organized by section:
-- Headline, Subheadline, CTA
-- Section headers and body copy
-- Secondary CTAs
+Organized by section: headline, subheadline, CTA; section headers and body copy; secondary CTAs.
 
 ### Annotations
-For key elements, explain:
-- Why you made this choice
-- What principle it applies
+For key elements, explain why you made this choice and what principle it applies.
 
 ### Alternatives
-For headlines and CTAs, provide 2-3 options:
-- Option A: [copy] — [rationale]
-- Option B: [copy] — [rationale]
+For headlines and CTAs, provide 2-3 options: "Option A: [copy] — [rationale]."
 
 ### Meta Content (if relevant)
-- Page title (for SEO)
-- Meta description
+Page title (for SEO) and meta description.
 
 ---
 

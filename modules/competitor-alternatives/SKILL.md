@@ -1,66 +1,37 @@
 ---
 name: competitor-alternatives
-description: "When the user wants to create competitor comparison or alternative pages for SEO and sales enablement. Also use when the user mentions 'alternative page,' 'vs page,' 'competitor comparison,' 'comparison page,' '[Product] vs [Product],' '[Product] alternative,' 'competitive landing pages,' 'how do we compare to X,' 'battle card,' or 'competitor teardown.' Use this for any content that positions your product against competitors. Covers four formats: singular alternative, plural alternatives, you vs competitor, and competitor vs competitor. For sales-specific competitor docs, see sales-enablement."
+description: "When the user wants competitor comparison or alternative pages for SEO and sales enablement — 'alternative page,' 'vs page,' '[Product] vs [Product],' 'battle card,' 'competitor teardown.' Covers four formats: singular/plural alternatives, you vs competitor, competitor vs competitor. For sales-specific competitor docs, see sales-enablement."
 category: marketing
 tier: on-demand
 ---
 
 # Competitor & Alternative Pages
 
-You are an expert in creating competitor comparison and alternative pages. Your goal is to build pages that rank for competitive search terms, provide genuine value to evaluators, and position your product effectively.
-
 ## Initial Assessment
 
-**Check for product marketing context first:**
-If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it before asking questions. Use that context and only ask for information not already covered or specific to this task.
+**Product context:** If `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` in older setups), read it first and tailor output to it; only ask for what it doesn't cover.
 
-Before creating competitor pages, understand:
+Establish:
 
-1. **Your Product**
-   - Core value proposition
-   - Key differentiators
-   - Ideal customer profile
-   - Pricing model
-   - Strengths and honest weaknesses
-
-2. **Competitive Landscape**
-   - Direct competitors
-   - Indirect/adjacent competitors
-   - Market positioning of each
-   - Search volume for competitor terms
-
-3. **Goals**
-   - SEO traffic capture
-   - Sales enablement
-   - Conversion from competitor users
-   - Brand positioning
+1. **Your Product** — core value proposition, key differentiators, ideal customer profile, pricing model, strengths and honest weaknesses
+2. **Competitive Landscape** — direct and indirect/adjacent competitors, market positioning of each, search volume for competitor terms
+3. **Goals** — SEO traffic capture, sales enablement, conversion from competitor users, brand positioning
 
 ---
 
 ## Core Principles
 
 ### 1. Honesty Builds Trust
-- Acknowledge competitor strengths
-- Be accurate about your limitations
-- Don't misrepresent competitor features
-- Readers are comparing—they'll verify claims
+Acknowledge competitor strengths, be accurate about your limitations, don't misrepresent competitor features — readers are comparing and will verify claims.
 
 ### 2. Depth Over Surface
-- Go beyond feature checklists
-- Explain *why* differences matter
-- Include use cases and scenarios
-- Show, don't just tell
+Go beyond feature checklists: explain *why* differences matter, include use cases and scenarios, show don't just tell.
 
 ### 3. Help Them Decide
-- Different tools fit different needs
-- Be clear about who you're best for
-- Be clear about who competitor is best for
-- Reduce evaluation friction
+Different tools fit different needs. Be clear about who you're best for and who the competitor is best for. Reduce evaluation friction.
 
 ### 4. Modular Content Architecture
-- Competitor data should be centralized
-- Updates propagate to all pages
-- Single source of truth per competitor
+Centralize competitor data — single source of truth per competitor so updates propagate to all pages.
 
 ---
 
@@ -68,7 +39,7 @@ Before creating competitor pages, understand:
 
 ### Format 1: [Competitor] Alternative (Singular)
 
-**Search intent**: User is actively looking to switch from a specific competitor
+**Search intent**: Actively looking to switch from a specific competitor
 
 **URL pattern**: `/alternatives/[competitor]` or `/[competitor]-alternative`
 
@@ -87,7 +58,7 @@ Before creating competitor pages, understand:
 
 ### Format 2: [Competitor] Alternatives (Plural)
 
-**Search intent**: User is researching options, earlier in journey
+**Search intent**: Researching options, earlier in journey
 
 **URL pattern**: `/alternatives/[competitor]-alternatives`
 
@@ -108,7 +79,7 @@ Before creating competitor pages, understand:
 
 ### Format 3: You vs [Competitor]
 
-**Search intent**: User is directly comparing you to a specific competitor
+**Search intent**: Directly comparing you to a specific competitor
 
 **URL pattern**: `/vs/[competitor]` or `/compare/[you]-vs-[competitor]`
 
@@ -128,7 +99,7 @@ Before creating competitor pages, understand:
 
 ### Format 4: [Competitor A] vs [Competitor B]
 
-**Search intent**: User comparing two competitors (not you directly)
+**Search intent**: Comparing two competitors (not you directly)
 
 **URL pattern**: `/compare/[competitor-a]-vs-[competitor-b]`
 
@@ -147,40 +118,33 @@ Before creating competitor pages, understand:
 ## Essential Sections
 
 ### TL;DR Summary
-Start every page with a quick summary for scanners—key differences in 2-3 sentences.
+Start every page with key differences in 2-3 sentences for scanners.
 
 ### Paragraph Comparisons
-Go beyond tables. For each dimension, write a paragraph explaining the differences and when each matters.
+Go beyond tables — for each dimension, a paragraph explaining the differences and when each matters.
 
 ### Feature Comparison
-For each category: describe how each handles it, list strengths and limitations, give bottom line recommendation.
+Per category: how each handles it, strengths and limitations, bottom-line recommendation.
 
 ### Pricing Comparison
-Include tier-by-tier comparison, what's included, hidden costs, and total cost calculation for sample team size.
+Tier-by-tier comparison, what's included, hidden costs, total cost calculation for a sample team size.
 
 ### Who It's For
-Be explicit about ideal customer for each option. Honest recommendations build trust.
+Be explicit about the ideal customer for each option — honest recommendations build trust.
 
 ### Migration Section
-Cover what transfers, what needs reconfiguration, support offered, and quotes from customers who switched.
+What transfers, what needs reconfiguration, support offered, quotes from customers who switched.
 
-**For detailed templates**: See [references/templates.md](references/templates.md)
+Detailed templates: [references/templates.md](references/templates.md)
 
 ---
 
 ## Content Architecture
 
 ### Centralized Competitor Data
-Create a single source of truth for each competitor with:
-- Positioning and target audience
-- Pricing (all tiers)
-- Feature ratings
-- Strengths and weaknesses
-- Best for / not ideal for
-- Common complaints (from reviews)
-- Migration notes
+Create a single source of truth per competitor with: positioning and target audience, pricing (all tiers), feature ratings, strengths and weaknesses, best for / not ideal for, common complaints (from reviews), migration notes.
 
-**For data structure and examples**: See [references/content-architecture.md](references/content-architecture.md)
+Data structure and examples: [references/content-architecture.md](references/content-architecture.md)
 
 ---
 
@@ -216,9 +180,7 @@ For each competitor, gather:
 | Competitor vs Competitor | [A] vs [B], [B] vs [A] |
 
 ### Internal Linking
-- Link between related competitor pages
-- Link from feature pages to relevant comparisons
-- Create hub page linking to all competitor content
+Link between related competitor pages, from feature pages to relevant comparisons, and create a hub page linking to all competitor content.
 
 ### Schema Markup
 Consider FAQ schema for common questions like "What is the best alternative to [Competitor]?"

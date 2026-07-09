@@ -8,69 +8,31 @@ slash_command: /gate
 
 # Gate — Pre-Commit Quality Gate
 
-**MANDATORY before every commit and push.** All gates must pass — Gates 1–3 always run; Gates 4 (Docker) and 5 (Cloud) run only when applicable. Do NOT proceed if any gate fails — fix the issue first.
-
-## Do NOT ask for permission. Do NOT skip gates. Do NOT continue past a failing gate.
-
----
+**MANDATORY before every commit and push.** Gates 1–3 always run; Gates 4 (Docker) and 5 (Cloud) only when applicable. Do NOT ask for permission, skip gates, or continue past a failure — if any gate fails: STOP, fix, re-run the gate.
 
 ## How to run the gates (fan out the independent ones)
 
-Gate 1 (the coverage loop) is the long pole — run it first and let it finish. Gates 2–5
-(**security, build, docker, cloud-security**) are mutually independent: they read the
-tree but never depend on each other's results, so **run them in parallel**, not as serial
-ASCII boxes.
-
-Use the fan-out ladder from the `subagents` skill: prefer the `Workflow` tool (one stage
-per gate, `schema`-validated return), else dispatch parallel `Agent`/`Task` subagents,
-else fall back to running them serially. Each gate subagent returns a structured verdict:
+Gate 1 (the coverage loop) is the long pole — start it first and let it finish. Gates 2–5 (**security, build, docker, cloud-security**) are mutually independent, so run them in parallel using the fan-out ladder from the `subagents` skill: prefer the `Workflow` tool (one stage per gate, `schema`-validated return), else parallel `Agent`/`Task` subagents, else serial. Each gate subagent returns a structured verdict:
 
 ```json
 { "gate": "security", "status": "passed|failed|skipped", "severity": "critical|high|none", "findings": ["..."] }
 ```
 
-The parent **reduces** the verdicts into the summary box below: any `failed` with
-critical/high severity ⇒ overall FAILED. Cache each verdict keyed on the **tree hash**
-(`git write-tree` + clean-tree check) so a re-run on an unchanged tree reuses the verdict
-instead of recomputing — the same key the `gate-pass.py` token uses (see *Record the
-pass* below). Never reuse a verdict across a changed tree.
-
----
+The parent **reduces** the verdicts into the summary below: any `failed` with critical/high severity ⇒ overall FAILED. Cache each verdict keyed on the **tree hash** (`git write-tree` + clean-tree check) — the same key the `gate-pass.py` token uses (see *Record the pass*) — so a re-run on an unchanged tree reuses the verdict. Never reuse a verdict across a changed tree.
 
 ## Gate 1 — Test Coverage (≥ 95%)
 
-Run the **test** workflow. Run ALL test layers (unit, integration, E2E if configured).
+Run the **test** workflow, ALL test layers (unit, integration, E2E if configured).
 
-Requirements:
 - Lines ≥ 95% | Functions ≥ 95% | Statements ≥ 95% | Branches ≥ 90%
 - Zero failing tests
 
-**If coverage is below threshold or tests fail → STOP. Fix tests. Re-run gate.**
+## Gate 2 — Security (no critical, no high)
 
-```
-Gate 1: Tests ✅ PASSED | ❌ FAILED — do not proceed
-```
+Run the **security** workflow across every package manager found in the project.
 
----
-
-## Gate 2 — Security (No Critical, No High)
-
-Run the **security** workflow. Scan all package managers found in this project.
-
-Requirements:
-- **Zero critical vulnerabilities**
-- **Zero high vulnerabilities**
-- No real secrets in tracked files
-
-Known exceptions accepted **only if explicitly documented** in the project's `/security` override (e.g. install-time-only transitive deps). When in doubt, treat as blocking.
-
-**If critical or high vulnerabilities exist → STOP. Fix vulnerabilities. Re-run gate.**
-
-```
-Gate 2: Security ✅ PASSED | ❌ FAILED — do not proceed
-```
-
----
+- **Zero critical, zero high vulnerabilities**; no real secrets in tracked files
+- Known exceptions count only if explicitly documented in the project's `/security` override (e.g. install-time-only transitive deps); when in doubt, treat as blocking
 
 ## Gate 3 — Local Build
 
@@ -96,17 +58,7 @@ cd api && npm run build
 ./venv/bin/python -m build 2>/dev/null || ./venv/bin/python -c "import py_compile, glob; [py_compile.compile(f, doraise=True) for f in glob.glob('**/*.py', recursive=True) if 'venv' not in f]"
 ```
 
-Requirements:
-- Zero compiler errors
-- Zero TypeScript type errors (for TS projects)
-
-**If any build fails → STOP. Fix compiler errors. Re-run gate.**
-
-```
-Gate 3: Build ✅ PASSED | ❌ FAILED — do not proceed
-```
-
----
+- Zero compiler errors; zero TypeScript type errors (for TS projects)
 
 ## Gate 4 — Docker Build (if Dockerfile present)
 
@@ -127,14 +79,6 @@ if [ -f "$PROJECT_ROOT/deploy/docker-compose.yml" ] || [ -f "$PROJECT_ROOT/docke
   docker compose -f "$COMPOSE_FILE" config --quiet && echo "Compose config: ✅"
 fi
 ```
-
-**If Docker build fails → STOP. Fix the Dockerfile or dependency issue. Re-run gate.**
-
-```
-Gate 4: Docker ✅ PASSED | skipped (no Dockerfile) | ❌ FAILED — do not proceed
-```
-
----
 
 ## Gate 5 — Cloud Security & Data Privacy (if cloud project)
 
@@ -161,72 +105,36 @@ fi
 echo "Cloud project: $IS_CLOUD_PROJECT"
 ```
 
-**If `IS_CLOUD_PROJECT=true`:** Run the **cloud-security** workflow. Run the full cloud security and data privacy scan.
+If `IS_CLOUD_PROJECT=true`, run the **cloud-security** workflow (full cloud security and data privacy scan):
 
-Requirements:
 - **Zero CRITICAL findings** (public data exposure, open credentials, public storage, SQL injection)
 - **Zero HIGH findings** (missing SSL, overprivileged IAM, PII in logs, missing auth headers, eval() usage)
-- MEDIUM/LOW findings: reported, non-blocking, must be tracked
+- MEDIUM/LOW findings: reported and tracked, non-blocking
 
-**If any CRITICAL or HIGH finding → STOP. Fix before committing. Cloud misconfigurations can expose user data.**
-
-**If `IS_CLOUD_PROJECT=false`:** Gate 5 is skipped.
-
-```
-Gate 5: Cloud Security ✅ PASSED | ❌ FAILED — do not proceed | skipped (local only)
-```
-
----
+If `IS_CLOUD_PROJECT=false`, Gate 5 is skipped.
 
 ## Gate summary output
 
-This box is the **reduce step**: collect the structured verdict from each gate (Gate 1
-plus the parallel Gates 2–5) and aggregate. STATUS is PASSED only when every applicable
-gate reports `passed` with no critical/high severity.
+This is the **reduce step**: aggregate the verdicts (Gate 1 plus the parallel Gates 2–5). STATUS is PASSED only when every applicable gate reports `passed` with no critical/high severity:
 
 ```
-╔══════════════════════════════════════════════════════╗
-║               QUALITY GATE RESULTS                   ║
-╠══════════════════════════════════════════════════════╣
-║ Gate 1 Tests:          ✅ PASSED  (FE 97% | BE 96%) ║
-║ Gate 2 Security:       ✅ PASSED  (0 critical, 0 high) ║
-║ Gate 3 Build:          ✅ PASSED  (FE ✅ | BE ✅)   ║
-║ Gate 4 Docker:         ✅ PASSED  | skipped          ║
-║ Gate 5 Cloud/Privacy:  ✅ PASSED  | skipped          ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: ✅ ALL GATES PASSED — safe to commit         ║
-╚══════════════════════════════════════════════════════╝
+QUALITY GATE RESULTS
+Gate 1 Tests:          ✅ PASSED (FE 97% | BE 96%)   | ❌ FAILED (BE 88%)
+Gate 2 Security:       ✅ PASSED (0 critical, 0 high) | ❌ FAILED
+Gate 3 Build:          ✅ PASSED                      | ❌ FAILED
+Gate 4 Docker:         ✅ PASSED | skipped            | ❌ FAILED
+Gate 5 Cloud/Privacy:  ✅ PASSED | skipped            | ❌ FAILED (1 CRITICAL)
+STATUS: ✅ ALL GATES PASSED — safe to commit | ❌ GATE FAILED — fix issues before commit
 ```
 
-If ANY gate fails:
-```
-╔══════════════════════════════════════════════════════╗
-║               QUALITY GATE RESULTS                   ║
-╠══════════════════════════════════════════════════════╣
-║ Gate 1 Tests:          ❌ FAILED  (BE 88%)           ║
-║ Gate 2 Security:       ✅ PASSED                     ║
-║ Gate 3 Build:          ✅ PASSED                     ║
-║ Gate 4 Docker:         skipped                       ║
-║ Gate 5 Cloud/Privacy:  ❌ FAILED  (1 CRITICAL)       ║
-╠══════════════════════════════════════════════════════╣
-║ STATUS: ❌ GATE FAILED — fix issues before commit    ║
-╚══════════════════════════════════════════════════════╝
-```
-
-**Do NOT commit or push until the gate summary shows ALL GATES PASSED.**
-
----
+**Do NOT commit or push until STATUS shows ALL GATES PASSED.**
 
 ## Record the pass (enables the gate-on-commit hook)
 
-**Only when the summary shows ALL GATES PASSED**, record the pass so the optional
-`gate-on-commit` hook will allow the next commit/push:
+**Only when the summary shows ALL GATES PASSED**, record the pass so the optional `gate-on-commit` hook will allow the next commit/push:
 
 ```bash
 python3 ~/100xprism/hooks/gate-pass.py 2>/dev/null || true
 ```
 
-This writes a token for the **current tree state** (HEAD + tracked diff + untracked
-files) to `~/.100xprism/gate-cache`. The token is invalidated the moment anything in the
-tree changes, so a later edit always re-arms the gate. If a gate **failed**, do NOT run
-this — leave the cache stale so the commit stays blocked.
+This writes a token for the **current tree state** (HEAD + tracked diff + untracked files) to `~/.100xprism/gate-cache`; any later edit invalidates it and re-arms the gate. If a gate **failed**, do NOT run this — leave the cache stale so the commit stays blocked.

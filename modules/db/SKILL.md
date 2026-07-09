@@ -8,7 +8,6 @@ slash_command: /db
 
 # DB — Universal Database Access
 
-Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle.
 Reads connection config from the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent) or ~/.claude/db-connections.json (global registry).
 
 > **Scope:** `/db` executes specific SQL or migrations against named connections. For analytics in plain English, use `/query`.
@@ -49,18 +48,15 @@ INSTRUCTION_FILE=$(ROOT=$(git rev-parse --show-toplevel 2>/dev/null); for f in C
 DB_CONNECTIONS="$HOME/.claude/db-connections.json"
 
 if [ -n "$NAMED_CONNECTION" ]; then
-  # Use named connection from global registry
   ENGINE=$(python3 -c "import json; d=json.load(open('$DB_CONNECTIONS')); c=d.get('$NAMED_CONNECTION',{}); print(c.get('engine',''))" 2>/dev/null)
   CONFIG_SOURCE="registry:$NAMED_CONNECTION"
 
 elif [ -n "$INSTRUCTION_FILE" ] && grep -q "^engine:" "$INSTRUCTION_FILE" 2>/dev/null; then
-  # Use project-level instruction file config
   ENGINE=$(grep "^engine:" "$INSTRUCTION_FILE" | head -1 | cut -d: -f2 | tr -d ' ')
   CONNECTION_NAME=$(grep "^connection:" "$INSTRUCTION_FILE" | head -1 | cut -d: -f2 | tr -d ' ')
   CONFIG_SOURCE="instruction-file"
 
 elif [ -f "$DB_CONNECTIONS" ]; then
-  # List available connections and prompt
   echo "No DB config found in project instruction file. Available connections:"
   python3 -c "
 import json
@@ -122,7 +118,6 @@ fi
 ## Step 3 — Resolve credentials
 
 ```bash
-# Determine auth method
 AUTH="${CONN_AUTH:-$(grep '^auth:' "$INSTRUCTION_FILE" 2>/dev/null | head -1 | cut -d: -f2- | tr -d ' ')}"
 
 case "$AUTH" in

@@ -8,7 +8,7 @@ slash_command: /test
 
 # Test — Run All Tests: Unit → Integration → E2E
 
-You are a senior test engineer. Auto-detect all test layers (unit, integration, frontend, backend, E2E/system), run them all, write more if coverage is below threshold, and loop until everything passes.
+Auto-detect all test layers (unit, integration, frontend, backend, E2E/system), run them all, write more if coverage is below threshold, loop until everything passes.
 
 ## Do NOT ask for permission. Do NOT stop until coverage is met.
 
@@ -44,8 +44,7 @@ You are a senior test engineer. Auto-detect all test layers (unit, integration, 
 
 ## Coverage thresholds (unit + integration — not E2E)
 
-These are **defaults, used only when the project does not declare its own.** Check first
-and honor a project-declared threshold:
+Defaults below apply **only when the project does not declare its own** — check first:
 
 ```bash
 # Project-declared thresholds win over the defaults below. Look, in order, at:
@@ -55,22 +54,20 @@ and honor a project-declared threshold:
 grep -hiE "coverage(Threshold)?|fail_under" CLAUDE.md AGENTS.md GEMINI.md jest.config.* vitest.config.* vite.config.* pyproject.toml .coveragerc 2>/dev/null | head
 ```
 
-| Metric | Default threshold (override if the project declares one) |
+| Metric | Default threshold (project-declared value overrides) |
 |---|---|
 | Lines | ≥ 95% |
 | Functions | ≥ 95% |
 | Statements | ≥ 95% |
 | Branches | ≥ 90% |
 
-**The coverage loop does not exit until ALL thresholds (project-declared or the defaults
-above) are met AND zero unit/integration tests fail — or the iteration cap is reached
-(see Phase 3).**
+**The coverage loop does not exit until ALL thresholds are met AND zero unit/integration tests fail — or the iteration cap is reached (see Phase 3).**
 
 ---
 
 ## Phase 0 — Docker test environment setup
 
-Before running integration or E2E tests, check if Docker services are required and start them.
+Before integration or E2E tests, check if Docker services are required and start them.
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
@@ -172,14 +169,9 @@ Determine which layers apply:
 
 ## Phase 1 — Unit Tests
 
-Run smallest-scope tests first to get fast feedback.
+Run smallest-scope tests first for fast feedback.
 
-The detected unit layers (**Frontend Vitest / Backend Jest / Python pytest**) are
-independent — they run in separate processes and share no state — so **fan them out** per
-the `subagents` skill ladder (Workflow tool → parallel subagents → serial fallback)
-instead of running them one after another. Each layer returns
-`{ layer, status, passed, failed, coverage }`; the parent collects them. This is safe
-*before* Phase 2 only — the integration phase shares one Docker DB and stays serial.
+The detected unit layers (**Frontend Vitest / Backend Jest / Python pytest**) share no state — **fan them out** per the `subagents` skill ladder (Workflow tool → parallel subagents → serial fallback). Each layer returns `{ layer, status, passed, failed, coverage }`; the parent collects them. Safe *before* Phase 2 only — the integration phase shares one Docker DB and stays serial.
 
 ### Frontend unit (Vitest):
 ```bash
@@ -203,8 +195,7 @@ cd "$PROJECT_ROOT"
 - Pure functions, hooks, utilities, lib modules
 - Every code path: success, error, edge cases, empty input, boundary values
 - Mock ONLY genuinely unreachable external services: Stripe, Firebase Auth, Resend, Twilio, AWS SES
-- Do NOT mock the database — unit tests that need DB state should use the real test DB started in Phase 0
-- Do NOT mock internal services, business logic, or utilities
+- Do NOT mock the database — unit tests needing DB state use the real test DB from Phase 0
 
 ---
 
@@ -239,14 +230,13 @@ REDIS_URL="${TEST_REDIS_URL:-redis://localhost:6379}" \
 - Full HTTP request → response through the real app against a real DB
 - Multi-component flows, context providers, routing, auth state
 - Real DB reads and writes — assert actual persisted state, not mock return values
-- Mock ONLY payment gateways (Stripe) and third-party external APIs (email providers, SMS)
 - Do NOT mock: your own DB, Redis, internal queues, internal services
 
 ---
 
 ## Phase 3 — Coverage loop (unit + integration)
 
-Run coverage for all detected stacks and loop until thresholds are met:
+Run coverage for all detected stacks; loop until thresholds are met:
 
 ### Vitest (frontend):
 ```bash
@@ -275,27 +265,23 @@ DATABASE_URL="${TEST_DATABASE_URL:-postgresql+asyncpg://test:test@localhost:5432
    - For each uncovered file: read it, write tests targeting uncovered lines/branches
    - For each failing test: fix the test or the underlying code
    - Re-run from top of loop
-4. **If the cap is reached without converging → STOP and escalate.** Report the remaining
-   gap (which files/metrics are short, which tests still fail) and ask the user whether to
-   keep going, lower a threshold, or investigate a stuck test. Do not loop indefinitely on
-   an unreachable target (e.g. coverage blocked by an untestable external dependency).
+4. **If the cap is reached without converging → STOP and escalate.** Report the remaining gap (files/metrics short, tests still failing) and ask the user whether to keep going, lower a threshold, or investigate a stuck test. Never loop indefinitely on an unreachable target (e.g. coverage blocked by an untestable external dependency).
 
 **Rules inside the loop:**
 - Read the source file before writing tests — understand all code paths
 - Test ALL paths: success, error, edge cases, auth failures, DB errors, empty state
-- Write integration tests that assert real DB state — not mock return values
 - Never skip, xfail, or comment-out failing tests — fix the code or the test
-- Each iteration targets the files with lowest coverage first
+- Each iteration targets the lowest-coverage files first
 
 ---
 
 ## Phase 4 — E2E / System Tests (Docker full-stack)
 
-Run after unit + integration pass. Spins up the complete application stack via Docker and runs real browser or API tests against it. **Zero mocks.**
+Run after unit + integration pass. Spin up the complete stack via Docker and run real browser or API tests against it. **Zero mocks.**
 
 ### 4a. Split Playwright configs
 
-Use **two separate Playwright config files** — one for component/browser-unit tests that don't need the full stack, and one for true E2E against docker compose:
+Use **two separate Playwright config files** — component/browser-unit tests (no full stack) vs true E2E against docker compose:
 
 ```
 playwright.config.ts          ← component tests (no server required)
@@ -349,7 +335,7 @@ export default defineConfig({
 
 ### 4b. Docker Compose E2E override file
 
-Create `docker-compose.e2e.yml` to override production compose settings for E2E testing (seed data, test credentials, exposed ports):
+Create `docker-compose.e2e.yml` overriding production compose settings for E2E (seed data, test credentials, exposed ports):
 
 ```yaml
 # docker-compose.e2e.yml
