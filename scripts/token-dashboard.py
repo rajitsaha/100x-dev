@@ -466,6 +466,96 @@ function costByDir(dirs){
      `<text x="${156+w}" y="${y+14}" fill="var(--text)" font-size="11">$${Math.round(r.cost)}</text>`;}).join('');
  return svgEl(W,H,bars,'Estimated token cost by directory, highest first');
 }
+function donut(totals){
+ const parts=[['cache_read',totals.cache_read,'var(--cr)'],['cache_write',totals.cache_write,'var(--cw)'],
+   ['input',totals.input,'var(--in)'],['output',totals.output,'var(--out)']];
+ const sum=parts.reduce((a,p)=>a+p[1],0); if(!sum) return emptyState('No token usage yet.');
+ const W=180,H=180,cx=90,cy=90,r=70,rInner=42;
+ const pt=(rad,a)=>[cx+rad*Math.cos(a),cy+rad*Math.sin(a)];
+ const nonzero=parts.filter(p=>p[1]>0);
+ let angle=-Math.PI/2, path='';
+ if(nonzero.length===1){
+  // A single 100%-share segment is a full circle: start===end for a lone SVG
+  // arc command, which the spec treats as a zero-length (invisible) segment.
+  // Split it into two half-circle arcs instead so the wedge actually renders.
+  const[k,v,c]=nonzero[0];
+  const a1=angle, aMid=angle+Math.PI, a2=angle+2*Math.PI;
+  const[x1,y1]=pt(r,a1),[xm,ym]=pt(r,aMid),[x2,y2]=pt(r,a2);
+  const[ix1,iy1]=pt(rInner,a1),[ixm,iym]=pt(rInner,aMid),[ix2,iy2]=pt(rInner,a2);
+  path=`M${x1},${y1} A${r},${r} 0 1 1 ${xm},${ym} A${r},${r} 0 1 1 ${x2},${y2} `+
+       `L${ix2},${iy2} A${rInner},${rInner} 0 1 0 ${ixm},${iym} A${rInner},${rInner} 0 1 0 ${ix1},${iy1} Z`;
+  return svgEl(W,H,`<path d="${path}" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (100%)"/>`,
+    'Donut chart: share of tokens by purpose');
+ }
+ for(const[k,v,c]of parts){ if(!v) continue;
+   const frac=v/sum, a1=angle, a2=angle+frac*2*Math.PI; angle=a2;
+   const[x1,y1]=pt(r,a1),[x2,y2]=pt(r,a2);
+   const[ix1,iy1]=pt(rInner,a1),[ix2,iy2]=pt(rInner,a2);
+   const large=frac>0.5?1:0;
+   path+=`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${ix2},${iy2} A${rInner},${rInner} 0 ${large} 0 ${ix1},${iy1} Z" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (${Math.round(100*frac)}%)"/>`;
+ }
+ return svgEl(W,H,path,'Donut chart: share of tokens by purpose');
+}
+function budgetBar(block,label){
+ if(block.limit==null) return '';
+ const pct=Math.min(100,(block.fraction||0)*100);
+ const col=block.level==='alert'?'var(--warn)':block.level==='warn'?'var(--cw)':'var(--value)';
+ return `<div style="margin:6px 0"><div class=muted style="font-size:11px;margin-bottom:2px">${esc(label)}: $${block.spend.toFixed(0)} / $${block.limit.toFixed(0)}</div>
+   <div class=meter style="height:10px"><b style="width:${pct}%;background:${col}"></b></div></div>`;
+}
+function sessionsTable(rows){
+ if(!rows.length) return emptyState('No sessions in the last 30 days.');
+ let h='<table><tr><th>session</th><th>project</th><th>tool</th><th>msgs</th><th>cost</th></tr>';
+ for(const r of rows.slice(0,20)){
+  h+=`<tr><td class=muted>${esc(r.session_id.slice(0,8))}</td><td>${esc(r.project)}</td>`+
+     `<td>${toolBadge(r.tool)}</td><td class=n>${r.msgs}</td><td class=money>$${r.cost.toFixed(2)}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function skillsTable(rows){
+ if(!rows.length) return emptyState('No skill attribution yet.');
+ let h='<table><tr><th>skill</th><th>invocations</th><th>cost</th><th>$/invocation</th><th></th></tr>';
+ for(const r of rows.slice(0,20)){
+  const perInv=r.cost/(r.invocations||1);
+  h+=`<tr><td>${esc(r.skill)}</td><td class=n>${r.invocations}</td><td class=money>$${r.cost.toFixed(2)}</td>`+
+     `<td class=money>$${perInv.toFixed(3)}</td><td>${r.exact?'<span class=badge title="exact — from Claude Code\\'s native attribution">exact</span>':'<span class=badge title="attributed — heuristic segmentation">attr.</span>'}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function handoffTable(rows){
+ if(!rows.length) return '';
+ let h='<h2>Pair-loop handoff runs</h2><table><tr><th>run</th><th>rounds</th><th>coder $</th><th>reviewer $</th><th>total $</th><th>outcome</th><th>PR</th></tr>';
+ for(const r of rows){
+  h+=`<tr><td class=muted>${esc(r.task||r.run_id)}</td><td class=n>${r.rounds}</td>`+
+     `<td class=money>$${r.coder_cost.toFixed(2)}</td><td class=money>$${r.reviewer_cost.toFixed(2)}</td>`+
+     `<td class=money>$${r.total_cost.toFixed(2)}</td><td>${esc(r.outcome||'—')}</td>`+
+     `<td>${r.pr?('#'+r.pr):'—'}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function suggestionsCard(rows){
+ if(!rows.length) return '';
+ let h='<h2>Suggestions <span class=muted style="text-transform:none;font-weight:400">— ranked by estimated $ impact</span></h2><ul style="padding-left:18px;line-height:1.8">';
+ for(const s of rows){ h+=`<li>${esc(s.message)} <span class=muted>(~$${s.impact_usd.toFixed(2)})</span></li>`; }
+ return h+'</ul>';
+}
+function stackedByModel(d){
+ const days=d.by_day.map(r=>r[0]); if(!days.length) return emptyState('No dated cost yet.');
+ const W=520,H=200,PL=46,PB=30,PR=28,PT=20;
+ // Per-day-per-model split isn't shipped to the client to keep payload small
+ // (the by_model legend still reflects exact totals) — this chart shows the
+ // RELATIVE daily shape of total token volume as a proxy for daily cost.
+ const totalByDay=d.by_day.map(r=>r[1].input+r[1].output+r[1].cache_read+r[1].cache_write);
+ const maxT=Math.max(...totalByDay,1); const X=i=>PL+(W-PL-PR)*i/Math.max(days.length-1,1);
+ const Y=v=>H-PB-(H-PB-PT)*v/maxT;
+ const path=`M${days.map((day,i)=>`${X(i)},${Y(totalByDay[i])}`).join(' L')}`;
+ const area=`${path} L${X(days.length-1)},${H-PB} L${X(0)},${H-PB} Z`;
+ const tickAttrs='fill="var(--muted)" font-size="11"';
+ const xLabels=`<text x="${PL}" y="${H-2}" ${tickAttrs}>${esc(days[0].slice(5))}</text>`+
+   (days.length>1?`<text x="${W-PR}" y="${H-2}" ${tickAttrs} text-anchor="end">${esc(days[days.length-1].slice(5))}</text>`:'');
+ return svgEl(W,H,`<path d="${area}" fill="var(--cost)" fill-opacity=".18"/><path d="${path}" fill="none" stroke="var(--cost)" stroke-width="2"/>${xLabels}`,
+   'Daily total token volume over time (shape proxy for cost)');
+}
 function toolBadge(t){const m={'claude-code':'CC','codex':'CX'}; return `<span class=badge title="${esc(t||'unknown')}">${esc(m[t]||'?')}</span>`;}
 function dirsTable(dirs){
  let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— cost (amber) × value shipped (green); — = no local token data for that tool</span></h2>`;
@@ -514,6 +604,21 @@ function render(d){
    <section><h2>Token-purpose split</h2>${purposeSplit(d.totals)}${legend()}</section>
    <section><h2>Cost by directory</h2>${costByDir(d.directories||[])}</section>
  </div>`;
+ h+=`<section style="margin-bottom:24px"><h2>Budget</h2>
+   ${d.budget.daily.limit==null&&d.budget.weekly.limit==null
+     ? '<p class=muted>No budget configured — add "budget" to ~/.100xprism/config.json.</p>'
+     : budgetBar(d.budget.daily,'today')+budgetBar(d.budget.weekly,'last 7 days')}
+   ${d.fallback_pct?`<p class=muted style="margin-top:8px">${d.fallback_pct}% of spend priced at fallback (unrecognized model) rates.</p>`:''}
+ </section>`;
+ h+=`<div class=cards2>
+   <section><h2>Spend by purpose</h2>${donut(t)}${legend()}</section>
+   <section><h2>Daily volume</h2>${stackedByModel(d)}</section>
+ </div>`;
+ h+=handoffTable(d.handoff_runs||[]);
+ h+=`<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— top 50 by cost, last 30 days</span></h2>${sessionsTable(d.by_session||[])}`;
+ h+=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— "exact" from Claude Code's native attribution, "attr." from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[])}`;
+ h+=`<h2>Main vs subagent</h2><p>main $${(d.main_subagent_split.main_cost||0).toFixed(2)} · subagent $${(d.main_subagent_split.subagent_cost||0).toFixed(2)}</p>`;
+ h+=suggestionsCard(d.suggestions||[]);
  h+=dirsTable(d.directories||[]);
  h+=`<h2>Startup bloat — fixed context re-sent every turn</h2>
    <div class=meter><b style="width:${mw}%;background:${mw>30?'var(--cw)':'var(--cr)'}"></b>
@@ -543,7 +648,7 @@ function render(d){
  document.getElementById('app').innerHTML=h;
 }
 load();
-setInterval(load, 300000);  // auto-refresh every 5 min so the tab never goes stale
+setInterval(load, 30000);  // auto-refresh every 30s — matches the server's 30s rescan cadence
 document.addEventListener('mousemove',e=>{const el=e.target.closest('[data-tip]');const tip=document.getElementById('tip');
   if(el){tip.textContent=el.getAttribute('data-tip');tip.style.display='block';
     let x=e.clientX+12,y=e.clientY+12;tip.style.left=Math.min(x,innerWidth-tip.offsetWidth-8)+'px';tip.style.top=y+'px';}

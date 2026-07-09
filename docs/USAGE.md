@@ -423,8 +423,31 @@ It breaks usage into the four token "purposes" — **input**, **output**,
 shows a **startup-bloat meter** (the fixed context re-sent every turn) plus
 per-project / per-model / per-day breakdowns, **every directory you build in**
 (token-spend dirs plus agentic projects discovered machine-wide via marker files),
-and **value vs cost** charts. The first run scans all transcripts; later runs use an
-incremental cache.
+and **value vs cost** charts. Cost tracking covers both Claude Code and Codex CLI
+sessions, priced per-model (`scripts/pricing.py`). The first run scans all
+transcripts; later runs use an incremental cache. The page auto-refreshes every
+30s.
+
+It also shows top sessions and skills by cost, a main-vs-subagent cost split, and
+a **suggestions panel** — rule-based, offline cost-reduction tips ranked by
+estimated $ impact (e.g. trimming fixed startup context, or skills with a high
+$/invocation).
+
+**Budgets.** Add a `budget` section to `~/.100xprism/config.json` to get a budget
+bar in the dashboard, a `⚠`/`‼` glyph in the `--oneline` shell summary, and a
+native OS notification the first time a period crosses 80%/100%:
+
+```json
+{
+  "budget": {
+    "daily_usd": 25,
+    "weekly_usd": 150,
+    "per_run_usd": null
+  }
+}
+```
+
+All keys default to `null` (no limit — the feature is inert until you set one).
 
 To shrink token spend, audit your installed plugins/skills/MCP servers for
 duplication and trim the fixed context — see
