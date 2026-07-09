@@ -22,7 +22,7 @@ PROJECTS_DIR = os.path.join(HOME, ".claude", "projects")
 
 STORE_DIR = os.path.join(HOME, ".100xprism")
 STORE_PATH = os.path.join(STORE_DIR, "value.json")
-STORE_VERSION = 2
+STORE_VERSION = 3
 
 # The dashboard turns a transcript dir like "-Users-rajit-foo-bar" into a label.
 _HOME_DASH = HOME.replace("/", "-") + "-"  # e.g. "-Users-rajit-"
@@ -100,6 +100,7 @@ def resolve_real_dir(mangled_dirname, root="/"):
 # ----------------------------------------------------------------- git value
 
 _PR_RE = re.compile(r"\(#\d+\)")
+_PR_NUM_RE = re.compile(r"#(\d+)")
 
 
 def _git(repo, *a, timeout=10):
@@ -113,6 +114,47 @@ def git_head(repo):
         return r.stdout.strip() if r.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def _merged_prs(repo, start, end):
+    """PR numbers from real merge commits within the window (the --no-merges log
+    used for `subjects` excludes these, so this is a separate pass). Merge-commit
+    subjects look like "Merge pull request #7 from x/feature" — no parens around
+    the number, so this uses the bare _PR_NUM_RE."""
+    args = ["log", "--merges", "--pretty=%s"]
+    if start:
+        args.append(f"--since={start} 00:00:00")
+    if end:
+        args.append(f"--until={end} 23:59:59")
+    try:
+        subjects = [s for s in _git(repo, *args).stdout.splitlines() if s]
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    numbers = set()
+    for s in subjects:
+        m = _PR_NUM_RE.search(s)
+        if m:
+            numbers.add(m.group(1))
+    return numbers
+
+
+def _release_tags(repo, start, end):
+    """Tags created within the window (best-effort: uses tag *creation* date via
+    for-each-ref, not commit date)."""
+    try:
+        r = _git(repo, "for-each-ref", "refs/tags", "--sort=-creatordate",
+                 "--format=%(creatordate:short) %(refname:short)")
+    except (OSError, subprocess.SubprocessError):
+        return []
+    tags = []
+    for line in r.stdout.splitlines():
+        parts = line.split(" ", 1)
+        if len(parts) != 2:
+            continue
+        date, name = parts
+        if (not start or date >= start) and (not end or date <= end):
+            tags.append(name)
+    return tags
 
 
 def git_value(repo, start, end):
@@ -140,13 +182,23 @@ def git_value(repo, start, end):
                 files.add(path)
                 ins += int(a) if a.isdigit() else 0
                 dele += int(d) if d.isdigit() else 0
+        # Squash-merge subjects look like "Title (#42)" (GitHub's squash-and-merge
+        # button convention) — require the parens via _PR_RE before extracting the
+        # number, so a plain issue reference like "fix: resolve #100 for real"
+        # inside a regular commit subject is NOT miscounted as a merged PR.
+        squash_prs = {_PR_NUM_RE.search(m.group()).group(1)
+                      for s in subjects for m in [_PR_RE.search(s)] if m}
+        merge_prs = _merged_prs(repo, start, end)
+        merged_pr_numbers = squash_prs | merge_prs
+        releases = _release_tags(repo, start, end)
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
     return {
         "commits": len(subjects),
-        "prs": sum(1 for s in subjects if _PR_RE.search(s)),
+        "prs": len(merged_pr_numbers),
         "files": len(files), "insertions": ins, "deletions": dele,
         "subjects": subjects[:5],
+        "releases": releases,
     }
 
 
@@ -184,7 +236,7 @@ def fs_value(directory, start, end):
 def _empty_value():
     return {"kind": "none", "commits": 0, "prs": 0, "files": 0,
             "insertions": 0, "deletions": 0, "subjects": [], "fs_files": 0,
-            "summary": None}
+            "releases": [], "summary": None}
 
 
 def dir_value(real_dir, label, tool, start, end):
