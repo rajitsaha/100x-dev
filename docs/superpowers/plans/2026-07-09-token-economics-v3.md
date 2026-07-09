@@ -2425,9 +2425,12 @@ def _cache_hygiene(data):
     if inp + cr == 0:
         return None
     share = cr / (inp + cr)
-    if share >= 0.70:
+    if share >= 0.50:
         return None
-    impact = inp * 0.013 / 1  # rough $/token delta between input and cache-read rates
+    # Rough $/1K-token delta between the input rate and the cache-read rate
+    # (~$13/1M is close to the Opus-tier gap in pricing.py) — not a per-model
+    # exact figure, just a proxy to rank this suggestion against the others.
+    impact = inp * 0.013 / 1000
     return Suggestion(impact, f"Cache reads are only {share*100:.0f}% of input volume — "
                        f"longer-lived sessions and stable system prompts raise this and "
                        f"cut cost per turn.")
