@@ -75,6 +75,49 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         self.assertEqual(s["by_skill"]["/model"]["input"], 30)
         self.assertNotIn("/model", s["skill_exact"])
 
+    def test_attribution_skill_interrupts_marker_segment_then_marker_resumes(self):
+        # A `<command-name>` marker opens a boundary-heuristic segment. A line
+        # with a real `attributionSkill` in the middle of that segment must be
+        # credited exactly to its own skill (not the marker), and must NOT
+        # clear the carried-forward marker state — the marker resumes crediting
+        # on the next line that has no attributionSkill and no new marker.
+        path = self._write([
+            _line("user", "<command-name>/model</command-name>\n<command-message>model</command-message>"),
+            _line("assistant", "switched model", usage={"input_tokens": 30, "output_tokens": 3,
+                                                          "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}),
+            _line("assistant", "invoking skill", usage={"input_tokens": 200, "output_tokens": 20,
+                                                          "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+                  attribution_skill="superpowers:brainstorming"),
+            _line("assistant", "back to model work", usage={"input_tokens": 15, "output_tokens": 2,
+                                                              "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}),
+        ])
+        s = claude_code.parse_file(path)
+        # exact-attribution line goes only to its own skill's bucket
+        self.assertEqual(s["by_skill"]["superpowers:brainstorming"]["input"], 200)
+        self.assertIn("superpowers:brainstorming", s["skill_exact"])
+        # the marker's bucket is unaffected by the attributionSkill line's usage
+        # and resumes on the line after it: 30 (before) + 15 (after) = 45
+        self.assertEqual(s["by_skill"]["/model"]["input"], 45)
+        self.assertNotIn("/model", s["skill_exact"])
+
+    def test_two_command_markers_in_sequence_second_marker_takes_over(self):
+        # Two different `<command-name>` markers appear one after another;
+        # usage after the second marker must go to the second marker's key,
+        # not leak into the first marker's bucket.
+        path = self._write([
+            _line("user", "<command-name>/model</command-name>\n<command-message>model</command-message>"),
+            _line("assistant", "switched model", usage={"input_tokens": 10, "output_tokens": 1,
+                                                          "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}),
+            _line("user", "<command-name>/commit</command-name>\n<command-message>commit</command-message>"),
+            _line("assistant", "committing", usage={"input_tokens": 25, "output_tokens": 4,
+                                                      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}),
+        ])
+        s = claude_code.parse_file(path)
+        self.assertEqual(s["by_skill"]["/model"]["input"], 10)
+        self.assertEqual(s["by_skill"]["/commit"]["input"], 25)
+        self.assertNotIn("/commit", s["skill_exact"])
+        self.assertNotIn("/model", s["skill_exact"])
+
     def test_by_day_model_breakdown(self):
         path = self._write([
             _line("assistant", "x", usage={"input_tokens": 10, "output_tokens": 1,
