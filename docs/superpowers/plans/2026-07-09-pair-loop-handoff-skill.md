@@ -292,6 +292,7 @@ import subprocess
 from collections import namedtuple
 
 ReviewResult = namedtuple("ReviewResult", "output session_id fallback_used")
+_SUPPORTED_TOOLS = ("codex", "claude")
 
 
 def _which(name):
@@ -315,6 +316,11 @@ def _default_run_command(cmd, prompt, cwd, timeout):
 def invoke(tool, prompt, cwd, timeout=600, run_command=None):
     """Invoke `tool` as the reviewer. Falls back to the other supported vendor
     if `tool`'s CLI is missing from PATH."""
+    if tool not in _SUPPORTED_TOOLS:
+        # Validate BEFORE any fallback logic — otherwise an unsupported tool
+        # name with no CLI on PATH silently gets substituted into "codex" by
+        # the fallback branch below instead of raising.
+        raise ValueError(f"unsupported reviewer tool: {tool!r}")
     run_command = run_command or _default_run_command
     actual_tool = tool
     fallback_used = False
