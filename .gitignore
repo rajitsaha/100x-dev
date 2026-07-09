@@ -4,3 +4,4 @@
 .playwright-mcp/
 __pycache__/
 *.pyc
+HANDOFF.md
