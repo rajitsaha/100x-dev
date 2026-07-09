@@ -146,11 +146,16 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(rows[0].output, 2)
         self.assertEqual(rows[0].tool, "claude-code")
 
-    def test_codex_stub_empty_without_sessions(self):
+    def test_codex_scan_empty_without_sessions(self):
         import importlib
         cx = importlib.import_module("adapters.codex")
-        # No ~/.codex/sessions on CI → yields nothing, never raises.
-        self.assertEqual(list(cx.iter_usage()), [])
+        # No ~/.codex/sessions → scan() returns [] gracefully, never raises.
+        orig = cx.SOURCE_DIR
+        cx.SOURCE_DIR = "/nonexistent/path/xyz"
+        try:
+            self.assertEqual(cx.scan(verbose=False), [])
+        finally:
+            cx.SOURCE_DIR = orig
 
 
 class DirectoriesShapeTest(unittest.TestCase):
