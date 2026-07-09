@@ -4,6 +4,7 @@
 Run: python3 scripts/test_value.py
 """
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -423,6 +424,52 @@ class TestMergedPRsAndReleases(unittest.TestCase):
 
     def test_empty_value_has_releases_key(self):
         self.assertEqual(_value._empty_value()["releases"], [])
+
+
+class TestBuildIntegration(unittest.TestCase):
+    """Exercises build() against a fake ~/.claude/projects tree (claude_code
+    adapter only — codex.scan() safely returns [] when ~/.codex/sessions is
+    absent in the test's patched HOME)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.proj_dir = os.path.join(self.tmp, "claude", "projects", "-Users-x-proj")
+        os.makedirs(self.proj_dir)
+        session = {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": "done",
+                        "model": "claude-sonnet-4-5-20251001",
+                        "usage": {"input_tokens": 1000, "output_tokens": 200,
+                                  "cache_read_input_tokens": 100, "cache_creation_input_tokens": 0}},
+            "sessionId": "sess-abc", "timestamp": "2026-07-09T10:00:00Z",
+            "isSidechain": False,
+        }
+        with open(os.path.join(self.proj_dir, "sess-abc.jsonl"), "w") as f:
+            f.write(json.dumps(session) + "\n")
+
+        import adapters.claude_code as claude_code
+        import adapters.codex as codex
+        self.claude_code = claude_code
+        self.codex = codex
+        self._orig_source = claude_code.SOURCE_DIR
+        self._orig_cache = claude_code.CACHE_FILE
+        self._orig_codex_source = codex.SOURCE_DIR
+        claude_code.SOURCE_DIR = os.path.join(self.tmp, "claude", "projects")
+        claude_code.CACHE_FILE = os.path.join(self.tmp, "cc-cache.json")
+        codex.SOURCE_DIR = os.path.join(self.tmp, "nonexistent-codex")
+
+    def tearDown(self):
+        self.claude_code.SOURCE_DIR = self._orig_source
+        self.claude_code.CACHE_FILE = self._orig_cache
+        self.codex.SOURCE_DIR = self._orig_codex_source
+
+    def test_build_produces_by_session_and_by_skill_and_split(self):
+        data = td.build(verbose=False)
+        self.assertTrue(any(s["session_id"] == "sess-abc" for s in data["by_session"]))
+        self.assertIn("main_subagent_split", data)
+        self.assertGreaterEqual(data["main_subagent_split"]["main_cost"], 0)
+        self.assertIn("fallback_pct", data)
+        self.assertGreater(data["total_cost"], 0)
 
 
 if __name__ == "__main__":
