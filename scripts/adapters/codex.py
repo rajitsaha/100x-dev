@@ -4,10 +4,16 @@ Codex cost adapter — parses ~/.codex/sessions/**/rollout-*.jsonl.
 Verified against a real Codex CLI (v0.142.5) rollout on 2026-07-09: each file is
 one session, containing `session_meta` (session_id, cwd), `turn_context`
 (per-turn `model`), and `event_msg`/`token_count` events whose
-`info.total_token_usage` is a CUMULATIVE running total for the session (confirmed
-monotonically non-decreasing across consecutive events in the sample file). Per-
-event token counts are therefore deltas between consecutive readings, not the
-readings themselves.
+`info.total_token_usage` is a CUMULATIVE running total for the session (non-
+decreasing across consecutive events in the sample file — but that was a
+single 6-event sample, not a documented API guarantee). Per-event token counts
+are therefore deltas between consecutive readings, not the readings
+themselves — EXCEPT when a reading's counter is lower than the previous one
+(e.g. a context-compaction event resetting `total_token_usage` mid-session),
+in which case that reading is treated as a fresh baseline and its own
+cumulative values are credited directly, rather than computing a negative
+delta against the stale pre-reset baseline (which would silently discard real
+usage via clamping).
 
 Codex/OpenAI's cache accounting folds cached tokens INTO `input_tokens` (unlike
 Claude Code's separate cache_read, which is additional to input) — so `input`
@@ -84,7 +90,18 @@ def parse_file(path):
         cum = (payload.get("info") or {}).get("total_token_usage")
         if not isinstance(cum, dict):
             continue
-        if prev_cum is None:
+        is_reset = prev_cum is not None and (
+            cum.get("input_tokens", 0) < prev_cum.get("input_tokens", 0)
+            or cum.get("cached_input_tokens", 0) < prev_cum.get("cached_input_tokens", 0)
+            or cum.get("output_tokens", 0) < prev_cum.get("output_tokens", 0)
+        )
+        if prev_cum is None or is_reset:
+            # No prior baseline, or the cumulative counter went DOWN (e.g. a
+            # context-compaction event reset total_token_usage mid-session).
+            # A negative delta against a stale pre-reset baseline is
+            # nonsensical and would be silently clamped to 0, discarding real
+            # usage — so treat this reading as a fresh baseline instead and
+            # credit its own cumulative values directly.
             d_in_total = cum.get("input_tokens", 0)
             d_cr = cum.get("cached_input_tokens", 0)
             d_out = cum.get("output_tokens", 0)
@@ -93,7 +110,7 @@ def parse_file(path):
             d_cr = cum.get("cached_input_tokens", 0) - prev_cum.get("cached_input_tokens", 0)
             d_out = cum.get("output_tokens", 0) - prev_cum.get("output_tokens", 0)
         prev_cum = cum
-        if d_in_total <= 0 and d_out <= 0 and d_cr <= 0:
+        if not is_reset and d_in_total <= 0 and d_out <= 0 and d_cr <= 0:
             continue  # duplicate/unchanged event (e.g. an end-of-session repeat)
         d_cr = max(d_cr, 0)
         d_in = max(d_in_total - d_cr, 0)

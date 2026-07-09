@@ -27,6 +27,36 @@ def _rollout_lines():
     ]
 
 
+def _reset_rollout_lines():
+    """Simulates a mid-session context-compaction reset: event 2's cumulative
+    values are LOWER than event 1's, then event 3 resumes counting up from
+    event 2's (post-reset) baseline."""
+    return [
+        json.dumps({"timestamp": "2026-07-09T10:00:00.000Z", "type": "session_meta",
+                    "payload": {"session_id": "reset-1", "id": "reset-1",
+                                "cwd": "/Users/x/proj"}}) + "\n",
+        json.dumps({"timestamp": "2026-07-09T10:00:01.000Z", "type": "turn_context",
+                    "payload": {"model": "gpt-5.5"}}) + "\n",
+        # event 1: baseline -> input=800, cache_read=200, output=100
+        json.dumps({"timestamp": "2026-07-09T10:00:05.000Z", "type": "event_msg",
+                    "payload": {"type": "token_count", "info": {"total_token_usage": {
+                        "input_tokens": 1000, "cached_input_tokens": 200,
+                        "output_tokens": 100, "total_tokens": 1100}}}}) + "\n",
+        # event 2: RESET — all three fields drop below event 1's readings.
+        # Should be treated as a new baseline: input=400, cache_read=100, output=50
+        json.dumps({"timestamp": "2026-07-09T10:05:00.000Z", "type": "event_msg",
+                    "payload": {"type": "token_count", "info": {"total_token_usage": {
+                        "input_tokens": 500, "cached_input_tokens": 100,
+                        "output_tokens": 50, "total_tokens": 550}}}}) + "\n",
+        # event 3: deltas against event 2's (post-reset) baseline, NOT event 1's.
+        # input=max((900-500)-(300-100),0)=200, cache_read=300-100=200, output=120-50=70
+        json.dumps({"timestamp": "2026-07-09T10:06:00.000Z", "type": "event_msg",
+                    "payload": {"type": "token_count", "info": {"total_token_usage": {
+                        "input_tokens": 900, "cached_input_tokens": 300,
+                        "output_tokens": 120, "total_tokens": 1200}}}}) + "\n",
+    ]
+
+
 class TestCodexAdapter(unittest.TestCase):
     def _write(self, lines):
         fd, path = tempfile.mkstemp(suffix=".jsonl")
@@ -43,6 +73,28 @@ class TestCodexAdapter(unittest.TestCase):
         self.assertEqual(s["totals"]["input"], 800 + 1000)
         self.assertEqual(s["totals"]["output"], 100 + 150)
         self.assertEqual(s["totals"]["cache_write"], 0)
+
+    def test_cumulative_counter_reset_treated_as_new_baseline(self):
+        s = codex.parse_file(self._write(_reset_rollout_lines()))
+        totals = s["totals"]
+
+        # (a) no negative numbers anywhere in totals
+        for key, val in totals.items():
+            self.assertGreaterEqual(val, 0, f"{key} went negative: {val}")
+
+        # (b) the reset event's tokens are still counted, not clamped to 0:
+        #     event1 (800/200/100) + event2-as-new-baseline (400/100/50)
+        #     + event3-vs-event2 (200/200/70)
+        self.assertEqual(totals["input"], 800 + 400 + 200)
+        self.assertEqual(totals["cache_read"], 200 + 100 + 200)
+        self.assertEqual(totals["output"], 100 + 50 + 70)
+
+        # (c) event 3 deltas against event 2's (post-reset) baseline, not
+        #     event 1's pre-reset baseline — verified implicitly by the exact
+        #     totals above (a delta against event 1 would give different,
+        #     larger numbers for input/output and wrongly-clamped negatives
+        #     for cache_read).
+        self.assertEqual(s["msgs"], 3)
 
     def test_session_metadata_captured(self):
         s = codex.parse_file(self._write(_rollout_lines()))
