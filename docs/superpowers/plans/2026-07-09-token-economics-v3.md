@@ -560,7 +560,13 @@ def parse_file(path):
     by_skill = defaultdict(_empty)
     skill_invocations = defaultdict(int)
     skill_exact = set()
-    prev_skill = None
+    # Boundary-heuristic state: the last `<command-name>` marker seen carries
+    # forward across lines (no explicit "end" marker exists), until a new
+    # marker or a real attributionSkill supersedes it. Real attributionSkill
+    # is NOT carried forward — it's trusted only on the line it actually
+    # appears on, since Claude Code sets it natively per-message while active.
+    current_marker_segment = None
+    prev_attr_skill = None
 
     for line in open(path, errors="ignore"):
         try:
@@ -572,7 +578,6 @@ def parse_file(path):
         if session_id is None:
             session_id = o.get("sessionId") or o.get("session_id")
         m = o.get("message")
-        role = ""
         if isinstance(m, dict):
             role = m.get("role") or o.get("type") or ""
             _classify(role, m.get("content"), comp, tool_names)
@@ -582,14 +587,17 @@ def parse_file(path):
         else:
             current_skill_marker = None
 
-        attr_skill = o.get("attributionSkill") or current_skill_marker
+        if current_skill_marker:
+            current_marker_segment = current_skill_marker
+
+        exact_skill = o.get("attributionSkill")
+        attr_skill = exact_skill or current_marker_segment
         if attr_skill:
-            if attr_skill != prev_skill:
+            if attr_skill != prev_attr_skill:
                 skill_invocations[attr_skill] += 1
-            if o.get("attributionSkill"):
+            if exact_skill:
                 skill_exact.add(attr_skill)
-        if current_skill_marker or o.get("attributionSkill"):
-            prev_skill = attr_skill
+        prev_attr_skill = attr_skill
 
         u = m.get("usage") if isinstance(m, dict) else None
         if not isinstance(u, dict):
