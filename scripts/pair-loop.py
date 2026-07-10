@@ -11,6 +11,7 @@ full state machine.
 Subcommands: start, budget-check, coder-done, review, finish.
 """
 import argparse
+import glob
 import json
 import os
 import subprocess
@@ -21,6 +22,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import run_manifest  # noqa: E402
 import handoff  # noqa: E402
+import reviewer  # noqa: E402
 import _config  # noqa: E402
 import _budget  # noqa: E402
 import pricing  # noqa: E402
@@ -71,6 +73,124 @@ def cmd_budget_check(args):
     sys.exit(2 if level == "alert" else 0)
 
 
+CLAUDE_PROJECTS = os.path.join(os.path.expanduser("~"), ".claude", "projects")
+
+
+def _guess_current_claude_session(cwd):
+    """Best-effort: the most-recently-modified transcript file for this cwd's
+    mangled project dir, at the moment this is called."""
+    import _value
+    mangled = _value.mangle_path(os.path.abspath(cwd))
+    proj_dir = os.path.join(CLAUDE_PROJECTS, mangled)
+    files = glob.glob(os.path.join(proj_dir, "*.jsonl"))
+    if not files:
+        return None
+    newest = max(files, key=os.path.getmtime)
+    return os.path.splitext(os.path.basename(newest))[0]
+
+
+def _guess_current_codex_session(before_mtimes):
+    """Best-effort: a Codex rollout file that appeared/changed after
+    `before_mtimes` was snapshotted (see cmd_review)."""
+    paths = glob.glob(os.path.join(codex.SOURCE_DIR, "**", "*.jsonl"), recursive=True)
+    newest, newest_mtime = None, 0
+    for p in paths:
+        try:
+            mt = os.path.getmtime(p)
+        except OSError:
+            continue
+        if mt > before_mtimes.get(p, 0) and mt > newest_mtime:
+            newest, newest_mtime = p, mt
+    if not newest:
+        return None
+    with open(newest, errors="ignore") as f:
+        for line in f:
+            try:
+                o = json.loads(line)
+            except Exception:
+                continue
+            if o.get("type") == "session_meta":
+                payload = o.get("payload") or {}
+                return payload.get("session_id") or payload.get("id")
+    return None
+
+
+def cmd_coder_done(args):
+    manifest = run_manifest.load_manifest(args.run)
+    cwd = manifest["cwd"]
+    session_id = _guess_current_claude_session(cwd) if manifest["coder"] == "claude" else None
+    round_ = run_manifest.add_round(manifest, "coder", manifest["coder"], session_id=session_id)
+    run_manifest.close_round(manifest, round_, findings_addressed=args.findings_addressed)
+    handoff_path = os.path.join(cwd, handoff.HANDOFF_FILENAME)
+    handoff.append_coder_round(handoff_path, round_["n"], manifest["coder"], args.summary)
+    print(json.dumps({"round": round_["n"]}))
+
+
+def _build_review_prompt(cwd, branch, handoff_path):
+    diff = subprocess.run(["git", "diff", branch], cwd=cwd, capture_output=True,
+                          text=True).stdout
+    if os.path.exists(handoff_path):
+        with open(handoff_path, encoding="utf-8") as f:
+            handoff_text = f.read()
+    else:
+        handoff_text = ""
+    return (
+        "You are reviewing a code change as an independent reviewer in a "
+        "coder<->reviewer handoff loop. Read the diff and the prior handoff "
+        "rounds below, then respond with a numbered findings list in the form "
+        "'N. [category] file:line — description' (omit file:line if not "
+        "applicable), followed by a final line that is EXACTLY "
+        "'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'.\n\n"
+        f"=== DIFF vs {branch} ===\n{diff}\n\n=== HANDOFF SO FAR ===\n{handoff_text}\n"
+    )
+
+
+def cmd_review(args):
+    manifest = run_manifest.load_manifest(args.run)
+    cwd = manifest["cwd"]
+    prompt = _build_review_prompt(cwd, manifest["branch"],
+                                  os.path.join(cwd, handoff.HANDOFF_FILENAME))
+
+    run_command = None
+    if args.reviewer_cmd:
+        fixed_cmd = json.loads(args.reviewer_cmd)
+
+        def run_command(cmd, prompt, cwd, timeout):
+            r = subprocess.run(fixed_cmd, input=prompt, cwd=cwd, capture_output=True,
+                              text=True, timeout=timeout)
+            return r.stdout
+
+    codex_before = {p: os.path.getmtime(p) for p in
+                    glob.glob(os.path.join(codex.SOURCE_DIR, "**", "*.jsonl"), recursive=True)} \
+        if os.path.isdir(codex.SOURCE_DIR) else {}
+
+    result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command)
+    verdict = handoff.parse_verdict(result.output)
+    if verdict is None:
+        # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
+        retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
+        result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command)
+        verdict = handoff.parse_verdict(result.output)
+    findings = handoff.parse_findings(result.output)
+    if verdict is None:
+        verdict = "CHANGES_REQUESTED"
+        findings = findings or [{"n": 1, "category": "process",
+                                  "location": "", "text": "reviewer produced no parseable verdict"}]
+
+    actual_tool = manifest["reviewer"]
+    if result.fallback_used:
+        actual_tool = "claude" if manifest["reviewer"] == "codex" else "codex"
+        manifest["reviewer_fallback"] = True
+
+    session_id = (_guess_current_codex_session(codex_before) if actual_tool == "codex"
+                  else _guess_current_claude_session(cwd))
+    round_ = run_manifest.add_round(manifest, "reviewer", actual_tool, session_id=session_id)
+    run_manifest.close_round(manifest, round_, findings=len(findings), verdict=verdict)
+    handoff.append_reviewer_round(os.path.join(cwd, handoff.HANDOFF_FILENAME),
+                                  round_["n"], actual_tool, findings, verdict)
+    print(json.dumps({"verdict": verdict, "findings": findings, "fallback_used": result.fallback_used}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="command", required=True)
@@ -83,6 +203,18 @@ def main():
     p_budget = sub.add_parser("budget-check")
     p_budget.add_argument("--run", required=True)
     p_budget.set_defaults(func=cmd_budget_check)
+
+    p_coder_done = sub.add_parser("coder-done")
+    p_coder_done.add_argument("--run", required=True)
+    p_coder_done.add_argument("--summary", required=True)
+    p_coder_done.add_argument("--findings-addressed", type=int, default=0)
+    p_coder_done.set_defaults(func=cmd_coder_done)
+
+    p_review = sub.add_parser("review")
+    p_review.add_argument("--run", required=True)
+    p_review.add_argument("--reviewer-cmd", default=None,
+                          help="JSON array override for testing (bypasses codex/claude auto-detect)")
+    p_review.set_defaults(func=cmd_review)
 
     args = ap.parse_args()
     args.func(args)
