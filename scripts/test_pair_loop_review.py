@@ -184,6 +184,77 @@ class TestPairLoopReview(unittest.TestCase):
             calls = [l for l in f.read().splitlines() if l]
         self.assertEqual(len(calls), 1, "a parseable first verdict must not trigger a re-ask")
 
+    def test_review_prompt_includes_untracked_file_content(self):
+        """`git diff <branch>` never includes untracked (not-yet-`git add`-ed)
+        files, but modules/pair-loop/SKILL.md explicitly tells the coder not
+        to commit until Step 5 — so a coder round that adds a brand-new file
+        (new test, new module) leaves it untracked for the whole loop. The
+        reviewer must still see that file's content, not silently review a
+        diff that omits it entirely. Verified indirectly: a stub reviewer
+        script that `cat`s its stdin (the full prompt) to a file, so the test
+        can assert the untracked file's distinctive content made it through."""
+        r = self._run("start", "--task", "x")
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        with open(os.path.join(self.repo, "brand_new_module.py"), "w") as f:
+            f.write("DISTINCTIVE_UNTRACKED_MARKER_12345\n")
+
+        captured_prompt = os.path.join(self.repo, "captured_prompt.txt")
+        echo_reviewer = os.path.join(self.repo, "echo-reviewer.sh")
+        with open(echo_reviewer, "w") as f:
+            f.write(
+                "#!/usr/bin/env bash\n"
+                f"cat > {captured_prompt}\n"
+                "echo 'VERDICT: APPROVED'\n"
+            )
+        os.chmod(echo_reviewer, 0o755)
+
+        r2 = self._run("review", "--run", run_id, "--reviewer-cmd",
+                       json.dumps(["bash", echo_reviewer]))
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+
+        with open(captured_prompt, encoding="utf-8") as f:
+            prompt_seen = f.read()
+        self.assertIn("brand_new_module.py", prompt_seen)
+        self.assertIn("DISTINCTIVE_UNTRACKED_MARKER_12345", prompt_seen)
+
+    def test_coder_done_captures_codex_session_id_for_codex_coder(self):
+        """When pair_loop.coder is configured as 'codex' (a supported,
+        documented role swap), coder-done must populate round session_id via
+        the newest-Codex-session-file heuristic — not always store None,
+        which would force every codex-as-coder round onto the (approximate)
+        time-window cost fallback."""
+        home = self.env["HOME"]
+        os.makedirs(os.path.join(home, ".100xprism"), exist_ok=True)
+        with open(os.path.join(home, ".100xprism", "config.json"), "w") as f:
+            json.dump({"pair_loop": {"coder": "codex", "reviewer": "claude"}}, f)
+
+        codex_sessions_dir = os.path.join(home, ".codex", "sessions")
+        os.makedirs(codex_sessions_dir, exist_ok=True)
+        with open(os.path.join(codex_sessions_dir, "rollout-test.jsonl"), "w") as f:
+            f.write(json.dumps({"type": "session_meta",
+                                "payload": {"session_id": "codex-coder-session-xyz"}}) + "\n")
+
+        r = self._run("start", "--task", "x")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        run_id = json.loads(r.stdout)["run_id"]
+
+        r2 = self._run("coder-done", "--run", run_id, "--summary", "done")
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+
+        sys.path.insert(0, HERE)
+        import run_manifest
+        orig = run_manifest.RUNS_DIR
+        run_manifest.RUNS_DIR = os.path.join(home, ".100xprism", "handoff-runs")
+        try:
+            manifest = run_manifest.load_manifest(run_id)
+        finally:
+            run_manifest.RUNS_DIR = orig
+
+        self.assertEqual(manifest["coder"], "codex")
+        self.assertEqual(manifest["rounds"][0]["session_id"], "codex-coder-session-xyz")
+
 
 class TestSessionGuessing(unittest.TestCase):
     """Direct unit tests for the fuzzy session-id detection helpers. These

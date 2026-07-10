@@ -118,12 +118,58 @@ def _guess_current_codex_session(before_mtimes):
 def cmd_coder_done(args):
     manifest = run_manifest.load_manifest(args.run)
     cwd = manifest["cwd"]
-    session_id = _guess_current_claude_session(cwd) if manifest["coder"] == "claude" else None
+    if manifest["coder"] == "claude":
+        session_id = _guess_current_claude_session(cwd)
+    elif manifest["coder"] == "codex":
+        # The coder's actual work happens between the previous CLI call and
+        # this one, driven by the calling agent — not by this process — so
+        # there's no "before" snapshot to take here the way cmd_review takes
+        # `codex_before` right before invoking the reviewer subprocess.
+        # Best-effort fallback: reuse _guess_current_codex_session with an
+        # empty before-snapshot, which picks the single newest Codex session
+        # file for this machine. Correct for the common single-active-session
+        # case; could misattribute if multiple Codex sessions are running
+        # concurrently in the same directory.
+        session_id = _guess_current_codex_session({})
+    else:
+        session_id = None
     round_ = run_manifest.add_round(manifest, "coder", manifest["coder"], session_id=session_id)
     run_manifest.close_round(manifest, round_, findings_addressed=args.findings_addressed)
     handoff_path = os.path.join(cwd, handoff.HANDOFF_FILENAME)
     handoff.append_coder_round(handoff_path, round_["n"], manifest["coder"], args.summary)
     print(json.dumps({"round": round_["n"]}))
+
+
+MAX_UNTRACKED_FILE_BYTES = 200_000  # guard against dumping something absurd (data file, lockfile) into the prompt
+
+
+def _build_untracked_sections(cwd):
+    """`git diff <branch>` never includes untracked (new, not-yet-`git add`-ed)
+    files — but the pair-loop workflow explicitly tells the coder not to
+    commit until the run finishes, so brand-new files stay untracked for the
+    whole loop. Without this, the reviewer could approve a round having never
+    seen a new file's contents at all. Show each untracked file's full
+    current content (there's no "before" to diff against). Skip binaries and
+    huge files gracefully rather than erroring the whole review out."""
+    result = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"],
+                            cwd=cwd, capture_output=True, text=True)
+    sections = []
+    for rel_path in result.stdout.splitlines():
+        if not rel_path:
+            continue
+        abs_path = os.path.join(cwd, rel_path)
+        try:
+            if os.path.getsize(abs_path) > MAX_UNTRACKED_FILE_BYTES:
+                sections.append(f"=== NEW (untracked) FILE: {rel_path} ===\n"
+                                 f"[skipped — {os.path.getsize(abs_path)} bytes, over the "
+                                 f"{MAX_UNTRACKED_FILE_BYTES}-byte review limit]\n")
+                continue
+            with open(abs_path, encoding="utf-8") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        sections.append(f"=== NEW (untracked) FILE: {rel_path} ===\n{content}\n")
+    return sections
 
 
 def _build_review_prompt(cwd, branch, handoff_path):
@@ -132,6 +178,8 @@ def _build_review_prompt(cwd, branch, handoff_path):
     if result.returncode != 0:
         raise RuntimeError(f"git diff against '{branch}' failed: {result.stderr.strip()}")
     diff = result.stdout
+    untracked_sections = _build_untracked_sections(cwd)
+    untracked_text = "\n".join(untracked_sections)
     if os.path.exists(handoff_path):
         with open(handoff_path, encoding="utf-8") as f:
             handoff_text = f.read()
@@ -139,12 +187,15 @@ def _build_review_prompt(cwd, branch, handoff_path):
         handoff_text = ""
     return (
         "You are reviewing a code change as an independent reviewer in a "
-        "coder<->reviewer handoff loop. Read the diff and the prior handoff "
-        "rounds below, then respond with a numbered findings list in the form "
+        "coder<->reviewer handoff loop. Read the diff, any new untracked "
+        "files, and the prior handoff rounds below, then respond with a "
+        "numbered findings list in the form "
         "'N. [category] file:line — description' (omit file:line if not "
         "applicable), followed by a final line that is EXACTLY "
         "'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'.\n\n"
-        f"=== DIFF vs {branch} ===\n{diff}\n\n=== HANDOFF SO FAR ===\n{handoff_text}\n"
+        f"=== DIFF vs {branch} ===\n{diff}\n\n"
+        + (f"{untracked_text}\n\n" if untracked_text else "")
+        + f"=== HANDOFF SO FAR ===\n{handoff_text}\n"
     )
 
 

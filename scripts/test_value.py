@@ -494,6 +494,31 @@ class TestBuildIntegration(unittest.TestCase):
         finally:
             rm.RUNS_DIR = orig_runs_dir
 
+    def test_build_skips_manifest_with_null_outcome_instead_of_crashing(self):
+        """Codex CLI review finding: a manifest with `"outcome": null` is
+        valid JSON and has the "outcome" key (so no KeyError), but
+        `manifest["outcome"].get(...)` in _build_handoff_runs raises
+        AttributeError on None. The original `except (OSError, ValueError,
+        KeyError)` didn't catch that, crashing the whole dashboard build over
+        one bad manifest. Must be skipped instead."""
+        import run_manifest as rm
+        orig_runs_dir = rm.RUNS_DIR
+        runs_tmp = tempfile.mkdtemp()
+        rm.RUNS_DIR = runs_tmp  # isolate from the real ~/.100xprism/handoff-runs
+        try:
+            malformed = {
+                "v": 1, "run_id": "null-outcome-run", "task": "t", "cwd": "/x",
+                "branch": "b", "pr": None, "coder": "claude", "reviewer": "codex",
+                "reviewer_fallback": False, "rounds": [],
+                "outcome": None,  # present but null -> AttributeError on .get()
+            }
+            with open(os.path.join(runs_tmp, "null-outcome-run.json"), "w") as f:
+                json.dump(malformed, f)
+            data = td.build(verbose=False)  # must not raise
+            self.assertNotIn("null-outcome-run", [r["run_id"] for r in data["handoff_runs"]])
+        finally:
+            rm.RUNS_DIR = orig_runs_dir
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

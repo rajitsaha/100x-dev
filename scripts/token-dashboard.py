@@ -257,10 +257,11 @@ def _build_handoff_runs(all_summaries):
                 "pr": manifest.get("pr"), "merged": manifest["outcome"].get("merged"),
                 "final_round_findings": final_findings,
             })
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError, AttributeError, TypeError):
             # A structurally-valid-JSON-but-schema-incomplete manifest (e.g.
-            # missing "rounds"/"outcome") must not take down the whole
-            # dashboard build — skip just that one run.
+            # missing "rounds"/"outcome", or a null "outcome" — `.get()` on
+            # None raises AttributeError, not KeyError) must not take down
+            # the whole dashboard build — skip just that one run.
             continue
     rows.sort(key=lambda r: -r["total_cost"])
     return rows
