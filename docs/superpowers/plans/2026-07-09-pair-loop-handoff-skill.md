@@ -1179,6 +1179,13 @@ class TestPairLoopIntegration(unittest.TestCase):
         # verify the data the agent would check on is present and correct.
         self.assertEqual(manifest["rounds"][-1]["n"], 2)
         self.assertEqual(manifest["rounds"][-1]["verdict"], "CHANGES_REQUESTED")
+        self.assertIsNone(manifest["outcome"]["verdict"])  # finish() never called
+
+        handoff_text = open(os.path.join(self.repo, "HANDOFF.md")).read()
+        self.assertIn("Round 1 — CODER", handoff_text)
+        self.assertIn("Round 2 — CODER", handoff_text)  # proves round 2 didn't clobber round 1
+        self.assertIn("Round 2 — REVIEWER", handoff_text)
+        self.assertEqual(handoff_text.count("VERDICT: CHANGES_REQUESTED"), 2)
 
 
 if __name__ == "__main__":
