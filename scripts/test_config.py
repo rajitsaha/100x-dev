@@ -46,6 +46,23 @@ class TestConfig(unittest.TestCase):
         cfg = _config.load_config()
         self.assertEqual(cfg, {k: dict(v) for k, v in _config.DEFAULTS.items()})
 
+    def test_non_dict_section_value_falls_back_to_default(self):
+        """Important #3 regression: a user config like {"budget": null} — plausible,
+        a user might write this believing it "disables" the section — must not
+        be passed through as-is (that crashes every caller that does
+        cfg["budget"].get(...)). It should silently keep the default dict for
+        that section, consistent with the malformed-whole-file contract."""
+        with open(_config.CONFIG_PATH, "w") as f:
+            json.dump({"budget": None, "pair_loop": {"coder": "codex"}}, f)
+        cfg = _config.load_config()
+        self.assertIsInstance(cfg["budget"], dict)
+        self.assertEqual(cfg["budget"], _config.DEFAULTS["budget"])
+        # unaffected sibling section still applies its override normally
+        self.assertEqual(cfg["pair_loop"]["coder"], "codex")
+        self.assertEqual(cfg["pair_loop"]["reviewer"], "codex")  # untouched default
+        # must not raise when callers do cfg["budget"].get(...)
+        self.assertIsNone(cfg["budget"].get("daily_usd"))
+
 
 if __name__ == "__main__":
     unittest.main()

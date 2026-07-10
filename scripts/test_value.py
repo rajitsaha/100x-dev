@@ -471,6 +471,29 @@ class TestBuildIntegration(unittest.TestCase):
         self.assertIn("fallback_pct", data)
         self.assertGreater(data["total_cost"], 0)
 
+    def test_build_skips_schema_incomplete_manifest_instead_of_crashing(self):
+        """Important #4 regression: a structurally-valid-JSON-but-missing-
+        required-keys manifest (e.g. no "outcome") used to raise an uncaught
+        KeyError deep in _build_handoff_runs, crashing the ENTIRE dashboard
+        build() over one bad manifest file. It must be skipped instead."""
+        import run_manifest as rm
+        orig_runs_dir = rm.RUNS_DIR
+        runs_tmp = tempfile.mkdtemp()
+        rm.RUNS_DIR = runs_tmp  # isolate from the real ~/.100xprism/handoff-runs
+        try:
+            malformed = {
+                "v": 1, "run_id": "broken-run", "task": "t", "cwd": "/x",
+                "branch": "b", "pr": None, "coder": "claude", "reviewer": "codex",
+                "reviewer_fallback": False, "rounds": [],
+                # "outcome" intentionally omitted — schema-incomplete
+            }
+            with open(os.path.join(runs_tmp, "broken-run.json"), "w") as f:
+                json.dump(malformed, f)
+            data = td.build(verbose=False)  # must not raise
+            self.assertNotIn("broken-run", [r["run_id"] for r in data["handoff_runs"]])
+        finally:
+            rm.RUNS_DIR = orig_runs_dir
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

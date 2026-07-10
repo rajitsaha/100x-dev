@@ -246,19 +246,22 @@ def _build_handoff_runs(all_summaries):
     for path in run_manifest.list_manifests():
         try:
             manifest = run_manifest.load_manifest(path)
-        except (OSError, ValueError):
+            cost = run_manifest.run_cost(manifest, all_summaries)
+            reviewer_rounds = [r for r in manifest["rounds"] if r["role"] == "reviewer"]
+            final_findings = reviewer_rounds[-1].get("findings") if reviewer_rounds else None
+            rows.append({
+                "run_id": manifest["run_id"], "task": manifest.get("task", ""),
+                "rounds": manifest["outcome"].get("rounds", 0),
+                "coder_cost": cost["coder"], "reviewer_cost": cost["reviewer"],
+                "total_cost": cost["total"], "outcome": manifest["outcome"].get("verdict"),
+                "pr": manifest.get("pr"), "merged": manifest["outcome"].get("merged"),
+                "final_round_findings": final_findings,
+            })
+        except (OSError, ValueError, KeyError):
+            # A structurally-valid-JSON-but-schema-incomplete manifest (e.g.
+            # missing "rounds"/"outcome") must not take down the whole
+            # dashboard build — skip just that one run.
             continue
-        cost = run_manifest.run_cost(manifest, all_summaries)
-        reviewer_rounds = [r for r in manifest["rounds"] if r["role"] == "reviewer"]
-        final_findings = reviewer_rounds[-1].get("findings") if reviewer_rounds else None
-        rows.append({
-            "run_id": manifest["run_id"], "task": manifest.get("task", ""),
-            "rounds": manifest["outcome"].get("rounds", 0),
-            "coder_cost": cost["coder"], "reviewer_cost": cost["reviewer"],
-            "total_cost": cost["total"], "outcome": manifest["outcome"].get("verdict"),
-            "pr": manifest.get("pr"), "merged": manifest["outcome"].get("merged"),
-            "final_round_findings": final_findings,
-        })
     rows.sort(key=lambda r: -r["total_cost"])
     return rows
 

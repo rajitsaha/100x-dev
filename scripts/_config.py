@@ -32,8 +32,12 @@ def load_config():
     if not isinstance(user, dict):
         return cfg
     for section, values in user.items():
-        if section in cfg and isinstance(values, dict):
-            cfg[section].update(values)
+        if section in cfg:
+            if isinstance(values, dict):
+                cfg[section].update(values)
+            # else: known section with a non-dict value (e.g. `"budget": null`)
+            # -> keep the default dict, consistent with "malformed input never
+            # raises" for the whole-file case.
         else:
             cfg[section] = values
     return cfg

@@ -93,10 +93,12 @@ def _parse_ts(ts):
 
 
 def round_cost(round_, summaries, pricing_mod, cwd=None):
-    """Cost of one round: exact session-id match; else time-window overlap
-    against summaries whose file mtime falls inside [started, ended] AND whose
-    project label overlaps `cwd` (best-effort; returns 0.0 if nothing matches —
-    never guesses)."""
+    """Cost of one round: exact session-id match (returns that session's full
+    cumulative cost — callers that sum across rounds must dedupe shared
+    session_ids themselves, see run_cost()); else time-window overlap against
+    summaries whose file mtime falls inside [started, ended] AND whose mangled
+    project directory (`projdir`) exactly matches `cwd`'s mangled form
+    (best-effort; returns 0.0 if nothing matches — never guesses)."""
     sid = round_.get("session_id")
     if sid:
         for s in summaries:
@@ -106,9 +108,13 @@ def round_cost(round_, summaries, pricing_mod, cwd=None):
     if not (round_.get("started") and round_.get("ended")):
         return 0.0
     start, end = _parse_ts(round_["started"]), _parse_ts(round_["ended"])
+    cwd_mangled = None
+    if cwd:
+        import _value  # local import — avoid a hard module-load-time dependency
+        cwd_mangled = _value.mangle_path(os.path.abspath(cwd))
     total = 0.0
     for s in summaries:
-        if cwd and s.get("project") and (cwd not in s["project"] and s["project"] not in cwd):
+        if cwd_mangled and s.get("projdir") != cwd_mangled:
             continue
         mtime = s.get("mtime")
         if mtime is None:
@@ -121,11 +127,25 @@ def round_cost(round_, summaries, pricing_mod, cwd=None):
 
 
 def run_cost(manifest, summaries):
-    """Total $ for a run, split by role: {"total":, "coder":, "reviewer":}."""
+    """Total $ for a run, split by role: {"total":, "coder":, "reviewer":}.
+
+    A round's session_id is often shared across multiple rounds (e.g. one
+    interactive coder session spans the whole pair-loop run) — round_cost()
+    returns that session's FULL cumulative cost for each round that
+    references it, so summing naively would double/triple-count. Dedupe here:
+    a given session_id's cost is attributed once, to the first round that
+    references it; subsequent rounds sharing that session_id contribute $0 to
+    the total (their actual cost was already counted via the first round)."""
     import pricing as pricing_mod
     cwd = manifest.get("cwd")
     total, by_role = 0.0, {"coder": 0.0, "reviewer": 0.0}
+    seen_session_ids = set()
     for r in manifest["rounds"]:
+        sid = r.get("session_id")
+        if sid:
+            if sid in seen_session_ids:
+                continue
+            seen_session_ids.add(sid)
         c = round_cost(r, summaries, pricing_mod, cwd=cwd)
         total += c
         by_role[r["role"]] = by_role.get(r["role"], 0.0) + c
