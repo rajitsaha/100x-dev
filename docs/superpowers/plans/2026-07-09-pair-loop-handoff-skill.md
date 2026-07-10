@@ -923,8 +923,12 @@ Expected: `AttributeError` — `finish` subcommand doesn't exist yet
 ```python
 def cmd_finish(args):
     manifest = run_manifest.load_manifest(args.run)
-    manifest["pr"] = args.pr
-    run_manifest.save_manifest(manifest)
+    # finish is called twice: once right after approval (no --pr yet), and
+    # again with --pr once the PR is actually opened. Only overwrite when a
+    # value was actually passed, else a bare re-run clobbers a recorded PR
+    # number back to None. close_run() already calls save_manifest().
+    if args.pr is not None:
+        manifest["pr"] = args.pr
     run_manifest.close_run(manifest, args.verdict, merged=None)
 
     handoff_path = os.path.join(manifest["cwd"], handoff.HANDOFF_FILENAME)
