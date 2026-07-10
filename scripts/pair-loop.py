@@ -127,8 +127,11 @@ def cmd_coder_done(args):
 
 
 def _build_review_prompt(cwd, branch, handoff_path):
-    diff = subprocess.run(["git", "diff", branch], cwd=cwd, capture_output=True,
-                          text=True).stdout
+    result = subprocess.run(["git", "diff", branch], cwd=cwd, capture_output=True,
+                            text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"git diff against '{branch}' failed: {result.stderr.strip()}")
+    diff = result.stdout
     if os.path.exists(handoff_path):
         with open(handoff_path, encoding="utf-8") as f:
             handoff_text = f.read()

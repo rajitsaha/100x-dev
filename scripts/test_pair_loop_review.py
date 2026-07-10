@@ -130,6 +130,33 @@ class TestPairLoopReview(unittest.TestCase):
         self.assertEqual(len(calls), 2, "reviewer must be invoked exactly twice: "
                           "the original ask + exactly one re-ask")
 
+    def test_review_fails_clearly_when_base_branch_no_longer_exists(self):
+        """If manifest['branch'] was deleted/renamed between `start` and
+        `review`, `git diff <branch>` exits non-zero. The CLI must surface
+        this as a clear failure rather than silently building a review
+        prompt with an empty diff (which could come back APPROVED having
+        seen no code at all)."""
+        r = self._run("start", "--task", "x")
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        sys.path.insert(0, HERE)
+        import run_manifest
+        orig = run_manifest.RUNS_DIR
+        run_manifest.RUNS_DIR = os.path.join(self.env["HOME"], ".100xprism", "handoff-runs")
+        try:
+            manifest = run_manifest.load_manifest(run_id)
+            manifest["branch"] = "this-branch-does-not-exist"
+            run_manifest.save_manifest(manifest)
+        finally:
+            run_manifest.RUNS_DIR = orig
+
+        r2 = self._run("review", "--run", run_id, "--reviewer-cmd",
+                       json.dumps(["bash", STUB_REVIEWER, "APPROVED"]))
+        self.assertNotEqual(r2.returncode, 0,
+                            "review must fail, not silently produce an empty-diff review")
+        self.assertIn("this-branch-does-not-exist", r2.stderr)
+
     def test_review_does_not_reask_when_first_verdict_parses(self):
         """A parseable first response must NOT trigger a second reviewer call."""
         r = self._run("start", "--task", "x")
