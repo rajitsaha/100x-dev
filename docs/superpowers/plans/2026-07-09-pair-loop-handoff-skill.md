@@ -720,9 +720,19 @@ def cmd_coder_done(args):
 
 
 def _build_review_prompt(cwd, branch, handoff_path):
-    diff = subprocess.run(["git", "diff", branch], cwd=cwd, capture_output=True,
-                          text=True).stdout
-    handoff_text = open(handoff_path, encoding="utf-8").read() if os.path.exists(handoff_path) else ""
+    result = subprocess.run(["git", "diff", branch], cwd=cwd, capture_output=True,
+                            text=True)
+    if result.returncode != 0:
+        # Surface a bad/deleted base branch as a hard failure — never let a
+        # git diff error silently degrade into an empty-diff review that
+        # could come back APPROVED having seen no code at all.
+        raise RuntimeError(f"git diff against '{branch}' failed: {result.stderr.strip()}")
+    diff = result.stdout
+    if os.path.exists(handoff_path):
+        with open(handoff_path, encoding="utf-8") as f:
+            handoff_text = f.read()
+    else:
+        handoff_text = ""
     return (
         "You are reviewing a code change as an independent reviewer in a "
         "coder<->reviewer handoff loop. Read the diff and the prior handoff "
