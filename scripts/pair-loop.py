@@ -194,6 +194,35 @@ def cmd_review(args):
     print(json.dumps({"verdict": verdict, "findings": findings, "fallback_used": result.fallback_used}))
 
 
+def cmd_finish(args):
+    manifest = run_manifest.load_manifest(args.run)
+    # `finish` is called twice in the real workflow: once right after
+    # approval (no --pr yet — the PR doesn't exist), and again with --pr once
+    # it's actually opened (see modules/pair-loop/SKILL.md Step 5). Only
+    # overwrite manifest["pr"] when a value was actually passed — otherwise a
+    # bare re-run (or the first, PR-less call) would clobber an already
+    # recorded PR number back to None.
+    if args.pr is not None:
+        manifest["pr"] = args.pr
+    run_manifest.close_run(manifest, args.verdict, merged=None)
+
+    handoff_path = os.path.join(manifest["cwd"], handoff.HANDOFF_FILENAME)
+    transcript = open(handoff_path, encoding="utf-8").read() if os.path.exists(handoff_path) else ""
+    body = (
+        f"## {manifest['task']}\n\n"
+        f"Pair-loop run `{manifest['run_id']}` — coder: {manifest['coder']}, "
+        f"reviewer: {manifest['reviewer']}"
+        + (" (fallback used)" if manifest.get("reviewer_fallback") else "") + "\n\n"
+        f"<details><summary>Full handoff transcript ({manifest['outcome']['rounds']} rounds)</summary>\n\n"
+        f"```\n{transcript}\n```\n\n</details>\n"
+    )
+    body_path = os.path.join(os.path.dirname(run_manifest.manifest_path(manifest["run_id"])),
+                             f"{manifest['run_id']}-pr-body.md")
+    with open(body_path, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(json.dumps({"pr_body_path": body_path}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="command", required=True)
@@ -218,6 +247,12 @@ def main():
     p_review.add_argument("--reviewer-cmd", default=None,
                           help="JSON array override for testing (bypasses codex/claude auto-detect)")
     p_review.set_defaults(func=cmd_review)
+
+    p_finish = sub.add_parser("finish")
+    p_finish.add_argument("--run", required=True)
+    p_finish.add_argument("--verdict", required=True, choices=["APPROVED", "CHANGES_REQUESTED"])
+    p_finish.add_argument("--pr", type=int, default=None)
+    p_finish.set_defaults(func=cmd_finish)
 
     args = ap.parse_args()
     args.func(args)
