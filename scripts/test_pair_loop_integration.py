@@ -72,6 +72,12 @@ class TestPairLoopIntegration(unittest.TestCase):
         self.assertEqual(manifest["rounds"][-1]["verdict"], "CHANGES_REQUESTED")
         self.assertIsNone(manifest["outcome"]["verdict"])
 
+        handoff_text = open(os.path.join(self.repo, "HANDOFF.md")).read()
+        self.assertIn("Round 1 — CODER", handoff_text)
+        self.assertIn("Round 2 — CODER", handoff_text)
+        self.assertIn("Round 2 — REVIEWER", handoff_text)
+        self.assertEqual(handoff_text.count("VERDICT: CHANGES_REQUESTED"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
