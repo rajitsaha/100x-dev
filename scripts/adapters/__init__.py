@@ -1,8 +1,9 @@
 """Cost adapters: per-tool sources of (dir, day, token) usage.
 
-Only `claude_code` produces real numbers today. `codex` is a documented stub for
-when the Codex CLI is used locally. Cursor / Antigravity expose no local token data,
-so they have no adapter — their directories still appear via the value layer.
+Both `claude_code` and `codex` are real, incremental-cache-backed parsers of
+their tool's local transcript format. Cursor / Antigravity expose no local
+token data, so they have no adapter — their directories still appear via the
+value layer.
 """
 from collections import namedtuple
 

@@ -4,6 +4,7 @@
 Run: python3 scripts/test_value.py
 """
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -146,11 +147,16 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(rows[0].output, 2)
         self.assertEqual(rows[0].tool, "claude-code")
 
-    def test_codex_stub_empty_without_sessions(self):
+    def test_codex_scan_empty_without_sessions(self):
         import importlib
         cx = importlib.import_module("adapters.codex")
-        # No ~/.codex/sessions on CI → yields nothing, never raises.
-        self.assertEqual(list(cx.iter_usage()), [])
+        # No ~/.codex/sessions → scan() returns [] gracefully, never raises.
+        orig = cx.SOURCE_DIR
+        cx.SOURCE_DIR = "/nonexistent/path/xyz"
+        try:
+            self.assertEqual(cx.scan(verbose=False), [])
+        finally:
+            cx.SOURCE_DIR = orig
 
 
 class DirectoriesShapeTest(unittest.TestCase):
@@ -321,7 +327,7 @@ class SummariesTest(unittest.TestCase):
         _value.STORE_PATH = os.path.join(self.tmp.name, "value.json")
         import importlib
         self.sm = importlib.import_module("_summaries")
-        _value.save_store({"version": 2, "dirs": {"/x": {
+        _value.save_store({"version": _value.STORE_VERSION, "dirs": {"/x": {
             "label": "~/x", "tool": "claude-code", "head": "abc",
             "window": {"start": None, "end": None},
             "value": {"kind": "git", "commits": 1, "subjects": ["feat: a"],
@@ -381,6 +387,137 @@ class EnsureDaemonTest(unittest.TestCase):
             del os.environ["PRISM_NO_DASHBOARD"]
         self.assertIsNone(result)
         self.assertEqual(len(spawned), 0)
+
+
+class TestMergedPRsAndReleases(unittest.TestCase):
+    def setUp(self):
+        self.repo = tempfile.mkdtemp()
+        git(self.repo, "init", "-q")
+        git(self.repo, "commit", "--allow-empty", "-m", "init")
+
+    def test_squash_pr_subject_counted(self):
+        git(self.repo, "commit", "--allow-empty", "-m", "feat: add thing (#42)")
+        v = _value.git_value(self.repo, None, None)
+        self.assertEqual(v["prs"], 1)
+
+    def test_real_merge_commit_counted(self):
+        git(self.repo, "checkout", "-b", "feature", "-q")
+        git(self.repo, "commit", "--allow-empty", "-m", "work")
+        git(self.repo, "checkout", "-", "-q")
+        git(self.repo, "merge", "--no-ff", "feature", "-m", "Merge pull request #7 from x/feature")
+        v = _value.git_value(self.repo, None, None)
+        self.assertEqual(v["prs"], 1)
+
+    def test_squash_and_merge_dedup_by_number(self):
+        git(self.repo, "commit", "--allow-empty", "-m", "feat: thing (#9)")
+        git(self.repo, "checkout", "-b", "feature2", "-q")
+        git(self.repo, "commit", "--allow-empty", "-m", "work2")
+        git(self.repo, "checkout", "-", "-q")
+        git(self.repo, "merge", "--no-ff", "feature2", "-m", "Merge pull request #9 duplicate-number-test")
+        v = _value.git_value(self.repo, None, None)
+        self.assertEqual(v["prs"], 1)  # same PR number from two commit shapes -> deduped
+
+    def test_release_tags_in_window(self):
+        git(self.repo, "tag", "v1.0.0")
+        v = _value.git_value(self.repo, None, None)
+        self.assertIn("v1.0.0", v["releases"])
+
+    def test_empty_value_has_releases_key(self):
+        self.assertEqual(_value._empty_value()["releases"], [])
+
+
+class TestBuildIntegration(unittest.TestCase):
+    """Exercises build() against a fake ~/.claude/projects tree (claude_code
+    adapter only — codex.scan() safely returns [] when ~/.codex/sessions is
+    absent in the test's patched HOME)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.proj_dir = os.path.join(self.tmp, "claude", "projects", "-Users-x-proj")
+        os.makedirs(self.proj_dir)
+        session = {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": "done",
+                        "model": "claude-sonnet-4-5-20251001",
+                        "usage": {"input_tokens": 1000, "output_tokens": 200,
+                                  "cache_read_input_tokens": 100, "cache_creation_input_tokens": 0}},
+            "sessionId": "sess-abc", "timestamp": "2026-07-09T10:00:00Z",
+            "isSidechain": False,
+        }
+        with open(os.path.join(self.proj_dir, "sess-abc.jsonl"), "w") as f:
+            f.write(json.dumps(session) + "\n")
+
+        import adapters.claude_code as claude_code
+        import adapters.codex as codex
+        self.claude_code = claude_code
+        self.codex = codex
+        self._orig_source = claude_code.SOURCE_DIR
+        self._orig_cache = claude_code.CACHE_FILE
+        self._orig_codex_source = codex.SOURCE_DIR
+        claude_code.SOURCE_DIR = os.path.join(self.tmp, "claude", "projects")
+        claude_code.CACHE_FILE = os.path.join(self.tmp, "cc-cache.json")
+        codex.SOURCE_DIR = os.path.join(self.tmp, "nonexistent-codex")
+
+    def tearDown(self):
+        self.claude_code.SOURCE_DIR = self._orig_source
+        self.claude_code.CACHE_FILE = self._orig_cache
+        self.codex.SOURCE_DIR = self._orig_codex_source
+
+    def test_build_produces_by_session_and_by_skill_and_split(self):
+        data = td.build(verbose=False)
+        self.assertTrue(any(s["session_id"] == "sess-abc" for s in data["by_session"]))
+        self.assertIn("main_subagent_split", data)
+        self.assertGreaterEqual(data["main_subagent_split"]["main_cost"], 0)
+        self.assertIn("fallback_pct", data)
+        self.assertGreater(data["total_cost"], 0)
+
+    def test_build_skips_schema_incomplete_manifest_instead_of_crashing(self):
+        """Important #4 regression: a structurally-valid-JSON-but-missing-
+        required-keys manifest (e.g. no "outcome") used to raise an uncaught
+        KeyError deep in _build_handoff_runs, crashing the ENTIRE dashboard
+        build() over one bad manifest file. It must be skipped instead."""
+        import run_manifest as rm
+        orig_runs_dir = rm.RUNS_DIR
+        runs_tmp = tempfile.mkdtemp()
+        rm.RUNS_DIR = runs_tmp  # isolate from the real ~/.100xprism/handoff-runs
+        try:
+            malformed = {
+                "v": 1, "run_id": "broken-run", "task": "t", "cwd": "/x",
+                "branch": "b", "pr": None, "coder": "claude", "reviewer": "codex",
+                "reviewer_fallback": False, "rounds": [],
+                # "outcome" intentionally omitted — schema-incomplete
+            }
+            with open(os.path.join(runs_tmp, "broken-run.json"), "w") as f:
+                json.dump(malformed, f)
+            data = td.build(verbose=False)  # must not raise
+            self.assertNotIn("broken-run", [r["run_id"] for r in data["handoff_runs"]])
+        finally:
+            rm.RUNS_DIR = orig_runs_dir
+
+    def test_build_skips_manifest_with_null_outcome_instead_of_crashing(self):
+        """Codex CLI review finding: a manifest with `"outcome": null` is
+        valid JSON and has the "outcome" key (so no KeyError), but
+        `manifest["outcome"].get(...)` in _build_handoff_runs raises
+        AttributeError on None. The original `except (OSError, ValueError,
+        KeyError)` didn't catch that, crashing the whole dashboard build over
+        one bad manifest. Must be skipped instead."""
+        import run_manifest as rm
+        orig_runs_dir = rm.RUNS_DIR
+        runs_tmp = tempfile.mkdtemp()
+        rm.RUNS_DIR = runs_tmp  # isolate from the real ~/.100xprism/handoff-runs
+        try:
+            malformed = {
+                "v": 1, "run_id": "null-outcome-run", "task": "t", "cwd": "/x",
+                "branch": "b", "pr": None, "coder": "claude", "reviewer": "codex",
+                "reviewer_fallback": False, "rounds": [],
+                "outcome": None,  # present but null -> AttributeError on .get()
+            }
+            with open(os.path.join(runs_tmp, "null-outcome-run.json"), "w") as f:
+                json.dump(malformed, f)
+            data = td.build(verbose=False)  # must not raise
+            self.assertNotIn("null-outcome-run", [r["run_id"] for r in data["handoff_runs"]])
+        finally:
+            rm.RUNS_DIR = orig_runs_dir
 
 
 if __name__ == "__main__":

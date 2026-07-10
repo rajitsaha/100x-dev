@@ -10,9 +10,9 @@
 [![npm](https://img.shields.io/npm/v/100xprism?style=flat-square&color=red)](https://www.npmjs.com/package/100xprism)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-**One source of truth.** 66 modules generate native config for **Claude Code · Cursor · Codex · Windsurf · Copilot · Gemini · Antigravity**. Quality gates run on every commit.
+**One source of truth.** 67 modules generate native config for **Claude Code · Cursor · Codex · Windsurf · Copilot · Gemini · Antigravity**. Quality gates run on every commit.
 
-<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 14 plugins, 26 slash commands, 40 auto-trigger skills" width="100%" />
+<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 14 plugins, 27 slash commands, 40 auto-trigger skills" width="100%" />
 
 </div>
 
@@ -74,7 +74,7 @@ Every `/commit` and `/push` runs a 5-point gate — tests, security, build, Dock
 
 | | |
 |---|---|
-| **66 modules** | 26 slash commands + 40 auto-trigger skills — see [full reference below](#slash-commands) |
+| **67 modules** | 27 slash commands + 40 auto-trigger skills — see [full reference below](#slash-commands) |
 | **14 Claude Code plugins** | superpowers, playwright, github, hookify, claude-mem, understand-anything, ui-ux-pro-max, motion-framer, and more |
 | **7 database engines** | Postgres, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle — one `/db` interface |
 | **27 SaaS CLIs** | `/connect` installs + authenticates GitHub, AWS, Stripe, Supabase, and more from `.env` |
@@ -96,8 +96,9 @@ This is a first, deliberately humble attempt to **measure both — and to make i
 100x-value    # value economics  — what actually shipped for that spend
 ```
 
-- **`100x-tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-logs-vs-output composition, and $ cost — by project, model, and day. It auto-refreshes every 5 minutes, so a tab left open never goes stale. It also **auto-starts** — a detached singleton launches on shell startup and on `install` / `init` / `update`, so the dashboard is always live without running a command (opt out with `export PRISM_NO_DASHBOARD=1`).
-- **`100x-value`** — tokens measure *cost*; this measures *value*. The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide via marker files (CLAUDE.md, AGENTS.md, GEMINI.md, .cursorrules, .windsurfrules, .clinerules, .github/copilot-instructions.md) — even with zero Claude token spend. Value is derived tool-agnostically from git history (commits / PRs / files / churn) with a filesystem-mtime fallback, plus cached AI one-line summaries via the local `claude` CLI. Cost is Claude-Code-only (the only tool with local token accounting); directories from other tools show value with `—` cost, never $0. Four inline-SVG charts render in the same URL: a leverage scatter (value vs cost, break-even line), cost-over-time, token-purpose split, and cost-by-directory.
+- **`100x-tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-logs-vs-output composition, and $ cost — by project, model, session, and skill, priced per-model with Codex CLI cost tracking alongside Claude Code. It auto-refreshes every 30 seconds, so a tab left open never goes stale. It also **auto-starts** — a detached singleton launches on shell startup and on `install` / `init` / `update`, so the dashboard is always live without running a command (opt out with `export PRISM_NO_DASHBOARD=1`).
+- **`100x-value`** — tokens measure *cost*; this measures *value*. The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide via marker files (CLAUDE.md, AGENTS.md, GEMINI.md, .cursorrules, .windsurfrules, .clinerules, .github/copilot-instructions.md) — even with zero Claude token spend. Value is derived tool-agnostically from git history (commits / merged PRs / releases / files / churn) with a filesystem-mtime fallback, plus cached AI one-line summaries via the local `claude` CLI. Directories from tools with no local token accounting show value with `—` cost, never $0. Inline-SVG charts and tables render in the same URL: a leverage scatter (value vs cost, break-even line), cost/volume over time, a spend-by-purpose donut, cost-by-directory, and top-cost sessions/skills.
+- **Budgets & suggestions** — set optional daily/weekly `$` limits in `~/.100xprism/config.json` for a budget bar in the dashboard plus a shell/notification alert at 80%/100% spend, and get a ranked, rule-based list of offline cost-reduction suggestions (e.g. trim startup context, high-$/invocation skills) — all computed locally, no telemetry.
 
 Full guide: [docs/token-optimization.md](docs/token-optimization.md).
 
@@ -105,7 +106,7 @@ Full guide: [docs/token-optimization.md](docs/token-optimization.md).
 
 ## Slash commands
 
-The following 26 slash commands are available. Run them inside Claude Code. In Codex, use the generated repo skill by name instead, for example `$gate`, `$commit`, or `/skills`.
+The following 27 slash commands are available. Run them inside Claude Code. In Codex, use the generated repo skill by name instead, for example `$gate`, `$commit`, or `/skills`.
 
 ### Lifecycle
 

@@ -27,11 +27,10 @@ Usage:
     python3 scripts/token-dashboard.py --print    # print a text summary, no server
     python3 scripts/token-dashboard.py --no-open  # don't auto-open the browser
 
-Pricing for the optional cost estimate is editable below (RATES). Defaults are
-Opus-tier list prices and are only a rough guide.
+Pricing for the cost estimate is per-model (see pricing.py's RATES table);
+unmatched model ids fall back to Opus-tier rates and are flagged in fallback_pct.
 """
 import argparse
-import glob
 import json
 import os
 import socket
@@ -40,21 +39,22 @@ import threading
 import time
 import webbrowser
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _value  # noqa: E402 — shared value layer (one source of truth)
 import _summaries  # noqa: E402
+import pricing  # noqa: E402
+import adapters.claude_code as claude_code  # noqa: E402
+import adapters.codex as codex  # noqa: E402
+import run_manifest  # noqa: E402
+import _budget  # noqa: E402
+import _suggest  # noqa: E402
 
 HOME = os.path.expanduser("~")
-PROJECTS_DIR = os.path.join(HOME, ".claude", "projects")
-CACHE_FILE = os.path.join(HOME, ".claude", ".token-dashboard-cache.json")
-CACHE_VERSION = 3  # bump → re-parse all transcripts so every summary carries `projdir`
-REFRESH_SECONDS = 300  # auto-rebuild cadence so a long-lived tab never goes stale
-
-# $ per 1M tokens — rough Opus-tier list prices; edit to match your plan/model.
-RATES = {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_write": 18.75}
+PROJECTS_DIR = claude_code.SOURCE_DIR
+REFRESH_SECONDS = 30  # auto-rebuild cadence; mtime/size cache makes a no-op pass cheap
 
 
 def _empty():
@@ -68,189 +68,45 @@ def _add(dst, i, o, cr, cw):
     dst["cache_write"] += cw
 
 
-# Content-composition categories. CHAR counts (later ÷4 → an *estimate* of tokens).
-# This is NOT billed truth: the API bills per-turn aggregates, not per content
-# block — so this shows where conversation TEXT VOLUME goes, not exact tokens.
-COMP_CATS = ["prompts", "model_output", "code_authored", "tool_calls",
-             "files_read", "logs", "other_results"]
-COMP_LABELS = {
-    "prompts": "your prompts",
-    "model_output": "model output (prose)",
-    "code_authored": "code written (edits)",
-    "tool_calls": "tool calls",
-    "files_read": "code / files read",
-    "logs": "command output / logs",
-    "other_results": "other tool results",
-}
-_READ_TOOLS = {"Read", "Glob", "Grep", "LS", "NotebookRead"}
-_SHELL_TOOLS = {"Bash", "BashOutput"}
-_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
+COMP_CATS = claude_code.COMP_CATS
+COMP_LABELS = claude_code.COMP_LABELS
 
-
-def _classify(role, content, comp, tool_names):
-    """Tally character counts per content-type category for one message."""
-    if isinstance(content, str):
-        comp["model_output" if role == "assistant" else "prompts"] += len(content)
-        return
-    if not isinstance(content, list):
-        return
-    for b in content:
-        if isinstance(b, str):
-            comp["model_output" if role == "assistant" else "prompts"] += len(b)
-            continue
-        if not isinstance(b, dict):
-            continue
-        bt = b.get("type")
-        if bt == "text":
-            comp["model_output" if role == "assistant" else "prompts"] += len(b.get("text") or "")
-        elif bt == "tool_use":
-            name = b.get("name", "")
-            tool_names[b.get("id", "")] = name
-            sz = len(json.dumps(b.get("input", {}), ensure_ascii=False))
-            comp["code_authored" if name in _EDIT_TOOLS else "tool_calls"] += sz
-        elif bt == "tool_result":
-            name = tool_names.get(b.get("tool_use_id", ""), "")
-            c = b.get("content", "")
-            if isinstance(c, list):
-                sz = sum(len(x.get("text") or "") for x in c if isinstance(x, dict))
-            elif isinstance(c, str):
-                sz = len(c)
-            else:
-                sz = len(json.dumps(c, ensure_ascii=False))
-            if name in _READ_TOOLS:
-                comp["files_read"] += sz
-            elif name in _SHELL_TOOLS:
-                comp["logs"] += sz
-            else:
-                comp["other_results"] += sz
-
-
-def parse_file(path):
-    """Aggregate one transcript. Returns a per-file summary dict."""
-    totals = _empty()
-    by_day = defaultdict(_empty)
-    by_model = defaultdict(_empty)
-    comp = defaultdict(int)      # content-type char counts (composition estimate)
-    tool_names = {}              # tool_use id -> tool name, for classifying results
-    msgs = 0
-    first_fixed = None  # fixed context at first billed turn (bloat proxy)
-    turns = 0
-    for line in open(path, errors="ignore"):
-        try:
-            o = json.loads(line)
-        except Exception:
-            continue
-        if not isinstance(o, dict):
-            continue
-        m = o.get("message")
-        # Composition: classify every message's content blocks (billed or not).
-        if isinstance(m, dict):
-            role = m.get("role") or o.get("type") or ""
-            _classify(role, m.get("content"), comp, tool_names)
-        u = m.get("usage") if isinstance(m, dict) else None
-        if not isinstance(u, dict):
-            u = o.get("usage") if isinstance(o.get("usage"), dict) else None
-        if not isinstance(u, dict):
-            continue
-        i = u.get("input_tokens", 0) or 0
-        ot = u.get("output_tokens", 0) or 0
-        cr = u.get("cache_read_input_tokens", 0) or 0
-        cw = u.get("cache_creation_input_tokens", 0) or 0
-        if not (i or ot or cr or cw):
-            continue
-        msgs += 1
-        turns += 1
-        _add(totals, i, ot, cr, cw)
-        model = (m.get("model") if isinstance(m, dict) else None) or "unknown"
-        _add(by_model[model], i, ot, cr, cw)
-        day = (o.get("timestamp") or "")[:10] or "unknown"
-        _add(by_day[day], i, ot, cr, cw)
-        if first_fixed is None and (i + cr + cw) > 0:
-            first_fixed = i + cr + cw
-    return {
-        "totals": totals,
-        "by_day": dict(by_day),
-        "by_model": dict(by_model),
-        "comp": {k: comp.get(k, 0) for k in COMP_CATS},
-        "msgs": msgs,
-        "turns": turns,
-        "first_fixed": first_fixed or 0,
-    }
-
-
-def load_cache():
-    try:
-        with open(CACHE_FILE) as f:
-            c = json.load(f)
-        if c.get("version") == CACHE_VERSION:
-            return c.get("files", {})
-    except Exception:
-        pass
-    return {}
-
-
-def save_cache(files):
-    try:
-        with open(CACHE_FILE, "w") as f:
-            json.dump({"version": CACHE_VERSION, "files": files}, f)
-    except Exception as e:
-        print(f"warning: could not write cache: {e}", file=sys.stderr)
-
-
-# project_label lives in _value so the dashboard and the value store derive the
-# exact same join key from a path.
 project_label = _value.project_label
 
 
 def build(verbose=True):
-    """Scan transcripts (incremental via cache) and return the full dataset."""
-    cache = load_cache()
-    paths = glob.glob(os.path.join(PROJECTS_DIR, "*", "*.jsonl"))
-    new_cache = {}
-    reparsed = 0
-    for p in paths:
-        try:
-            st = os.stat(p)
-        except OSError:
-            continue
-        key = p
-        prev = cache.get(key)
-        if prev and prev.get("mtime") == st.st_mtime and prev.get("size") == st.st_size:
-            new_cache[key] = prev
-            continue
-        summary = parse_file(p)
-        summary["mtime"] = st.st_mtime
-        summary["size"] = st.st_size
-        summary["project"] = project_label(p)
-        summary["projdir"] = os.path.basename(os.path.dirname(p))
-        new_cache[key] = summary
-        reparsed += 1
-        if verbose and reparsed % 200 == 0:
-            print(f"  parsed {reparsed} new/changed transcripts...", file=sys.stderr)
-    save_cache(new_cache)
-    if verbose:
-        print(f"scanned {len(paths)} transcripts ({reparsed} re-parsed, "
-              f"{len(paths) - reparsed} cached)", file=sys.stderr)
+    """Scan every adapter (incremental via each adapter's own cache) and return
+    the full dataset."""
+    cc_summaries = claude_code.scan(verbose=verbose)
+    cx_summaries = codex.scan(verbose=verbose)
+    all_summaries = cc_summaries + cx_summaries
 
-    # Aggregate
     totals = _empty()
     by_project = defaultdict(_empty)
     by_day = defaultdict(_empty)
-    by_project_day = defaultdict(lambda: defaultdict(_empty))
+    by_project_day_model = defaultdict(lambda: defaultdict(lambda: defaultdict(_empty)))
+    by_day_model_global = defaultdict(lambda: defaultdict(_empty))
     by_model = defaultdict(_empty)
     comp_chars = defaultdict(int)
     sessions = 0
     fixed_samples = []
     total_msgs = 0
-    for s in new_cache.values():
+    by_session = []
+    by_skill_agg = defaultdict(lambda: {"cost": 0.0, "invocations": 0, "exact": False})
+    main_cost_total = 0.0
+    subagent_cost_total = 0.0
+
+    for s in all_summaries:
         t = s["totals"]
         _add(totals, t["input"], t["output"], t["cache_read"], t["cache_write"])
         proj = s.get("project", "?")
-        bp = by_project[proj]
-        _add(bp, t["input"], t["output"], t["cache_read"], t["cache_write"])
+        _add(by_project[proj], t["input"], t["output"], t["cache_read"], t["cache_write"])
         for day, d in s.get("by_day", {}).items():
             _add(by_day[day], d["input"], d["output"], d["cache_read"], d["cache_write"])
-            _add(by_project_day[proj][day], d["input"], d["output"], d["cache_read"], d["cache_write"])
+        for day, models in s.get("by_day_model", {}).items():
+            for model, d in models.items():
+                _add(by_project_day_model[proj][day][model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+                _add(by_day_model_global[day][model], d["input"], d["output"], d["cache_read"], d["cache_write"])
         for mdl, d in s.get("by_model", {}).items():
             _add(by_model[mdl], d["input"], d["output"], d["cache_read"], d["cache_write"])
         for cat, n in s.get("comp", {}).items():
@@ -261,34 +117,57 @@ def build(verbose=True):
         if s.get("first_fixed"):
             fixed_samples.append(s["first_fixed"])
 
+        file_cost, _ = pricing.cost_by_model(s.get("by_model", {}))
+        total_file_tokens = sum(t.values())
+        if s.get("session_id"):
+            by_session.append({
+                "session_id": s["session_id"], "project": proj, "tool": s.get("tool"),
+                "cost": round(file_cost, 4), "msgs": s.get("msgs", 0), "mtime": s.get("mtime", 0),
+            })
+        if total_file_tokens:
+            main_frac = sum(s.get("main_tokens", _empty()).values()) / total_file_tokens
+            sub_frac = sum(s.get("subagent_tokens", _empty()).values()) / total_file_tokens
+            main_cost_total += file_cost * main_frac
+            subagent_cost_total += file_cost * sub_frac
+        for skill, tok in s.get("by_skill", {}).items():
+            frac = sum(tok.values()) / total_file_tokens if total_file_tokens else 0
+            entry = by_skill_agg[skill]
+            entry["cost"] += file_cost * frac
+            if skill in s.get("skill_exact", []):
+                entry["exact"] = True
+        for skill, n in s.get("skill_invocations", {}).items():
+            by_skill_agg[skill]["invocations"] += n
+
     fixed_samples.sort()
     n = len(fixed_samples)
     median_fixed = fixed_samples[n // 2] if n else 0
     avg_fixed = sum(fixed_samples) / n if n else 0
 
-    def cost(d):
-        return sum(d[k] / 1_000_000 * RATES[k] for k in RATES)
+    total_cost, fallback_tokens = pricing.cost_by_model(by_model)
+    total_tokens = sum(totals.values())
+    fallback_pct = round(100 * fallback_tokens / total_tokens, 1) if total_tokens else 0.0
 
-    # cost per (project label × day) — server-side input to the value↔cost join
     by_project_day_cost = {
-        lbl: {day: round(cost(dd), 4) for day, dd in days.items()}
-        for lbl, days in by_project_day.items()
+        lbl: {day: round(pricing.cost_by_model(models)[0], 4) for day, models in days.items()}
+        for lbl, days in by_project_day_model.items()
     }
-    # Build per-directory cost+value rows (git subprocesses run here, not on request path).
-    mangled_by_label, tokens_by_label, window_by_label, tool_by_label = {}, {}, {}, {}
-    for s in new_cache.values():
+
+    mangled_by_label, tokens_by_label, window_by_label, tool_by_label = {}, {}, {}, defaultdict(set)
+    for s in all_summaries:
         label = s.get("project", "?")
         mangled = s.get("projdir", "")
         mangled_by_label.setdefault(mangled, label)
         tk = tokens_by_label.setdefault(label, _empty())
         t = s["totals"]
         _add(tk, t["input"], t["output"], t["cache_read"], t["cache_write"])
-        tool_by_label[label] = "claude-code"
+        tool_by_label[label].add(s.get("tool", "claude-code"))
         days = sorted(d for d in s.get("by_day", {}) if d != "unknown")
         if days:
             lo, hi = window_by_label.get(label, (days[0], days[-1]))
             window_by_label[label] = (min(lo, days[0]), max(hi, days[-1]))
-    discovered, dir_index = _value.cached_scan()     # markers + reverse-mangle index
+    tool_by_label = {lbl: "+".join(sorted(tools)) for lbl, tools in tool_by_label.items()}
+
+    discovered, dir_index = _value.cached_scan()
     realdir_by_label = {}
     for real_dir, label in discovered.items():
         realdir_by_label.setdefault(label, real_dir)
@@ -298,7 +177,6 @@ def build(verbose=True):
         discovered=discovered, realdir_by_label=realdir_by_label,
         dir_index=dir_index)
 
-    # Composition estimate: chars ÷ 4 ≈ tokens. Labelled an estimate in the UI.
     comp_tokens = {k: comp_chars.get(k, 0) // 4 for k in COMP_CATS}
     comp_sum = sum(comp_tokens.values()) or 1
     composition = sorted(
@@ -307,18 +185,38 @@ def build(verbose=True):
         key=lambda r: -r[1],
     )
 
-    return {
+    cutoff = time.time() - 30 * 86400
+    by_session = sorted((s for s in by_session if s["mtime"] >= cutoff),
+                         key=lambda r: -r["cost"])[:50]
+    by_skill = sorted(
+        ({"skill": k, "cost": round(v["cost"], 4), "invocations": v["invocations"],
+          "exact": v["exact"]} for k, v in by_skill_agg.items()),
+        key=lambda r: -r["cost"],
+    )
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_cost = pricing.cost_by_model(by_day_model_global.get(today_str, {}))[0]
+    week_start = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+    week_cost = sum(
+        pricing.cost_by_model(models)[0]
+        for day, models in by_day_model_global.items() if day >= week_start
+    )
+    budget = _budget.budget_summary(today_cost, week_cost)
+
+    handoff_runs = _build_handoff_runs(all_summaries)
+
+    dataset = {
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "transcripts": len(paths),
+        "transcripts": len(all_summaries),
         "sessions": sessions,
         "messages": total_msgs,
         "totals": totals,
-        "total_cost": round(cost(totals), 2),
-        "rates": RATES,
+        "total_cost": round(total_cost, 2),
+        "fallback_pct": fallback_pct,
         "bloat": {"median": int(median_fixed), "avg": int(avg_fixed), "samples": n},
         "composition": composition,
         "by_project": sorted(
-            ([k, v, round(cost(v), 2)] for k, v in by_project.items()),
+            ([k, v, round(pricing.cost_of(v), 2)] for k, v in by_project.items()),
             key=lambda r: -(r[1]["input"] + r[1]["cache_read"] + r[1]["cache_write"]),
         )[:25],
         "by_day": sorted(([k, v] for k, v in by_day.items() if k != "unknown")),
@@ -328,7 +226,45 @@ def build(verbose=True):
         ),
         "by_project_day_cost": by_project_day_cost,
         "directories": directories,
+        "by_session": by_session,
+        "by_skill": by_skill,
+        "main_subagent_split": {"main_cost": round(main_cost_total, 2),
+                                 "subagent_cost": round(subagent_cost_total, 2)},
+        "budget": budget,
+        "handoff_runs": handoff_runs,
     }
+    dataset["suggestions"] = [
+        {"impact_usd": round(s.impact_usd, 2), "message": s.message}
+        for s in _suggest.suggestions(dataset)
+    ]
+    return dataset
+
+
+def _build_handoff_runs(all_summaries):
+    """Join every pair-loop run manifest to its round costs."""
+    rows = []
+    for path in run_manifest.list_manifests():
+        try:
+            manifest = run_manifest.load_manifest(path)
+            cost = run_manifest.run_cost(manifest, all_summaries)
+            reviewer_rounds = [r for r in manifest["rounds"] if r["role"] == "reviewer"]
+            final_findings = reviewer_rounds[-1].get("findings") if reviewer_rounds else None
+            rows.append({
+                "run_id": manifest["run_id"], "task": manifest.get("task", ""),
+                "rounds": manifest["outcome"].get("rounds", 0),
+                "coder_cost": cost["coder"], "reviewer_cost": cost["reviewer"],
+                "total_cost": cost["total"], "outcome": manifest["outcome"].get("verdict"),
+                "pr": manifest.get("pr"), "merged": manifest["outcome"].get("merged"),
+                "final_round_findings": final_findings,
+            })
+        except (OSError, ValueError, KeyError, AttributeError, TypeError):
+            # A structurally-valid-JSON-but-schema-incomplete manifest (e.g.
+            # missing "rounds"/"outcome", or a null "outcome" — `.get()` on
+            # None raises AttributeError, not KeyError) must not take down
+            # the whole dashboard build — skip just that one run.
+            continue
+    rows.sort(key=lambda r: -r["total_cost"])
+    return rows
 
 
 def fmt(n):
@@ -341,14 +277,15 @@ def fmt(n):
 
 def print_summary(data):
     t = data["totals"]
-    print(f"\nClaude Code token usage — {data['generated']}")
+    print(f"\nToken usage (Claude Code + Codex) — {data['generated']}")
     print(f"{data['transcripts']} transcripts, {data['sessions']} sessions, "
           f"{fmt(data['messages'])} billed messages\n")
     print(f"  input (uncached) : {fmt(t['input']):>8}")
     print(f"  output           : {fmt(t['output']):>8}")
     print(f"  cache READ       : {fmt(t['cache_read']):>8}   (re-sent context — usually the largest)")
     print(f"  cache WRITE      : {fmt(t['cache_write']):>8}")
-    print(f"  est. cost        : ${data['total_cost']:,}")
+    print(f"  est. cost        : ${data['total_cost']:,}"
+          + (f"  ({data['fallback_pct']}% priced at fallback rates)" if data['fallback_pct'] else ""))
     print(f"\n  startup bloat (fixed context re-sent each turn): "
           f"median {fmt(data['bloat']['median'])} / avg {fmt(data['bloat']['avg'])} tokens")
     if data.get("composition"):
@@ -367,27 +304,16 @@ def print_summary(data):
 def assemble_directories(mangled_by_label, tokens_by_label, by_project_day_cost,
                          window_by_label, tool_by_label,
                          discovered=None, realdir_by_label=None, dir_index=None):
-    """Build the unified per-directory rows (cost + tool-agnostic value).
-
-    mangled_by_label: {mangled_dirname: label} — key is the raw Claude projects dir name,
-    value is the human-readable project label (e.g. "~/personal-github/100xprism").
-    discovered: {real_abs_dir: label} from cached_scan() — optional, default empty.
-    realdir_by_label: {label: real_abs_dir} inverted from discovered — optional.
-
-    The directory set is the UNION of transcript-derived labels and discovered dirs,
-    joined on label. Discovery provides authoritative real paths where available.
-    """
+    """Build the unified per-directory rows (cost + tool-agnostic value)."""
     if discovered is None:
         discovered = {}
     if realdir_by_label is None:
         realdir_by_label = {}
 
-    # Build label→mangled map (invert mangled_by_label: {mangled: label})
     label_to_mangled = {}
     for mangled, label in mangled_by_label.items():
         label_to_mangled.setdefault(label, mangled)
 
-    # Union of all labels from transcripts and discovery
     all_labels = set(mangled_by_label.values()) | set(discovered.values())
 
     rows = []
@@ -400,9 +326,13 @@ def assemble_directories(mangled_by_label, tokens_by_label, by_project_day_cost,
         daycost = by_project_day_cost.get(label, {})
         _c = round(sum(daycost.values()), 2) if daycost else 0.0
         cost = _c if _c else None
-        tool = tool_by_label.get(label)        # None for discovery-only dirs
+        tool = tool_by_label.get(label)
         value = (_value.cached_dir_value(real, label, tool, start, end)
                  if real else _value._empty_value())
+        if cost and value.get("commits"):
+            value["cost_per_commit"] = round(cost / value["commits"], 2)
+        if cost and value.get("prs"):
+            value["cost_per_pr"] = round(cost / value["prs"], 2)
         rows.append({
             "dir": real, "label": label, "tool": tool,
             "cost": cost, "tokens": tokens_by_label.get(label, _empty()),
@@ -540,6 +470,96 @@ function costByDir(dirs){
      `<text x="${156+w}" y="${y+14}" fill="var(--text)" font-size="11">$${Math.round(r.cost)}</text>`;}).join('');
  return svgEl(W,H,bars,'Estimated token cost by directory, highest first');
 }
+function donut(totals){
+ const parts=[['cache_read',totals.cache_read,'var(--cr)'],['cache_write',totals.cache_write,'var(--cw)'],
+   ['input',totals.input,'var(--in)'],['output',totals.output,'var(--out)']];
+ const sum=parts.reduce((a,p)=>a+p[1],0); if(!sum) return emptyState('No token usage yet.');
+ const W=180,H=180,cx=90,cy=90,r=70,rInner=42;
+ const pt=(rad,a)=>[cx+rad*Math.cos(a),cy+rad*Math.sin(a)];
+ const nonzero=parts.filter(p=>p[1]>0);
+ let angle=-Math.PI/2, path='';
+ if(nonzero.length===1){
+  // A single 100%-share segment is a full circle: start===end for a lone SVG
+  // arc command, which the spec treats as a zero-length (invisible) segment.
+  // Split it into two half-circle arcs instead so the wedge actually renders.
+  const[k,v,c]=nonzero[0];
+  const a1=angle, aMid=angle+Math.PI, a2=angle+2*Math.PI;
+  const[x1,y1]=pt(r,a1),[xm,ym]=pt(r,aMid),[x2,y2]=pt(r,a2);
+  const[ix1,iy1]=pt(rInner,a1),[ixm,iym]=pt(rInner,aMid),[ix2,iy2]=pt(rInner,a2);
+  path=`M${x1},${y1} A${r},${r} 0 1 1 ${xm},${ym} A${r},${r} 0 1 1 ${x2},${y2} `+
+       `L${ix2},${iy2} A${rInner},${rInner} 0 1 0 ${ixm},${iym} A${rInner},${rInner} 0 1 0 ${ix1},${iy1} Z`;
+  return svgEl(W,H,`<path d="${path}" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (100%)"/>`,
+    'Donut chart: share of tokens by purpose');
+ }
+ for(const[k,v,c]of parts){ if(!v) continue;
+   const frac=v/sum, a1=angle, a2=angle+frac*2*Math.PI; angle=a2;
+   const[x1,y1]=pt(r,a1),[x2,y2]=pt(r,a2);
+   const[ix1,iy1]=pt(rInner,a1),[ix2,iy2]=pt(rInner,a2);
+   const large=frac>0.5?1:0;
+   path+=`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${ix2},${iy2} A${rInner},${rInner} 0 ${large} 0 ${ix1},${iy1} Z" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (${Math.round(100*frac)}%)"/>`;
+ }
+ return svgEl(W,H,path,'Donut chart: share of tokens by purpose');
+}
+function budgetBar(block,label){
+ if(block.limit==null) return '';
+ const pct=Math.min(100,(block.fraction||0)*100);
+ const col=block.level==='alert'?'var(--warn)':block.level==='warn'?'var(--cw)':'var(--value)';
+ return `<div style="margin:6px 0"><div class=muted style="font-size:11px;margin-bottom:2px">${esc(label)}: $${block.spend.toFixed(0)} / $${block.limit.toFixed(0)}</div>
+   <div class=meter style="height:10px"><b style="width:${pct}%;background:${col}"></b></div></div>`;
+}
+function sessionsTable(rows){
+ if(!rows.length) return emptyState('No sessions in the last 30 days.');
+ let h='<table><tr><th>session</th><th>project</th><th>tool</th><th>msgs</th><th>cost</th></tr>';
+ for(const r of rows.slice(0,20)){
+  h+=`<tr><td class=muted>${esc(r.session_id.slice(0,8))}</td><td>${esc(r.project)}</td>`+
+     `<td>${toolBadge(r.tool)}</td><td class=n>${r.msgs}</td><td class=money>$${r.cost.toFixed(2)}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function skillsTable(rows){
+ if(!rows.length) return emptyState('No skill attribution yet.');
+ let h='<table><tr><th>skill</th><th>invocations</th><th>cost</th><th>$/invocation</th><th></th></tr>';
+ for(const r of rows.slice(0,20)){
+  const perInv=r.cost/(r.invocations||1);
+  h+=`<tr><td>${esc(r.skill)}</td><td class=n>${r.invocations}</td><td class=money>$${r.cost.toFixed(2)}</td>`+
+     `<td class=money>$${perInv.toFixed(3)}</td><td>${r.exact?'<span class=badge title="exact — from Claude Code\\'s native attribution">exact</span>':'<span class=badge title="attributed — heuristic segmentation">attr.</span>'}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function handoffTable(rows){
+ if(!rows.length) return '';
+ let h='<h2>Pair-loop handoff runs</h2><table><tr><th>run</th><th>rounds</th><th>coder $</th><th>reviewer $</th><th>total $</th><th>outcome</th><th>PR</th></tr>';
+ for(const r of rows){
+  h+=`<tr><td class=muted>${esc(r.task||r.run_id)}</td><td class=n>${r.rounds}</td>`+
+     `<td class=money>$${r.coder_cost.toFixed(2)}</td><td class=money>$${r.reviewer_cost.toFixed(2)}</td>`+
+     `<td class=money>$${r.total_cost.toFixed(2)}</td><td>${esc(r.outcome||'—')}</td>`+
+     `<td>${r.pr?('#'+r.pr):'—'}</td></tr>`;
+ }
+ return h+'</table>';
+}
+function suggestionsCard(rows){
+ if(!rows.length) return '';
+ let h='<h2>Suggestions <span class=muted style="text-transform:none;font-weight:400">— ranked by estimated $ impact</span></h2><ul style="padding-left:18px;line-height:1.8">';
+ for(const s of rows){ h+=`<li>${esc(s.message)} <span class=muted>(~$${s.impact_usd.toFixed(2)})</span></li>`; }
+ return h+'</ul>';
+}
+function stackedByModel(d){
+ const days=d.by_day.map(r=>r[0]); if(!days.length) return emptyState('No dated cost yet.');
+ const W=520,H=200,PL=46,PB=30,PR=28,PT=20;
+ // Per-day-per-model split isn't shipped to the client to keep payload small
+ // (the by_model legend still reflects exact totals) — this chart shows the
+ // RELATIVE daily shape of total token volume as a proxy for daily cost.
+ const totalByDay=d.by_day.map(r=>r[1].input+r[1].output+r[1].cache_read+r[1].cache_write);
+ const maxT=Math.max(...totalByDay,1); const X=i=>PL+(W-PL-PR)*i/Math.max(days.length-1,1);
+ const Y=v=>H-PB-(H-PB-PT)*v/maxT;
+ const path=`M${days.map((day,i)=>`${X(i)},${Y(totalByDay[i])}`).join(' L')}`;
+ const area=`${path} L${X(days.length-1)},${H-PB} L${X(0)},${H-PB} Z`;
+ const tickAttrs='fill="var(--muted)" font-size="11"';
+ const xLabels=`<text x="${PL}" y="${H-2}" ${tickAttrs}>${esc(days[0].slice(5))}</text>`+
+   (days.length>1?`<text x="${W-PR}" y="${H-2}" ${tickAttrs} text-anchor="end">${esc(days[days.length-1].slice(5))}</text>`:'');
+ return svgEl(W,H,`<path d="${area}" fill="var(--cost)" fill-opacity=".18"/><path d="${path}" fill="none" stroke="var(--cost)" stroke-width="2"/>${xLabels}`,
+   'Daily total token volume over time (shape proxy for cost)');
+}
 function toolBadge(t){const m={'claude-code':'CC','codex':'CX'}; return `<span class=badge title="${esc(t||'unknown')}">${esc(m[t]||'?')}</span>`;}
 function dirsTable(dirs){
  let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— cost (amber) × value shipped (green); — = no local token data for that tool</span></h2>`;
@@ -588,6 +608,21 @@ function render(d){
    <section><h2>Token-purpose split</h2>${purposeSplit(d.totals)}${legend()}</section>
    <section><h2>Cost by directory</h2>${costByDir(d.directories||[])}</section>
  </div>`;
+ h+=`<section style="margin-bottom:24px"><h2>Budget</h2>
+   ${d.budget.daily.limit==null&&d.budget.weekly.limit==null
+     ? '<p class=muted>No budget configured — add "budget" to ~/.100xprism/config.json.</p>'
+     : budgetBar(d.budget.daily,'today')+budgetBar(d.budget.weekly,'last 7 days')}
+   ${d.fallback_pct?`<p class=muted style="margin-top:8px">${d.fallback_pct}% of spend priced at fallback (unrecognized model) rates.</p>`:''}
+ </section>`;
+ h+=`<div class=cards2>
+   <section><h2>Spend by purpose</h2>${donut(t)}${legend()}</section>
+   <section><h2>Daily volume</h2>${stackedByModel(d)}</section>
+ </div>`;
+ h+=handoffTable(d.handoff_runs||[]);
+ h+=`<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— top 50 by cost, last 30 days</span></h2>${sessionsTable(d.by_session||[])}`;
+ h+=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— "exact" from Claude Code's native attribution, "attr." from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[])}`;
+ h+=`<h2>Main vs subagent</h2><p>main $${(d.main_subagent_split.main_cost||0).toFixed(2)} · subagent $${(d.main_subagent_split.subagent_cost||0).toFixed(2)}</p>`;
+ h+=suggestionsCard(d.suggestions||[]);
  h+=dirsTable(d.directories||[]);
  h+=`<h2>Startup bloat — fixed context re-sent every turn</h2>
    <div class=meter><b style="width:${mw}%;background:${mw>30?'var(--cw)':'var(--cr)'}"></b>
@@ -617,7 +652,7 @@ function render(d){
  document.getElementById('app').innerHTML=h;
 }
 load();
-setInterval(load, 300000);  // auto-refresh every 5 min so the tab never goes stale
+setInterval(load, 30000);  // auto-refresh every 30s — matches the server's 30s rescan cadence
 document.addEventListener('mousemove',e=>{const el=e.target.closest('[data-tip]');const tip=document.getElementById('tip');
   if(el){tip.textContent=el.getAttribute('data-tip');tip.style.display='block';
     let x=e.clientX+12,y=e.clientY+12;tip.style.left=Math.min(x,innerWidth-tip.offsetWidth-8)+'px';tip.style.top=y+'px';}
@@ -674,20 +709,46 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _token_summary() -> str | None:
-    """Return a short cached-token summary string, or None if no cache."""
-    files = load_cache()
-    if not files:
+    """Return a short cached-token summary string (+ budget glyph), or None."""
+    cc_cache = claude_code.load_cache()
+    cx_cache = codex.load_cache()
+    if not cc_cache and not cx_cache:
         return None
     tot = _empty()
-    for s in files.values():
-        t = s.get("totals", {})
-        _add(tot, t.get("input", 0), t.get("output", 0),
-             t.get("cache_read", 0), t.get("cache_write", 0))
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    week_start = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+    today_by_model, week_models = defaultdict(_empty), defaultdict(_empty)
+    for cache in (cc_cache, cx_cache):
+        for s in cache.values():
+            t = s.get("totals", {})
+            _add(tot, t.get("input", 0), t.get("output", 0), t.get("cache_read", 0), t.get("cache_write", 0))
+            for day, models in s.get("by_day_model", {}).items():
+                for model, d in models.items():
+                    if day == today_str:
+                        _add(today_by_model[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+                    if day >= week_start:
+                        _add(week_models[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
     if not any(tot.values()):
         return None
-    cost = sum(tot[k] / 1_000_000 * RATES[k] for k in RATES)
-    return (f"{fmt(tot['output'])} out · "
-            f"{fmt(tot['cache_read'])} ctx · ~${cost:,.0f}")
+    by_model_total = _bucket_by_model(cc_cache, cx_cache)
+    cost, _ = pricing.cost_by_model(by_model_total)
+    today_cost, _ = pricing.cost_by_model(today_by_model)
+    week_cost, _ = pricing.cost_by_model(week_models)
+    budget = _budget.budget_summary(today_cost, week_cost)
+    suffix = _budget.oneline_suffix(budget)
+    line = f"{fmt(tot['output'])} out · {fmt(tot['cache_read'])} ctx · ~${cost:,.0f}"
+    if suffix:
+        line += f" · {suffix}"
+    return line
+
+
+def _bucket_by_model(cc_cache, cx_cache):
+    agg = defaultdict(_empty)
+    for cache in (cc_cache, cx_cache):
+        for s in cache.values():
+            for model, d in s.get("by_model", {}).items():
+                _add(agg[model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+    return dict(agg)
 
 
 def _oneline():
@@ -797,7 +858,9 @@ def main():
         while True:
             time.sleep(REFRESH_SECONDS)
             try:
-                _rebuild()
+                data = _rebuild()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                _budget.maybe_notify(data["budget"], today_str)
             except Exception:
                 pass
 

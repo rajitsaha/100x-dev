@@ -124,7 +124,12 @@ Offline, no dependencies. Reads `~/.claude/projects/**/*.jsonl` and shows the fo
 token purposes, a **startup-bloat meter** (fixed context re-sent per turn), and
 breakdowns by project / model / day. First run scans all transcripts (slow); later
 runs use an incremental on-disk cache (`~/.claude/.token-dashboard-cache.json`).
-Edit the `RATES` table at the top of the script to match your plan for the cost estimate.
+Cost estimates use per-model $/1M-token rates (`scripts/pricing.py`, `RATES`); a
+model id is matched by substring against a lowercased pattern list (most specific
+first), so new model ids are usually priced correctly with no code change.
+Unmatched ids fall back to Opus-tier rates and are counted separately — the
+dashboard's `fallback_pct` shows what portion of total spend is a real per-model
+price versus that fallback estimate.
 
 **Machine-global + singleton.** It reads the *global* `~/.claude/projects`, so one
 instance covers **every session and every repo/directory on the machine** at one
@@ -144,22 +149,29 @@ treat it as directional. It's the closest you can get without re-tokenizing.
 
 Tokens measure *cost*; the `100x-tokens` dashboard measures *value* in the same view — no registration step needed.
 
-The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide by marker files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`) — even directories with zero Claude token spend. Value is derived tool-agnostically from git history (commits / PRs / files / churn) with a filesystem-mtime fallback for non-repos, plus cached AI one-line summaries generated via the local `claude` CLI (non-blocking, degrades silently when absent).
+The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide by marker files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`) — even directories with zero Claude token spend. Value is derived tool-agnostically from git history (commits / merged PRs / releases / files / churn — merged PRs are deduped by PR number across squash-merge subjects and real merge commits) with a filesystem-mtime fallback for non-repos, plus cached AI one-line summaries generated via the local `claude` CLI (non-blocking, degrades silently when absent).
 
-Cost is Claude-Code-only (the only tool that writes local token accounting). Directories worked on by Cursor, Codex, or other tools appear with their value and `—` in the cost column — never $0, because $0 would be misleading.
+Cost attribution lives in pluggable per-tool adapters (`scripts/adapters/`): both `claude_code` and `codex` are real, incremental-cache-backed parsers of their tool's local transcript format. Directories worked on by Cursor, Antigravity, or other tools with no adapter still appear via the value layer, with `—` in the cost column — never `$0`, because `$0` would be misleading.
 
-Four inline-SVG charts (zero dependency, fully offline) render in the dashboard:
+The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependency, fully offline:
 - **Leverage scatter** — value vs cost with a break-even line
-- **Cost over time** — spend by day
-- **Token-purpose split** — input / output / cache-read / cache-write
-- **Cost by directory** — ranked bar
+- **Cost over time** and **daily volume** — spend and token volume by day
+- **Spend-by-purpose donut** and **token-purpose split** — input / output / cache-read / cache-write
+- **Cost by directory**, plus an **all-directories table**
+- **Budget** — spend vs your configured daily/weekly limit (see Budgets, below)
+- **Sessions** — top 50 sessions by cost, last 30 days
+- **By skill** — cost and $/invocation per skill (see Skill attribution, below)
+- **Main vs subagent** — cost split between the main conversation and Task-tool subagent branches
+- **Pair-loop handoff runs** — coder/reviewer round costs for `pair-loop.py` runs, once any exist
+- **Suggestions** — rule-based, offline cost-reduction suggestions ranked by estimated $ impact
 
-`~/.100xprism/value.json` is an automatic per-directory cache (keyed by dir + git HEAD + date window), not a manual registry. Cost attribution lives in pluggable per-tool adapters (`scripts/adapters/`): `claude_code` is real; `codex` is a documented stub.
+`~/.100xprism/value.json` is an automatic per-directory cache (keyed by dir + git HEAD + date window), not a manual registry.
+
+**Skill attribution.** Claude Code sets `attributionSkill` natively on transcript lines while a Skill tool is active — this is **exact** attribution, not a heuristic, and the dashboard's "by skill" table marks it `exact`. Built-in slash commands that aren't Skills (e.g. `/model`) don't set `attributionSkill`, so those are segmented via the `<command-name>/xyz</command-name>` marker in the preceding user turn instead — usage between one marker and the next, marked `attr.` in the table. That fallback is a boundary heuristic, same honesty convention as the char-based composition estimate above.
+
+**Budgets.** Add a `budget` section to `~/.100xprism/config.json` (`daily_usd` / `weekly_usd` / `per_run_usd`, all `null` — inert — by default) to get a budget bar in the dashboard, a `⚠`/`‼` glyph in the `--oneline` shell summary, and a native OS notification (macOS `osascript`) the first time a period crosses 80% (WARN) or 100% (ALERT) in a day.
 
 ### Other options
 - `npx ccusage@latest` and `npx ccusage@latest blocks --live` — terminal dashboards.
 - OpenTelemetry (`CLAUDE_CODE_ENABLE_TELEMETRY=1` + an OTLP exporter) → Prometheus +
   Grafana for a persistent web dashboard graphing input/output/cache over time.
-
-> No tool attributes tokens to a specific skill/plugin; that granularity only comes
-> from `/context` (current window) or building it from the raw transcripts.

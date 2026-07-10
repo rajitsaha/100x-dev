@@ -4,7 +4,7 @@
 
 ## How it works
 
-100xPrism ships 66 modules as markdown files with YAML frontmatter. Your AI tool reads them and follows the instructions — running commands, enforcing thresholds, looping until checks pass.
+100xPrism ships 67 modules as markdown files with YAML frontmatter. Your AI tool reads them and follows the instructions — running commands, enforcing thresholds, looping until checks pass.
 
 Each module is the **single source of truth**. Adapters generate the right format for each tool:
 
@@ -33,7 +33,7 @@ npm install -g 100xprism && 100xprism install
 ```
 
 The installer:
-1. Emits all 66 modules to `~/.claude/skills/`
+1. Emits all 67 modules to `~/.claude/skills/`
 2. Creates slash command aliases in `~/.claude/commands/` for the modules whose command name differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) — every other module is invoked as `/<skill-name>` directly
 3. Merges 14 Claude Code plugins into `~/.claude/settings.json`
 4. Adds shell aliases (`cc`, `ccc`, `100x-update`, `100x-check`)
@@ -131,7 +131,7 @@ SessionStart:startup hook error
 
 ### In Claude Code — slash commands
 
-The following 26 slash commands are available. Run them directly:
+The following 27 slash commands are available. Run them directly:
 
 **Lifecycle:**
 ```
@@ -423,8 +423,31 @@ It breaks usage into the four token "purposes" — **input**, **output**,
 shows a **startup-bloat meter** (the fixed context re-sent every turn) plus
 per-project / per-model / per-day breakdowns, **every directory you build in**
 (token-spend dirs plus agentic projects discovered machine-wide via marker files),
-and **value vs cost** charts. The first run scans all transcripts; later runs use an
-incremental cache.
+and **value vs cost** charts. Cost tracking covers both Claude Code and Codex CLI
+sessions, priced per-model (`scripts/pricing.py`). The first run scans all
+transcripts; later runs use an incremental cache. The page auto-refreshes every
+30s.
+
+It also shows top sessions and skills by cost, a main-vs-subagent cost split, and
+a **suggestions panel** — rule-based, offline cost-reduction tips ranked by
+estimated $ impact (e.g. trimming fixed startup context, or skills with a high
+$/invocation).
+
+**Budgets.** Add a `budget` section to `~/.100xprism/config.json` to get a budget
+bar in the dashboard, a `⚠`/`‼` glyph in the `--oneline` shell summary, and a
+native OS notification the first time a period crosses 80%/100%:
+
+```json
+{
+  "budget": {
+    "daily_usd": 25,
+    "weekly_usd": 150,
+    "per_run_usd": null
+  }
+}
+```
+
+All keys default to `null` (no limit — the feature is inert until you set one).
 
 To shrink token spend, audit your installed plugins/skills/MCP servers for
 duplication and trim the fixed context — see
