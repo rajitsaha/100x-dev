@@ -1025,7 +1025,7 @@ and continue.
 ## Step 3 — Coder round
 
 Implement the task (or address the reviewer's findings from the prior round).
-Run the project's quick checks (tests + lint) before recording the round. Then:
+Run the project's quick checks (tests + lint) before recording the round. **Do not commit — leave all changes in the working tree so review diffs stay accurate across rounds; commit only in Step 5 (PR phase).** Then:
 
 ```bash
 python3 ~/100xprism/scripts/pair-loop.py coder-done --run "$RUN_ID" \
@@ -1042,7 +1042,7 @@ python3 ~/100xprism/scripts/pair-loop.py review --run "$RUN_ID"
 This shells out to the configured reviewer (falling back to the coder's vendor
 if that CLI is missing — the output will say `"fallback_used": true`; mention
 this to the user once, don't repeat it every round) and returns
-`{"verdict":, "findings": [...]}`.
+`{"verdict":, "findings": [...], "fallback_used":}`.
 
 - `"verdict": "APPROVED"` → go to Step 5 (PR phase).
 - `"verdict": "CHANGES_REQUESTED"` and you have rounds remaining (round count
@@ -1076,8 +1076,9 @@ address them before finishing.
 
 - Budget cap hit (Step 2, exit code 2).
 - Round cap hit without approval (Step 4).
-- The reviewer CLI fell back to the coder's vendor (mention once, don't block).
 - Never auto-merge — a human merges the PR, always.
+
+**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true`), but do not block — this is not a stop condition.
 ```
 
 - [ ] **Step 2: Verify the module passes the repo's frontmatter checks**
