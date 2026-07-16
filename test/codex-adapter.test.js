@@ -27,15 +27,24 @@ test('codex adapter emits compact AGENTS plus repo skills', () => {
 
   const agentsPath = path.join(tmp, 'AGENTS.md')
   const agents = fs.readFileSync(agentsPath, 'utf8')
-  assert.ok(Buffer.byteLength(agents, 'utf8') < 32 * 1024, 'AGENTS.md should fit Codex default project-doc budget')
+  assert.ok(Buffer.byteLength(agents, 'utf8') < 8 * 1024, 'AGENTS.md should stay within the Codex router budget')
   assert.match(agents, /Full reusable workflows live in `\.agents\/skills\/<slug>\/SKILL\.md`/)
   assert.match(agents, /`\/gate` → `\$gate`/)
   assert.match(agents, /Claude Code plugins .* are not Codex plugins/)
+  assert.match(agents, /\.agents\/100x-index\.md/)
+  assert.doesNotMatch(agents, /## Available Skills/)
+
+  const index = fs.readFileSync(path.join(tmp, '.agents', '100x-index.md'), 'utf8')
+  assert.match(index, /100xprism Skill Index/)
+  assert.match(index, /`gate` `\/gate`/)
 
   const skillsDir = path.join(tmp, '.agents', 'skills')
   const skillFiles = fs.readdirSync(skillsDir)
     .filter((name) => fs.existsSync(path.join(skillsDir, name, 'SKILL.md')))
-  assert.equal(skillFiles.length, 67)
+  const sourceSkillCount = fs.readdirSync(path.join(REPO, 'modules'))
+    .filter((name) => fs.existsSync(path.join(REPO, 'modules', name, 'SKILL.md')))
+    .length
+  assert.equal(skillFiles.length, sourceSkillCount)
   assert.ok(fs.existsSync(path.join(skillsDir, 'gate', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(skillsDir, 'copywriting', 'SKILL.md')))
 })
