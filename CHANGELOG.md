@@ -9,6 +9,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [2.4.8] — 2026-07-15
+
+### Fixed
+- Reduced generated Codex `AGENTS.md` context by moving the full skill catalog to `.agents/100x-index.md` while preserving progressive skill loading.
+
 ## [2.4.7] — 2026-07-10
 
 (Minor maintenance release)
