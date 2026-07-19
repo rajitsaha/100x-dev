@@ -423,13 +423,17 @@ It breaks usage into the four token "purposes" — **input**, **output**,
 shows a **startup-bloat meter** (the fixed context re-sent every turn) plus
 per-project / per-model / per-day breakdowns, **every directory you build in**
 (token-spend dirs plus agentic projects discovered machine-wide via marker files),
-and **value vs cost** charts. Cost tracking covers both Claude Code and Codex CLI
-sessions, priced per-model (`scripts/pricing.py`). The first run scans all
+and **observable outcome vs cost** charts. Cost tracking covers Claude Code and Codex CLI
+sessions, priced per-model from a dated, source-linked catalog (`scripts/pricing.py`).
+Cursor agent transcripts and Antigravity conversations/task artifacts are also
+collected for project, session, message/artifact, and date coverage. Their local
+formats do not expose provider token counters, so the dashboard labels them
+activity-only and leaves cost unavailable rather than estimating it. The first run scans all
 transcripts; later runs use an incremental cache. The page auto-refreshes every
 30s.
 
 It also shows top sessions and skills by cost, a main-vs-subagent cost split, and
-a **suggestions panel** — rule-based, offline cost-reduction tips ranked by
+a **recommendations panel** — rule-based, offline cost-reduction opportunities ranked by
 estimated $ impact (e.g. trimming fixed startup context, or skills with a high
 $/invocation).
 

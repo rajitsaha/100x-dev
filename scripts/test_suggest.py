@@ -12,7 +12,7 @@ def _base_data(**overrides):
         "bloat": {"median": 5000, "avg": 5000, "samples": 10},
         "sessions": 10,
         "by_session": [],
-        "totals": {"input": 100, "output": 100, "cache_read": 100, "cache_write": 0},
+        "totals": {"input": 100, "output": 100, "cache_read": 300, "cache_write": 0},
         "total_cost": 10.0,
         "composition": [],
         "by_skill": [],
@@ -29,20 +29,22 @@ class TestSuggest(unittest.TestCase):
     def test_startup_bloat_rule_fires_above_threshold(self):
         data = _base_data(bloat={"median": 20000, "avg": 20000, "samples": 10})
         out = _suggest.suggestions(data)
-        self.assertTrue(any("trim CLAUDE.md" in s.message for s in out))
+        self.assertTrue(any("fixed tokens" in s.message for s in out))
 
     def test_startup_bloat_rule_silent_below_threshold(self):
         data = _base_data(bloat={"median": 5000, "avg": 5000, "samples": 10})
         out = _suggest.suggestions(data)
-        self.assertFalse(any("trim CLAUDE.md" in s.message for s in out))
+        self.assertFalse(any("fixed tokens" in s.message for s in out))
 
     def test_model_tiering_rule_fires_for_expensive_light_sessions(self):
         data = _base_data(by_session=[
-            {"session_id": "a", "tool": "claude-code", "msgs": 2, "cost": 0.80},
-            {"session_id": "b", "tool": "claude-code", "msgs": 2, "cost": 0.75},
+            {"session_id": "a", "tool": "claude-code", "msgs": 2, "cost": 0.80,
+             "models": ["claude-opus-4-8"], "model_costs": {"claude-opus-4-8": 0.80}},
+            {"session_id": "b", "tool": "claude-code", "msgs": 2, "cost": 0.75,
+             "models": ["claude-fable-5"], "model_costs": {"claude-fable-5": 0.75}},
         ])
         out = _suggest.suggestions(data)
-        self.assertTrue(any("re-tier" in s.message for s in out))
+        self.assertTrue(any("premium models" in s.message for s in out))
 
     def test_cache_hygiene_rule_fires_for_low_cache_share(self):
         data = _base_data(totals={"input": 900, "output": 100, "cache_read": 100, "cache_write": 0})
@@ -52,7 +54,7 @@ class TestSuggest(unittest.TestCase):
     def test_read_delegation_rule_fires_for_high_files_read_share(self):
         data = _base_data(composition=[["code / files read", 400000, 40.0], ["your prompts", 600000, 60.0]])
         out = _suggest.suggestions(data)
-        self.assertTrue(any("Explore subagents" in s.message for s in out))
+        self.assertTrue(any("raw file reads" in s.message for s in out))
 
     def test_skill_outlier_rule_fires_for_dominant_expensive_skill(self):
         data = _base_data(by_skill=[
@@ -63,13 +65,20 @@ class TestSuggest(unittest.TestCase):
         out = _suggest.suggestions(data)
         self.assertTrue(any("expensive-skill" in s.message for s in out))
 
+    def test_output_rule_preserves_reasoning_and_tools(self):
+        data = _base_data(cost_by_purpose={"input": 1.0, "output": 8.0,
+                                           "cache_read": 1.0, "cache_write": 0.0})
+        out = _suggest.suggestions(data)
+        suggestion = next(s for s in out if s.title == "Compress narration, not reasoning")
+        self.assertIn("tool calls", suggestion.action)
+
     def test_loop_cap_rule_fires_for_repeated_zero_finding_final_rounds(self):
         data = _base_data(handoff_runs=[
             {"run_id": "r1", "rounds": 3, "reviewer_cost": 0.5, "final_round_findings": 0},
             {"run_id": "r2", "rounds": 2, "reviewer_cost": 0.4, "final_round_findings": 0},
         ])
         out = _suggest.suggestions(data)
-        self.assertTrue(any("lower the round cap" in s.message for s in out))
+        self.assertTrue(any("zero-finding" in s.message for s in out))
 
     def test_suggestions_sorted_by_impact_descending(self):
         data = _base_data(

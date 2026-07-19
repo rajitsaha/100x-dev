@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -31,6 +32,10 @@ HOME = os.path.expanduser("~")
 SOURCE_DIR = os.path.join(HOME, ".claude", "projects")
 CACHE_FILE = os.path.join(HOME, ".claude", ".token-dashboard-cache.json")
 CACHE_VERSION = 4  # bump -> re-parse all transcripts (attribution fields added)
+FULL_SCAN_SECONDS = 1800
+HOT_FILE_SECONDS = 86400
+_MEM_PAYLOAD = None
+_MEM_CACHE_KEY = None
 
 project_label = _value.project_label
 
@@ -209,55 +214,119 @@ def parse_file(path):
     }
 
 
-def load_cache():
+def _load_cache_payload():
+    global _MEM_PAYLOAD, _MEM_CACHE_KEY
+    try:
+        st = os.stat(CACHE_FILE)
+        key = (CACHE_FILE, st.st_mtime, st.st_size)
+        if _MEM_PAYLOAD is not None and _MEM_CACHE_KEY == key:
+            return _MEM_PAYLOAD
+    except OSError:
+        key = (CACHE_FILE, None, None)
     try:
         with open(CACHE_FILE) as f:
             c = json.load(f)
         if c.get("version") == CACHE_VERSION:
-            return c.get("files", {})
+            _MEM_PAYLOAD, _MEM_CACHE_KEY = c, key
+            return c
     except Exception:
         pass
-    return {}
+    return {"version": CACHE_VERSION, "files": {}, "project_mtimes": {},
+            "full_scan_at": 0}
 
 
-def save_cache(files):
+def load_cache():
+    return _load_cache_payload().get("files", {})
+
+
+def save_cache(files, project_mtimes=None, full_scan_at=0):
+    global _MEM_PAYLOAD, _MEM_CACHE_KEY
+    payload = {"version": CACHE_VERSION, "files": files,
+               "project_mtimes": project_mtimes or {},
+               "full_scan_at": full_scan_at}
     try:
         with open(CACHE_FILE, "w") as f:
-            json.dump({"version": CACHE_VERSION, "files": files}, f)
+            json.dump(payload, f)
+        st = os.stat(CACHE_FILE)
+        _MEM_PAYLOAD = payload
+        _MEM_CACHE_KEY = (CACHE_FILE, st.st_mtime, st.st_size)
     except Exception as e:
         print(f"warning: could not write claude_code cache: {e}", file=sys.stderr)
 
 
-def scan(verbose=False):
+def scan(verbose=False, dir_index=None):
     """Glob + incrementally parse every Claude Code transcript. Returns a list of
     per-file summary dicts with mtime/size/project/projdir/tool added."""
-    cache = load_cache()
-    paths = glob.glob(os.path.join(SOURCE_DIR, "*", "*.jsonl"))
+    payload = _load_cache_payload()
+    cache = payload.get("files", {})
+    old_project_mtimes = payload.get("project_mtimes", {})
+    last_full_scan = payload.get("full_scan_at", 0) or 0
+    now = time.time()
+    full_scan = not cache or now - last_full_scan >= FULL_SCAN_SECONDS
+    paths = set() if full_scan else set(cache)
+    cached_by_project = defaultdict(set)
+    for cached_path in cache:
+        cached_by_project[os.path.dirname(cached_path)].add(cached_path)
+    project_mtimes = {}
+    changed_projects = set()
+    try:
+        projects = [entry for entry in os.scandir(SOURCE_DIR) if entry.is_dir()]
+    except OSError:
+        projects = []
+    for project in projects:
+        try:
+            mtime = project.stat().st_mtime
+        except OSError:
+            continue
+        project_mtimes[project.path] = mtime
+        if full_scan or old_project_mtimes.get(project.path) != mtime:
+            changed_projects.add(project.path)
+            current = set(glob.glob(os.path.join(project.path, "*.jsonl")))
+            paths.difference_update(cached_by_project.get(project.path, ()))
+            paths.update(current)
     new_cache = {}
     reparsed = 0
-    for p in paths:
+    labels_by_dir = {}
+    cache_changed = set(cache) != paths
+    hot_cutoff = now - HOT_FILE_SECONDS
+    for p in sorted(paths):
+        prev = cache.get(p)
+        needs_stat = (full_scan or prev is None or os.path.dirname(p) in changed_projects
+                      or prev.get("mtime", 0) >= hot_cutoff)
+        if not needs_stat:
+            new_cache[p] = prev
+            continue
         try:
             st = os.stat(p)
         except OSError:
+            cache_changed = True
             continue
-        prev = cache.get(p)
         if prev and prev.get("mtime") == st.st_mtime and prev.get("size") == st.st_size:
-            new_cache[p] = prev
-            continue
-        summary = parse_file(p)
-        summary["mtime"] = st.st_mtime
-        summary["size"] = st.st_size
-        summary["project"] = project_label(p)
-        summary["projdir"] = os.path.basename(os.path.dirname(p))
+            summary = prev
+        else:
+            summary = parse_file(p)
+            summary["mtime"] = st.st_mtime
+            summary["size"] = st.st_size
+            reparsed += 1
+            if verbose and reparsed % 200 == 0:
+                print(f"  parsed {reparsed} new/changed claude transcripts...", file=sys.stderr)
+        # Labels are derived on every scan so old cached summaries are corrected
+        # when a formerly ambiguous transcript directory is resolved.
+        projdir = os.path.basename(os.path.dirname(p))
+        if projdir not in labels_by_dir:
+            labels_by_dir[projdir] = project_label(p, dir_index=dir_index)
+        summary["project"] = labels_by_dir[projdir]
+        summary["projdir"] = projdir
         summary["tool"] = TOOL
         new_cache[p] = summary
-        reparsed += 1
-        if verbose and reparsed % 200 == 0:
-            print(f"  parsed {reparsed} new/changed claude transcripts...", file=sys.stderr)
-    save_cache(new_cache)
+    full_scan_at = now if full_scan else last_full_scan
+    metadata_changed = project_mtimes != old_project_mtimes or full_scan
+    if cache_changed or reparsed or metadata_changed:
+        save_cache(new_cache, project_mtimes, full_scan_at)
     if verbose:
+        mode = "full" if full_scan else "incremental"
         print(f"claude_code: scanned {len(paths)} transcripts ({reparsed} re-parsed, "
-              f"{len(paths) - reparsed} cached)", file=sys.stderr)
+              f"{len(paths) - reparsed} cached; {mode})", file=sys.stderr)
     return list(new_cache.values())
 
 

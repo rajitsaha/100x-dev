@@ -40,10 +40,26 @@ class TestPricing(unittest.TestCase):
         self.assertAlmostEqual(total, expected_sonnet + expected_fallback, places=6)
         self.assertEqual(fallback_tokens, 500_000)
 
-    def test_gpt_5_pattern_matches_dotted_minor_versions(self):
-        rates, is_fallback = pricing.rates_for_model("gpt-5.5")
+    def test_gpt_5_minor_uses_specific_rate(self):
+        rates, is_fallback = pricing.rates_for_model("gpt-5.5-codex")
         self.assertFalse(is_fallback)
-        self.assertEqual(rates, next(r for k, r in pricing.RATES if k == "gpt-5"))
+        self.assertEqual(rates, next(r for k, r in pricing.RATES if k == "gpt-5.5"))
+
+    def test_current_anthropic_models_precede_family_fallbacks(self):
+        opus, _ = pricing.rates_for_model("claude-opus-4-8")
+        sonnet, _ = pricing.rates_for_model("claude-sonnet-5")
+        self.assertEqual(opus["input"], 5.0)
+        self.assertEqual(sonnet["input"], 2.0)
+
+    def test_cost_breakdown_prices_each_purpose_by_model(self):
+        by_model = {
+            "gpt-5.5": {"input": 1_000_000, "output": 1_000_000,
+                         "cache_read": 1_000_000, "cache_write": 0},
+        }
+        out = pricing.cost_breakdown(by_model)
+        self.assertEqual(out["input"], 5.0)
+        self.assertEqual(out["output"], 30.0)
+        self.assertEqual(out["cache_read"], 0.5)
 
 
 if __name__ == "__main__":
