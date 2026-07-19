@@ -3,6 +3,7 @@
   "version": "2.4.8",
   "description": "67 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, Codex, Windsurf, Antigravity, Copilot, Gemini.",
   "scripts": {
+    "preuninstall": "node ./lib/uninstall.js",
     "test": "node --test",
     "check": "node --test && python3 scripts/meta-check.py && HOME=$(mktemp -d) ./adapters/claude-code.sh"
   },

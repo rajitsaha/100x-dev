@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # 100xPrism shortcuts
-# Source this file from ~/.zshrc or ~/.bashrc:
+# Source this file manually when you want aliases in the current terminal:
 #   source ~/100xprism/shell/aliases.sh
 
 # Launch Claude
@@ -22,19 +22,3 @@ alias 100x-tokens="python3 $HOME/100xprism/scripts/token-dashboard.py"
 # What shipped (value, to read next to token cost) — defaults to the current repo.
 # shellcheck disable=SC2139
 alias 100x-value="python3 $HOME/100xprism/scripts/value-report.py"
-
-# ── Version check ─────────────────────────────────────────────────────────────
-# On shell startup: read cached update status (no network) + prompt if available.
-# Then kick off a background cache refresh for next session.
-if [[ -x "$HOME/100xprism/shell/check-update.sh" ]]; then
-  bash "$HOME/100xprism/shell/check-update.sh" --notify
-  ("$HOME/100xprism/shell/check-update.sh" --silent &) 2>/dev/null
-fi
-
-# ── Auto-start the token+value dashboard (machine-wide singleton; detached) ──
-# Opt out any time:  export PRISM_NO_DASHBOARD=1
-# The --ensure-daemon flag surfaces the live URL + cached token summary in one line.
-# PRISM_NO_TOKEN_LINE no longer applies here (--ensure-daemon always shows the URL).
-if [[ -z "${PRISM_NO_DASHBOARD:-}" && -f "$HOME/100xprism/scripts/token-dashboard.py" ]]; then
-  python3 "$HOME/100xprism/scripts/token-dashboard.py" --ensure-daemon 2>/dev/null
-fi

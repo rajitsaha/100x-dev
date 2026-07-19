@@ -79,6 +79,47 @@ sync_hooks() {
   python3 "$REPO_DIR/adapters/lib/modules.py" emit-hooks --sync 2>/dev/null || true
 }
 
+remove_session_update_hook() {
+  [ -f "$SETTINGS_FILE" ] || return 0
+  SETTINGS_FILE="$SETTINGS_FILE" python3 - <<'PYEOF'
+import json, os
+
+settings_file = os.environ["SETTINGS_FILE"]
+try:
+    with open(settings_file) as f:
+        settings = json.load(f)
+except (OSError, ValueError):
+    raise SystemExit(0)
+
+session_start = settings.get("hooks", {}).get("SessionStart", [])
+if not isinstance(session_start, list):
+    raise SystemExit(0)
+
+removed = 0
+for entry in session_start:
+    hooks = entry.get("hooks", [])
+    if not isinstance(hooks, list):
+        continue
+    before = len(hooks)
+    entry["hooks"] = [
+        h for h in hooks
+        if "100xprism/shell/check-update.sh" not in h.get("command", "")
+        and "100x-dev/shell/check-update.sh" not in h.get("command", "")
+    ]
+    removed += before - len(entry["hooks"])
+
+settings["hooks"]["SessionStart"] = [
+    e for e in session_start if isinstance(e.get("hooks"), list) and e["hooks"]
+]
+
+if removed:
+    with open(settings_file, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print(f"  Removed {removed} startup update-check hook(s) ✓")
+PYEOF
+}
+
 # Test seam: when sourced with UPDATE_SH_SOURCE_ONLY=1, load the functions above
 # without running the update flow, so tests can exercise them against a stubbed
 # CLAUDE_BIN. No effect when the script is executed normally.
@@ -179,10 +220,10 @@ python3 "$REPO_DIR/adapters/lib/modules.py" emit-claude-code
 echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
 python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
-  --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json" \
-  --session-hook "$HOME/100xprism/shell/check-update.sh --claude-hook"
+  --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+remove_session_update_hook
 
-echo -e "  ${CYAN}→ Shell aliases auto-updated (sourced file)${NC}"
+echo -e "  ${CYAN}→ Shell startup files are not modified. Run 100xprism uninstall to remove legacy source lines.${NC}"
 
 # Refresh any installed hooks so their wired commands stay current.
 sync_hooks

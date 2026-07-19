@@ -113,7 +113,7 @@ to you.
 100x-tokens                                 # alias → web UI at http://127.0.0.1:8787
 python3 scripts/token-dashboard.py          # (same, explicit)
 python3 scripts/token-dashboard.py --print  # text summary, no server
-python3 scripts/token-dashboard.py --ensure-daemon  # start it detached if not already running (shell startup / install)
+python3 scripts/token-dashboard.py --ensure-daemon  # start it detached if not already running
 ```
 
 An explicit `token-dashboard.py` launch stops and replaces the previous owned
@@ -121,9 +121,9 @@ dashboard process. `--ensure-daemon` remains idempotent, so opening a new shell
 does not restart a healthy daemon. Incremental refreshes inspect recent or newly
 created transcripts; a full transcript reconciliation runs every 30 minutes.
 
-**Auto-start.** You normally don't run anything: a detached singleton launches on shell
-startup and on `100xprism install` / `init` / `update`, and the startup line prints the
-live URL. Opt out with `export PRISM_NO_DASHBOARD=1`.
+**Start.** The dashboard does not launch during shell startup or ordinary
+`100xprism install` / `init` / `update`. Start it explicitly with `100x-tokens`,
+`python3 scripts/token-dashboard.py`, or `100xprism install --dashboard`.
 
 Offline, no dependencies. Reads `~/.claude/projects/**/*.jsonl` and shows the four
 token purposes, a **startup-bloat meter** (fixed context re-sent per turn), and

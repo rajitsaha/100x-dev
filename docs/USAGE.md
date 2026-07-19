@@ -24,7 +24,6 @@ Each module is the **single source of truth**. Adapters generate the right forma
 **Mac / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash
-source ~/.zshrc   # or ~/.bashrc — reload shell to activate the 100xprism command
 ```
 
 **Windows** (or anywhere Node.js is installed):
@@ -33,10 +32,11 @@ npm install -g 100xprism && 100xprism install
 ```
 
 The installer:
+0. Cleans legacy startup hooks, stale command links, and any old owned dashboard process
 1. Emits all 67 modules to `~/.claude/skills/`
 2. Creates slash command aliases in `~/.claude/commands/` for the modules whose command name differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) — every other module is invoked as `/<skill-name>` directly
 3. Merges 14 Claude Code plugins into `~/.claude/settings.json`
-4. Adds shell aliases (`cc`, `ccc`, `100x-update`, `100x-check`)
+4. Leaves shell startup files untouched; optional aliases are available with `source ~/100xprism/shell/aliases.sh`
 5. Copies 4 project templates to `~/100x-templates/`
 6. Optionally installs enforcing hooks (gate-on-commit, secret-scan)
 
@@ -86,44 +86,25 @@ After updating, **restart your Claude Code session** to load the new modules and
 
 > **Tip:** Plugins (superpowers, claude-mem, hookify, etc.) receive independent updates. Running `update --plugins-only` refreshes them without re-pulling the repo.
 
-Claude Code also shows an update banner at session start when a new version is available.
+Run `100xprism check` when you want to check for an update.
 
 ---
 
 ## Custom install location
 
-The `get.sh` installer clones to `~/100xprism` by default and writes that path into `~/.zshrc` and `~/.claude/settings.json`.
+The `get.sh` installer clones to `~/100xprism` by default. It does not write that path into `~/.zshrc`, `~/.bashrc`, `~/.bash_profile`, or Claude `SessionStart` hooks.
 
-If you cloned elsewhere (e.g. `~/work/100xprism`), you'll see errors:
+If you have legacy startup entries from an older 100xprism version and then move/delete the checkout, you may see errors:
 ```
 .zshrc:source: no such file or directory: /Users/<you>/100xprism/shell/aliases.sh
 SessionStart:startup hook error
 ```
 
-**Fix both files:**
+Run `100xprism uninstall` to remove legacy shell-startup source lines, stale command symlinks, and the old dashboard daemon. If you want aliases for a single terminal session, run:
 
-1. **`~/.zshrc`** (or `~/.bashrc`):
-   ```bash
-   # 100xPrism — point at wherever you cloned the repo
-   export DEV_100X_HOME="$HOME/work/100xprism"   # adjust to your path
-   [ -f "$DEV_100X_HOME/shell/aliases.sh" ] && source "$DEV_100X_HOME/shell/aliases.sh"
-   ```
-
-2. **`~/.claude/settings.json`** — update the SessionStart hook. Use `$HOME` (not env vars — hooks run in non-interactive shells that don't source `~/.zshrc`):
-   ```json
-   "hooks": {
-     "SessionStart": [
-       {
-         "matcher": "",
-         "hooks": [
-           { "type": "command", "command": "$HOME/work/100xprism/shell/check-update.sh --claude-hook" }
-         ]
-       }
-     ]
-   }
-   ```
-
-3. **Verify** — open a new terminal (no errors) and a new Claude Code session (no hook errors).
+```bash
+source "$HOME/work/100xprism/shell/aliases.sh"   # adjust to your checkout path
+```
 
 ---
 
@@ -327,7 +308,6 @@ Add to your team's onboarding checklist:
 ```
 - [ ] Install: curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash
       (Windows: npm install -g 100xprism && 100xprism install)
-- [ ] Reload shell: source ~/.zshrc (or ~/.bashrc)
 - [ ] Set up project: cd <your-project> && 100xprism init
 - [ ] Open Claude Code and run /gate to verify
 ```
@@ -414,9 +394,14 @@ python3 ~/100xprism/scripts/token-dashboard.py          # web UI at http://127.0
 python3 ~/100xprism/scripts/token-dashboard.py --print   # text summary, no server
 ```
 
-You rarely run it by hand: it **auto-starts** as a detached singleton on shell startup
-and on `install` / `init` / `update`, and the startup line prints the live URL (opt out
-with `export PRISM_NO_DASHBOARD=1`).
+It does not start during shell startup or ordinary `install` / `init` / `update`.
+Start it explicitly when you want it:
+
+```bash
+100x-tokens
+python3 ~/100xprism/scripts/token-dashboard.py
+100xprism install --dashboard   # optional one-time start after install
+```
 
 It breaks usage into the four token "purposes" — **input**, **output**,
 **cache-read** (re-sent context, usually the largest), and **cache-write** — and
@@ -466,10 +451,10 @@ window) and `/cost` (session total) complement the dashboard.
 
 | Problem | Solution |
 |:--------|:---------|
-| "command not found: 100xprism" | Run `source ~/.zshrc` (or `~/.bashrc`) to reload shell aliases |
+| "command not found: 100xprism" | Reinstall or reshim your package manager: `npm install -g 100xprism && mise reshim node` if using mise |
 | Slash command not recognized in Claude Code | Restart your Claude Code session — modules load at startup |
-| "source: no such file: ~/100xprism/shell/aliases.sh" | You cloned to a custom path — see [Custom install location](#custom-install-location) |
-| "SessionStart:startup hook error" | Update the hook path in `~/.claude/settings.json` — see [Custom install location](#custom-install-location) |
+| "source: no such file: ~/100xprism/shell/aliases.sh" | Legacy shell startup entry — run `100xprism uninstall` or remove the source line from your rc file |
+| "SessionStart:startup hook error" | Legacy Claude startup hook — run `100xprism install` or remove the 100xprism `SessionStart` hook from `~/.claude/settings.json` |
 | Modules not updating after `100xprism update` | Restart your Claude Code session to pick up new modules |
 | Codex skill not appearing | Restart Codex, then run `/skills`; verify `.agents/skills/<slug>/SKILL.md` exists |
 | Codex hook not running | Run `/hooks` in Codex and trust the generated hook definition |
