@@ -74,6 +74,31 @@ class CursorActivityTest(unittest.TestCase):
             self.assertEqual(row["project"], "Cursor · Users-missing-project")
             self.assertIsNone(row["cwd"])
 
+    def test_parse_file_skips_malformed_jsonl_line(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "projects", "Users-test-project",
+                                "agent-transcripts", "session.jsonl")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"role": "user", "message": "before"}) + "\n")
+                f.write("{not valid json}\n")
+                f.write(json.dumps({"role": "assistant", "message": "after"}) + "\n")
+
+            row = cursor.parse_file(path, {})
+
+            self.assertEqual(row["activity"]["messages"], 2)
+
+    def test_project_path_without_projects_segment_is_safe(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "session.jsonl")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"role": "user", "message": "hello"}) + "\n")
+
+            row = cursor.parse_file(path, {})
+
+            self.assertEqual(row["project"], "Cursor · unknown")
+            self.assertEqual(row["projdir"], "unknown")
+
 
 class AntigravityActivityTest(unittest.TestCase):
     def test_maps_artifact_session_to_workspace_without_tokens(self):
@@ -114,6 +139,23 @@ class AntigravityActivityTest(unittest.TestCase):
             self.assertEqual(row["activity"]["artifacts"], 1)
             self.assertEqual(sum(row["totals"].values()), 0)
             self.assertTrue(row["activity_only"])
+
+    def test_missing_workspace_dir_keeps_unmapped_activity(self):
+        with tempfile.TemporaryDirectory() as root:
+            session_id = "11111111-2222-3333-4444-555555555555"
+            source = os.path.join(root, "antigravity")
+            brain = os.path.join(source, "brain", session_id)
+            os.makedirs(brain)
+            original = antigravity.SOURCE_DIR, antigravity.WORKSPACE_DIR
+            antigravity.SOURCE_DIR = source
+            antigravity.WORKSPACE_DIR = os.path.join(root, "missing-workspaces")
+            try:
+                rows = antigravity.scan()
+            finally:
+                antigravity.SOURCE_DIR, antigravity.WORKSPACE_DIR = original
+
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["project"], "Antigravity · unmapped")
 
 
 if __name__ == "__main__":

@@ -224,13 +224,18 @@ def _load_cache_payload():
     except OSError:
         key = (CACHE_FILE, None, None)
     try:
-        with open(CACHE_FILE) as f:
+        with open(CACHE_FILE, encoding="utf-8") as f:
             c = json.load(f)
+        if not isinstance(c, dict):
+            raise ValueError("cache root is not an object")
         if c.get("version") == CACHE_VERSION:
             _MEM_PAYLOAD, _MEM_CACHE_KEY = c, key
             return c
-    except Exception:
+    except FileNotFoundError:
         pass
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"claude-code: ignoring unreadable cache {CACHE_FILE}: {exc}",
+              file=sys.stderr)
     return {"version": CACHE_VERSION, "files": {}, "project_mtimes": {},
             "full_scan_at": 0}
 

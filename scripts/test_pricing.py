@@ -44,6 +44,7 @@ class TestPricing(unittest.TestCase):
         rates, is_fallback = pricing.rates_for_model("gpt-5.5-codex")
         self.assertFalse(is_fallback)
         self.assertEqual(rates, next(r for k, r in pricing.RATES if k == "gpt-5.5"))
+        self.assertEqual(rates["cache_write"], 6.25)
 
     def test_current_anthropic_models_precede_family_fallbacks(self):
         opus, _ = pricing.rates_for_model("claude-opus-4-8")

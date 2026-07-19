@@ -25,7 +25,8 @@ _spec.loader.exec_module(td)
 def git(repo, *args):
     return subprocess.run(
         ["git", "-c", "user.email=t@t.t", "-c", "user.name=t",
-         "-c", "commit.gpgsign=false", "-C", repo, *args],
+         "-c", "commit.gpgsign=false", "-c", "tag.gpgSign=false",
+         "-C", repo, *args],
         capture_output=True, text=True, check=False)
 
 
@@ -400,6 +401,84 @@ class EnsureDaemonTest(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(len(spawned), 0)
 
+    def test_free_port_spawns_daemon(self):
+        import subprocess
+        original = (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                    td.HOME, subprocess.Popen)
+        spawned = []
+        with tempfile.TemporaryDirectory() as root:
+            try:
+                td._port_in_use = lambda port: False
+                td._stop_previous_dashboard = lambda port: []
+                td._token_summary = lambda: None
+                td.HOME = root
+                subprocess.Popen = lambda *a, **kw: spawned.append((a, kw))
+                result = td.ensure_daemon(8787)
+            finally:
+                (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                 td.HOME, subprocess.Popen) = original
+        self.assertEqual(len(spawned), 1)
+        self.assertIn("starting", result)
+
+    def test_spawn_failure_is_reported(self):
+        import contextlib
+        import io
+        import subprocess
+        original = (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                    td.HOME, subprocess.Popen)
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as root:
+            try:
+                td._port_in_use = lambda port: False
+                td._stop_previous_dashboard = lambda port: []
+                td._token_summary = lambda: None
+                td.HOME = root
+                subprocess.Popen = lambda *a, **kw: (_ for _ in ()).throw(OSError("boom"))
+                with contextlib.redirect_stderr(stderr):
+                    result = td.ensure_daemon(8787)
+            finally:
+                (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                 td.HOME, subprocess.Popen) = original
+        self.assertIsNone(result)
+        self.assertIn("dashboard startup failed: boom", stderr.getvalue())
+
+    def test_pid_write_failure_is_reported_without_crashing(self):
+        import contextlib
+        import io
+        original_pid_file = td.PID_FILE
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as root:
+            blocker = os.path.join(root, "not-a-directory")
+            write(blocker, "file")
+            td.PID_FILE = os.path.join(blocker, "dashboard.pid")
+            try:
+                with contextlib.redirect_stderr(stderr):
+                    result = td._write_pid(8787)
+            finally:
+                td.PID_FILE = original_pid_file
+        self.assertFalse(result)
+        self.assertIn("dashboard pid file unavailable", stderr.getvalue())
+
+    def test_refresh_request_returns_json_error(self):
+        import contextlib
+        import io
+        original_rebuild = td._rebuild
+        handler = object.__new__(td.Handler)
+        handler.path = "/api/refresh"
+        sent = []
+        handler._send = lambda body, ctype="application/json", status=200: sent.append(
+            (json.loads(body), ctype, status))
+        stderr = io.StringIO()
+        try:
+            td._rebuild = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+            with contextlib.redirect_stderr(stderr):
+                handler.do_GET()
+        finally:
+            td._rebuild = original_rebuild
+        self.assertEqual(sent, [({"error": "dashboard refresh failed"},
+                                 "application/json", 500)])
+        self.assertIn("dashboard request failed: boom", stderr.getvalue())
+
     def test_stop_previous_dashboard_terminates_owned_process(self):
         original_pids = td._owned_dashboard_pids
         original_kill = os.kill
@@ -460,6 +539,19 @@ class IncrementalClaudeScanTest(unittest.TestCase):
         finally:
             self.adapter.parse_file = original_parse
         self.assertEqual(rows, [summary])
+
+    def test_malformed_cache_is_reported_and_ignored(self):
+        import contextlib
+        import io
+        with open(self.adapter.CACHE_FILE, "w", encoding="utf-8") as f:
+            f.write("{not valid json}")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            cache = self.adapter.load_cache()
+
+        self.assertEqual(cache, {})
+        self.assertIn("ignoring unreadable cache", stderr.getvalue())
 
 
 class TestMergedPRsAndReleases(unittest.TestCase):

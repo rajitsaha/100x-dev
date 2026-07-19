@@ -804,23 +804,27 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, body, ctype="application/json"):
+    def _send(self, body, ctype="application/json", status=200):
         b = body.encode() if isinstance(body, str) else body
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(b)))
         self.end_headers()
         self.wfile.write(b)
 
     def do_GET(self):
-        if self.path.startswith("/api/refresh"):
-            self._send(json.dumps(_client_data(_rebuild())))
-        elif self.path.startswith("/api/data"):
-            if Handler.data is None:
-                _rebuild()
-            self._send(json.dumps(_client_data(Handler.data)))
-        else:
-            self._send(PAGE, "text/html; charset=utf-8")
+        try:
+            if self.path.startswith("/api/refresh"):
+                self._send(json.dumps(_client_data(_rebuild())))
+            elif self.path.startswith("/api/data"):
+                if Handler.data is None:
+                    _rebuild()
+                self._send(json.dumps(_client_data(Handler.data)))
+            else:
+                self._send(PAGE, "text/html; charset=utf-8")
+        except Exception as exc:
+            print(f"dashboard request failed: {exc}", file=sys.stderr)
+            self._send(json.dumps({"error": "dashboard refresh failed"}), status=500)
 
 
 def _token_summary() -> str | None:
@@ -948,12 +952,21 @@ def _stop_previous_dashboard(port, timeout=3.0):
 
 
 def _write_pid(port):
-    os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
     tmp = PID_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"pid": os.getpid(), "port": port,
-                   "script": os.path.realpath(__file__)}, f)
-    os.replace(tmp, PID_FILE)
+    try:
+        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "port": port,
+                       "script": os.path.realpath(__file__)}, f)
+        os.replace(tmp, PID_FILE)
+        return True
+    except OSError as exc:
+        print(f"dashboard pid file unavailable: {exc}", file=sys.stderr)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
 
 
 def _remove_pid():
@@ -985,14 +998,15 @@ def ensure_daemon(port: int) -> str | None:
         _stop_previous_dashboard(port)
         # Not running — spawn a detached background process
         logpath = os.path.join(HOME, ".claude", ".token-dashboard.log")
-        log = open(logpath, "a")
-        subprocess.Popen(
-            [sys.executable, os.path.abspath(__file__), "--no-open", "--port", str(port)],
-            stdout=log, stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL, start_new_session=True)
-        log.close()
+        os.makedirs(os.path.dirname(logpath), exist_ok=True)
+        with open(logpath, "a") as log:
+            subprocess.Popen(
+                [sys.executable, os.path.abspath(__file__), "--no-open", "--port", str(port)],
+                stdout=log, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, start_new_session=True)
         return f"📊 token + value dashboard starting → {url}{suffix}  (first scan runs in the background)"
-    except Exception:
+    except Exception as exc:
+        print(f"dashboard startup failed: {exc}", file=sys.stderr)
         return None
 
 
@@ -1050,8 +1064,8 @@ def main():
         if not args.no_open:
             try:
                 webbrowser.open(url)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"dashboard browser open failed: {exc}", file=sys.stderr)
         return
     _write_pid(args.port)
     print(f"\nToken dashboard → {url}  (Ctrl-C to stop) — all sessions & repos on this machine")
@@ -1063,16 +1077,16 @@ def main():
                 data = _rebuild()
                 today_str = datetime.now().strftime("%Y-%m-%d")
                 _budget.maybe_notify(data["budget"], today_str)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"dashboard auto-refresh failed: {exc}", file=sys.stderr)
 
     threading.Thread(target=_auto_refresh, daemon=True).start()
 
     if not args.no_open:
         try:
             webbrowser.open(url)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"dashboard browser open failed: {exc}", file=sys.stderr)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

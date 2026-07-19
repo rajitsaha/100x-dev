@@ -51,6 +51,12 @@ class TestSuggest(unittest.TestCase):
         out = _suggest.suggestions(data)
         self.assertTrue(any("Cache reads" in s.message for s in out))
 
+    def test_cache_hygiene_rule_fires_at_sixty_five_percent(self):
+        data = _base_data(totals={"input": 35, "output": 0,
+                                  "cache_read": 65, "cache_write": 0})
+        out = _suggest.suggestions(data)
+        self.assertTrue(any("Cache reads are 65%" in s.message for s in out))
+
     def test_read_delegation_rule_fires_for_high_files_read_share(self):
         data = _base_data(composition=[["code / files read", 400000, 40.0], ["your prompts", 600000, 60.0]])
         out = _suggest.suggestions(data)
@@ -71,6 +77,12 @@ class TestSuggest(unittest.TestCase):
         out = _suggest.suggestions(data)
         suggestion = next(s for s in out if s.title == "Compress narration, not reasoning")
         self.assertIn("tool calls", suggestion.action)
+
+    def test_output_rule_silent_below_threshold(self):
+        data = _base_data(cost_by_purpose={"input": 3.0, "output": 4.0,
+                                           "cache_read": 3.0, "cache_write": 0.0})
+        out = _suggest.suggestions(data)
+        self.assertFalse(any(s.title == "Compress narration, not reasoning" for s in out))
 
     def test_loop_cap_rule_fires_for_repeated_zero_finding_final_rounds(self):
         data = _base_data(handoff_runs=[

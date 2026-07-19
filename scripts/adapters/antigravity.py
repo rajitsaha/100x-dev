@@ -67,7 +67,9 @@ def _workspace_map(session_ids):
                         out.setdefault(match.decode(), cwd)
             finally:
                 con.close()
-        except (OSError, ValueError, sqlite3.Error):
+        except (OSError, json.JSONDecodeError, sqlite3.OperationalError) as exc:
+            print(f"antigravity: skipped unreadable workspace {ws_json}: {exc}",
+                  file=sys.stderr)
             continue
     _MAP_CACHE_KEY, _MAP_CACHE_VALUE = cache_key, dict(out)
     return out
@@ -79,10 +81,13 @@ def _artifact_info(session_id):
     for path in paths:
         try:
             with open(path, encoding="utf-8") as f:
-                value = json.load(f).get("updatedAt")
+                raw = json.load(f)
+            value = raw.get("updatedAt") if isinstance(raw, dict) else None
             if value:
                 dates.append(value[:10])
-        except (OSError, ValueError, AttributeError):
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
+            print(f"antigravity: skipped unreadable artifact {path}: {exc}",
+                  file=sys.stderr)
             continue
     return len(paths), max(dates) if dates else None
 
@@ -122,7 +127,7 @@ def scan(verbose=False):
         })
     if verbose:
         print(f"antigravity: scanned {len(rows)} activity sessions "
-              f"(token counters unavailable)", file=__import__("sys").stderr)
+              f"(token counters unavailable)", file=sys.stderr)
     return rows
 
 

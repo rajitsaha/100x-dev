@@ -34,7 +34,7 @@ RATES = [
     ("gpt-5.6-luna", {"input": 1.0, "output": 6.0, "cache_read": 0.1, "cache_write": 1.25}),
     ("gpt-5.6-terra", {"input": 2.5, "output": 15.0, "cache_read": 0.25, "cache_write": 3.125}),
     ("gpt-5.6", {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 6.25}),
-    ("gpt-5.5", {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 5.0}),
+    ("gpt-5.5", {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 6.25}),
     ("gpt-5.4-mini", {"input": 0.75, "output": 4.5, "cache_read": 0.075, "cache_write": 0.75}),
     ("gpt-5.4", {"input": 2.5, "output": 15.0, "cache_read": 0.25, "cache_write": 2.5}),
     ("gpt-5.2", {"input": 1.75, "output": 14.0, "cache_read": 0.175, "cache_write": 1.75}),

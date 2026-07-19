@@ -18,8 +18,6 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import _value
 
-from . import Usage
-
 TOOL = "cursor"
 HOME = os.path.expanduser("~")
 SOURCE_DIR = os.path.join(HOME, ".cursor", "projects")
@@ -40,8 +38,17 @@ def _text_size(value):
     return 0
 
 
+def _project_dir(path):
+    parts = path.split(os.sep + "projects" + os.sep, 1)
+    if len(parts) < 2 or not parts[1]:
+        return None
+    return parts[1].split(os.sep, 1)[0]
+
+
 def _project(path, dir_index=None):
-    project_dir = path.split(os.sep + "projects" + os.sep, 1)[1].split(os.sep, 1)[0]
+    project_dir = _project_dir(path)
+    if not project_dir:
+        return "unknown", None, "Cursor · unknown"
     mangled = "-" + project_dir.strip("-")
     real = (dir_index or {}).get(mangled) or _value.resolve_real_dir(mangled)
     label = (_value.project_label_for_path(real) if real
@@ -59,7 +66,7 @@ def parse_file(path, dir_index=None):
     """Parse one transcript without retaining message content."""
     roles = Counter()
     chars = 0
-    with open(path, errors="ignore") as f:
+    with open(path, encoding="utf-8", errors="ignore") as f:
         for line in f:
             try:
                 row = json.loads(line)
@@ -99,8 +106,9 @@ def scan(verbose=False, dir_index=None):
     for path in paths:
         try:
             st = os.stat(path)
-            project_dir = path.split(os.sep + "projects" + os.sep, 1)[1].split(os.sep, 1)[0]
-            indexed_real = (dir_index or {}).get("-" + project_dir.strip("-"))
+            project_dir = _project_dir(path)
+            indexed_real = ((dir_index or {}).get("-" + project_dir.strip("-"))
+                            if project_dir else None)
             key = (path, st.st_mtime, st.st_size, indexed_real)
             live.add(key)
             row = _MEM_CACHE.get(key)
@@ -115,7 +123,7 @@ def scan(verbose=False, dir_index=None):
             del _MEM_CACHE[key]
     if verbose:
         print(f"cursor: scanned {len(rows)} activity transcripts (token counters unavailable)",
-              file=__import__("sys").stderr)
+              file=sys.stderr)
     return rows
 
 
