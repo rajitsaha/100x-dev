@@ -37,6 +37,43 @@ class CursorActivityTest(unittest.TestCase):
         finally:
             cursor.SOURCE_DIR = original
 
+    def test_scan_collects_flat_and_nested_jsonl_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = os.path.join(root, "projects")
+            project = os.path.join(source, "Users-test-project", "agent-transcripts")
+            nested = os.path.join(project, "session-nested")
+            os.makedirs(nested)
+            with open(os.path.join(project, "session-flat.jsonl"), "w") as f:
+                f.write(json.dumps({"role": "user", "message": "flat"}) + "\n")
+            with open(os.path.join(nested, "session-nested.jsonl"), "w") as f:
+                f.write(json.dumps({"role": "assistant", "message": "nested"}) + "\n")
+            with open(os.path.join(project, "legacy.txt"), "w") as f:
+                f.write("legacy transcript\n")
+
+            original = cursor.SOURCE_DIR
+            cursor.SOURCE_DIR = source
+            try:
+                rows = cursor.scan()
+            finally:
+                cursor.SOURCE_DIR = original
+
+            self.assertEqual({row["session_id"] for row in rows},
+                             {"session-flat", "session-nested"})
+            self.assertEqual(sum(row["activity"]["messages"] for row in rows), 2)
+
+    def test_unresolved_project_uses_cursor_slug_label(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "projects", "Users-missing-project",
+                                "agent-transcripts", "session.jsonl")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w") as f:
+                f.write(json.dumps({"role": "user", "message": "hello"}) + "\n")
+
+            row = cursor.parse_file(path, {})
+
+            self.assertEqual(row["project"], "Cursor · Users-missing-project")
+            self.assertIsNone(row["cwd"])
+
 
 class AntigravityActivityTest(unittest.TestCase):
     def test_maps_artifact_session_to_workspace_without_tokens(self):

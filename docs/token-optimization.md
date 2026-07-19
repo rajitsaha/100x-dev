@@ -159,8 +159,10 @@ The dashboard shows **every directory that consumed tokens** (repo or not) plus 
 
 Collection lives in pluggable per-tool adapters (`scripts/adapters/`). `claude_code`
 and `codex` parse provider-recorded local token counters and support list-price
-cost attribution. `cursor` parses `~/.cursor/projects/*/agent-transcripts` for
-project/session/message/date activity, while `antigravity` joins local protobuf
+cost attribution. `cursor` parses flat and nested JSONL beneath
+`~/.cursor/projects/*/agent-transcripts` for project/session/message/date activity;
+legacy `.txt`, `~/.cursor/chats`, and Cursor `state.vscdb` data are outside its scope.
+`antigravity` joins local protobuf
 conversation IDs and task-artifact timestamps to Antigravity workspace storage.
 Cursor and Antigravity expose no provider token counters in these local formats,
 so their rows are explicitly activity-only with `—` cost—never a fabricated $0

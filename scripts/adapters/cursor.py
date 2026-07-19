@@ -1,10 +1,12 @@
 """Cursor activity adapter.
 
-Cursor writes agent transcripts under ~/.cursor/projects/*/agent-transcripts.
-The observed JSONL format contains message roles/content but no provider token
-counters or model id. This adapter therefore emits activity-only summaries:
-project/session/message/date coverage is exact, while all token buckets remain
-zero and must never be priced.
+Cursor writes agent transcript JSONL under
+~/.cursor/projects/*/agent-transcripts, both directly and in per-session
+subdirectories. The observed JSONL format contains message roles/content but no
+provider token counters or model id. This adapter therefore emits activity-only
+summaries: project/session/message/date coverage is exact, while all token
+buckets remain zero and must never be priced. Legacy transcript .txt files,
+~/.cursor/chats, and state.vscdb are intentionally outside this adapter's scope.
 """
 import glob
 import json
@@ -43,8 +45,14 @@ def _project(path, dir_index=None):
     mangled = "-" + project_dir.strip("-")
     real = (dir_index or {}).get(mangled) or _value.resolve_real_dir(mangled)
     label = (_value.project_label_for_path(real) if real
-             else _value._label_from_dirname(mangled))
+             else f"Cursor · {project_dir}")
     return project_dir, real, label
+
+
+def _transcript_paths():
+    """Return flat and nested JSONL transcripts, excluding other Cursor stores."""
+    pattern = os.path.join(SOURCE_DIR, "*", "agent-transcripts", "**", "*.jsonl")
+    return sorted(glob.glob(pattern, recursive=True))
 
 
 def parse_file(path, dir_index=None):
@@ -85,7 +93,7 @@ def parse_file(path, dir_index=None):
 def scan(verbose=False, dir_index=None):
     if not os.path.isdir(SOURCE_DIR):
         return []
-    paths = glob.glob(os.path.join(SOURCE_DIR, "*", "agent-transcripts", "*", "*.jsonl"))
+    paths = _transcript_paths()
     rows = []
     live = set()
     for path in paths:
