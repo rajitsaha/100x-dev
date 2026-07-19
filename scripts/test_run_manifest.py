@@ -69,7 +69,7 @@ class TestRunManifest(unittest.TestCase):
         ]
         result = run_manifest.run_cost(m, summaries)
         sonnet_rates = next(r for k, r in pricing.RATES if k == "sonnet")
-        gpt5_rates = next(r for k, r in pricing.RATES if k == "gpt-5")
+        gpt5_rates = next(r for k, r in pricing.RATES if k == "gpt-5.5")
         self.assertAlmostEqual(result["coder"], sonnet_rates["input"], places=4)
         self.assertAlmostEqual(result["reviewer"], gpt5_rates["output"], places=4)
         self.assertAlmostEqual(result["total"], result["coder"] + result["reviewer"], places=4)
@@ -122,7 +122,7 @@ class TestRunManifest(unittest.TestCase):
         ]
         result = run_manifest.run_cost(m, summaries)
         sonnet_rates = next(r for k, r in pricing.RATES if k == "sonnet")
-        gpt5_rates = next(r for k, r in pricing.RATES if k == "gpt-5")
+        gpt5_rates = next(r for k, r in pricing.RATES if k == "gpt-5.5")
         # coder cost counted ONCE for the shared session_id, not twice.
         self.assertAlmostEqual(result["coder"], sonnet_rates["input"], places=4)
         # reviewer sessions differ per round -> both counted.

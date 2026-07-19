@@ -116,6 +116,11 @@ python3 scripts/token-dashboard.py --print  # text summary, no server
 python3 scripts/token-dashboard.py --ensure-daemon  # start it detached if not already running (shell startup / install)
 ```
 
+An explicit `token-dashboard.py` launch stops and replaces the previous owned
+dashboard process. `--ensure-daemon` remains idempotent, so opening a new shell
+does not restart a healthy daemon. Incremental refreshes inspect recent or newly
+created transcripts; a full transcript reconciliation runs every 30 minutes.
+
 **Auto-start.** You normally don't run anything: a detached singleton launches on shell
 startup and on `100xprism install` / `init` / `update`, and the startup line prints the
 live URL. Opt out with `export PRISM_NO_DASHBOARD=1`.
@@ -124,7 +129,8 @@ Offline, no dependencies. Reads `~/.claude/projects/**/*.jsonl` and shows the fo
 token purposes, a **startup-bloat meter** (fixed context re-sent per turn), and
 breakdowns by project / model / day. First run scans all transcripts (slow); later
 runs use an incremental on-disk cache (`~/.claude/.token-dashboard-cache.json`).
-Cost estimates use per-model $/1M-token rates (`scripts/pricing.py`, `RATES`); a
+Cost estimates use per-model $/1M-token rates (`scripts/pricing.py`, `RATES`),
+with an explicit `PRICING_AS_OF` date and official source links; a
 model id is matched by substring against a lowercased pattern list (most specific
 first), so new model ids are usually priced correctly with no code change.
 Unmatched ids fall back to Opus-tier rates and are counted separately — the
@@ -151,13 +157,24 @@ Tokens measure *cost*; the `100x-tokens` dashboard measures *value* in the same 
 
 The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide by marker files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`) — even directories with zero Claude token spend. Value is derived tool-agnostically from git history (commits / merged PRs / releases / files / churn — merged PRs are deduped by PR number across squash-merge subjects and real merge commits) with a filesystem-mtime fallback for non-repos, plus cached AI one-line summaries generated via the local `claude` CLI (non-blocking, degrades silently when absent).
 
-Cost attribution lives in pluggable per-tool adapters (`scripts/adapters/`): both `claude_code` and `codex` are real, incremental-cache-backed parsers of their tool's local transcript format. Directories worked on by Cursor, Antigravity, or other tools with no adapter still appear via the value layer, with `—` in the cost column — never `$0`, because `$0` would be misleading.
+Collection lives in pluggable per-tool adapters (`scripts/adapters/`). `claude_code`
+and `codex` parse provider-recorded local token counters and support list-price
+cost attribution. `cursor` parses flat and nested JSONL beneath
+`~/.cursor/projects/*/agent-transcripts` for project/session/message/date activity;
+legacy `.txt`, `~/.cursor/chats`, and Cursor `state.vscdb` data are outside its scope.
+`antigravity` joins local protobuf
+conversation IDs and task-artifact timestamps to Antigravity workspace storage.
+Cursor and Antigravity expose no provider token counters in these local formats,
+so their rows are explicitly activity-only with `—` cost—never a fabricated $0
+or character-based billing estimate.
 
 The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependency, fully offline:
-- **Leverage scatter** — value vs cost with a break-even line
-- **Cost over time** and **daily volume** — spend and token volume by day
-- **Spend-by-purpose donut** and **token-purpose split** — input / output / cache-read / cache-write
+- **Outcome efficiency scatter** — observed merged PRs (or commits) versus cost, with a median-efficiency reference line; it does not invent a monetary value score
+- **Daily cost by model** — exact per-model list-price dollars, stacked over the last 30 active days
+- **Dollar-spend donut** and **token-volume split** — separate views of economic cost and raw volume by input / output / cache-read / cache-write
 - **Cost by directory**, plus an **all-directories table**
+- **Data provenance** — usage-source counts, named-rate coverage, git-outcome join coverage, and measurement window
+- **Activity-only coverage** — Cursor and Antigravity sessions/projects with message or artifact counts where exposed
 - **Budget** — spend vs your configured daily/weekly limit (see Budgets, below)
 - **Sessions** — top 50 sessions by cost, last 30 days
 - **By skill** — cost and $/invocation per skill (see Skill attribution, below)

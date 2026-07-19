@@ -25,7 +25,8 @@ _spec.loader.exec_module(td)
 def git(repo, *args):
     return subprocess.run(
         ["git", "-c", "user.email=t@t.t", "-c", "user.name=t",
-         "-c", "commit.gpgsign=false", "-C", repo, *args],
+         "-c", "commit.gpgsign=false", "-c", "tag.gpgSign=false",
+         "-C", repo, *args],
         capture_output=True, text=True, check=False)
 
 
@@ -50,7 +51,19 @@ class LabelTest(unittest.TestCase):
             _value.PROJECTS_DIR,
             repo.replace("/", "-"), "session.jsonl")
         self.assertEqual(_value.project_label_for_path(repo),
-                         td.project_label(transcript))
+                         _value.project_label(transcript, {repo.replace("/", "-"): repo}))
+
+    def test_path_label_preserves_dots_and_hyphens(self):
+        repo = os.path.join(_value.HOME, ".claude-mem", "100x-prism")
+        self.assertEqual(_value.project_label_for_path(repo),
+                         "~/.claude-mem/100x-prism")
+
+    def test_transcript_label_uses_resolved_path(self):
+        repo = os.path.join(_value.HOME, ".claude-mem", "100x-prism")
+        mangled = _value.mangle_path(repo)
+        transcript = os.path.join(_value.PROJECTS_DIR, mangled, "session.jsonl")
+        self.assertEqual(_value.project_label(transcript, {mangled: repo}),
+                         "~/.claude-mem/100x-prism")
 
 
 class ResolveDirTest(unittest.TestCase):
@@ -388,6 +401,158 @@ class EnsureDaemonTest(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(len(spawned), 0)
 
+    def test_free_port_spawns_daemon(self):
+        import subprocess
+        original = (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                    td.HOME, subprocess.Popen)
+        spawned = []
+        with tempfile.TemporaryDirectory() as root:
+            try:
+                td._port_in_use = lambda port: False
+                td._stop_previous_dashboard = lambda port: []
+                td._token_summary = lambda: None
+                td.HOME = root
+                subprocess.Popen = lambda *a, **kw: spawned.append((a, kw))
+                result = td.ensure_daemon(8787)
+            finally:
+                (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                 td.HOME, subprocess.Popen) = original
+        self.assertEqual(len(spawned), 1)
+        self.assertIn("starting", result)
+
+    def test_spawn_failure_is_reported(self):
+        import contextlib
+        import io
+        import subprocess
+        original = (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                    td.HOME, subprocess.Popen)
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as root:
+            try:
+                td._port_in_use = lambda port: False
+                td._stop_previous_dashboard = lambda port: []
+                td._token_summary = lambda: None
+                td.HOME = root
+                subprocess.Popen = lambda *a, **kw: (_ for _ in ()).throw(OSError("boom"))
+                with contextlib.redirect_stderr(stderr):
+                    result = td.ensure_daemon(8787)
+            finally:
+                (td._port_in_use, td._stop_previous_dashboard, td._token_summary,
+                 td.HOME, subprocess.Popen) = original
+        self.assertIsNone(result)
+        self.assertIn("dashboard startup failed: boom", stderr.getvalue())
+
+    def test_pid_write_failure_is_reported_without_crashing(self):
+        import contextlib
+        import io
+        original_pid_file = td.PID_FILE
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as root:
+            blocker = os.path.join(root, "not-a-directory")
+            write(blocker, "file")
+            td.PID_FILE = os.path.join(blocker, "dashboard.pid")
+            try:
+                with contextlib.redirect_stderr(stderr):
+                    result = td._write_pid(8787)
+            finally:
+                td.PID_FILE = original_pid_file
+        self.assertFalse(result)
+        self.assertIn("dashboard pid file unavailable", stderr.getvalue())
+
+    def test_refresh_request_returns_json_error(self):
+        import contextlib
+        import io
+        original_rebuild = td._rebuild
+        handler = object.__new__(td.Handler)
+        handler.path = "/api/refresh"
+        sent = []
+        handler._send = lambda body, ctype="application/json", status=200: sent.append(
+            (json.loads(body), ctype, status))
+        stderr = io.StringIO()
+        try:
+            td._rebuild = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+            with contextlib.redirect_stderr(stderr):
+                handler.do_GET()
+        finally:
+            td._rebuild = original_rebuild
+        self.assertEqual(sent, [({"error": "dashboard refresh failed"},
+                                 "application/json", 500)])
+        self.assertIn("dashboard request failed: boom", stderr.getvalue())
+
+    def test_stop_previous_dashboard_terminates_owned_process(self):
+        original_pids = td._owned_dashboard_pids
+        original_kill = os.kill
+        original_pid_file = td.PID_FILE
+        signals = []
+        try:
+            td._owned_dashboard_pids = lambda port: [12345]
+            td.PID_FILE = os.path.join(tempfile.gettempdir(), "missing-prism-pid")
+
+            def fake_kill(pid, sig):
+                if sig == 0:
+                    raise ProcessLookupError()
+                signals.append((pid, sig))
+
+            os.kill = fake_kill
+            self.assertEqual(td._stop_previous_dashboard(8787), [12345])
+        finally:
+            td._owned_dashboard_pids = original_pids
+            td.PID_FILE = original_pid_file
+            os.kill = original_kill
+        self.assertEqual(signals, [(12345, __import__("signal").SIGTERM)])
+
+
+class IncrementalClaudeScanTest(unittest.TestCase):
+    def setUp(self):
+        import adapters.claude_code as adapter
+        self.adapter = adapter
+        self.tmp = tempfile.TemporaryDirectory()
+        self.original = (adapter.SOURCE_DIR, adapter.CACHE_FILE)
+        adapter.SOURCE_DIR = os.path.join(self.tmp.name, "projects")
+        adapter.CACHE_FILE = os.path.join(self.tmp.name, "cache.json")
+        self.project = os.path.join(adapter.SOURCE_DIR, "-tmp-project")
+        os.makedirs(self.project)
+
+    def tearDown(self):
+        self.adapter.SOURCE_DIR, self.adapter.CACHE_FILE = self.original
+        self.tmp.cleanup()
+
+    def test_recent_cache_skips_cold_transcript_stat_and_parse(self):
+        transcript = os.path.join(self.project, "old.jsonl")
+        write(transcript, "{}\n")
+        old = __import__("time").time() - self.adapter.HOT_FILE_SECONDS - 60
+        os.utime(transcript, (old, old))
+        st = os.stat(transcript)
+        project_mtime = os.stat(self.project).st_mtime
+        summary = {"mtime": st.st_mtime, "size": st.st_size,
+                   "project": "~/project", "projdir": "-tmp-project",
+                   "tool": "claude-code", "totals": {}}
+        with open(self.adapter.CACHE_FILE, "w") as f:
+            json.dump({"version": self.adapter.CACHE_VERSION,
+                       "files": {transcript: summary},
+                       "project_mtimes": {self.project: project_mtime},
+                       "full_scan_at": __import__("time").time()}, f)
+        original_parse = self.adapter.parse_file
+        self.adapter.parse_file = lambda path: self.fail("cold cached file was parsed")
+        try:
+            rows = self.adapter.scan()
+        finally:
+            self.adapter.parse_file = original_parse
+        self.assertEqual(rows, [summary])
+
+    def test_malformed_cache_is_reported_and_ignored(self):
+        import contextlib
+        import io
+        with open(self.adapter.CACHE_FILE, "w", encoding="utf-8") as f:
+            f.write("{not valid json}")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            cache = self.adapter.load_cache()
+
+        self.assertEqual(cache, {})
+        self.assertIn("ignoring unreadable cache", stderr.getvalue())
+
 
 class TestMergedPRsAndReleases(unittest.TestCase):
     def setUp(self):
@@ -446,22 +611,40 @@ class TestBuildIntegration(unittest.TestCase):
         }
         with open(os.path.join(self.proj_dir, "sess-abc.jsonl"), "w") as f:
             f.write(json.dumps(session) + "\n")
+        self.cursor_dir = os.path.join(self.tmp, "cursor", "projects")
+        cursor_transcript = os.path.join(
+            self.cursor_dir, "Users-x-proj", "agent-transcripts", "cursor-abc",
+            "cursor-abc.jsonl")
+        os.makedirs(os.path.dirname(cursor_transcript))
+        with open(cursor_transcript, "w") as f:
+            f.write(json.dumps({"role": "user", "message": {"content": "task"}}) + "\n")
+            f.write(json.dumps({"role": "assistant", "message": {"content": "done"}}) + "\n")
 
         import adapters.claude_code as claude_code
         import adapters.codex as codex
+        import adapters.cursor as cursor
+        import adapters.antigravity as antigravity
         self.claude_code = claude_code
         self.codex = codex
+        self.cursor = cursor
+        self.antigravity = antigravity
         self._orig_source = claude_code.SOURCE_DIR
         self._orig_cache = claude_code.CACHE_FILE
         self._orig_codex_source = codex.SOURCE_DIR
+        self._orig_cursor_source = cursor.SOURCE_DIR
+        self._orig_antigravity_source = antigravity.SOURCE_DIR
         claude_code.SOURCE_DIR = os.path.join(self.tmp, "claude", "projects")
         claude_code.CACHE_FILE = os.path.join(self.tmp, "cc-cache.json")
         codex.SOURCE_DIR = os.path.join(self.tmp, "nonexistent-codex")
+        cursor.SOURCE_DIR = self.cursor_dir
+        antigravity.SOURCE_DIR = os.path.join(self.tmp, "nonexistent-antigravity")
 
     def tearDown(self):
         self.claude_code.SOURCE_DIR = self._orig_source
         self.claude_code.CACHE_FILE = self._orig_cache
         self.codex.SOURCE_DIR = self._orig_codex_source
+        self.cursor.SOURCE_DIR = self._orig_cursor_source
+        self.antigravity.SOURCE_DIR = self._orig_antigravity_source
 
     def test_build_produces_by_session_and_by_skill_and_split(self):
         data = td.build(verbose=False)
@@ -470,6 +653,14 @@ class TestBuildIntegration(unittest.TestCase):
         self.assertGreaterEqual(data["main_subagent_split"]["main_cost"], 0)
         self.assertIn("fallback_pct", data)
         self.assertGreater(data["total_cost"], 0)
+        self.assertIn("cost_by_purpose", data)
+        self.assertAlmostEqual(sum(data["cost_by_purpose"].values()), data["total_cost"], places=2)
+        self.assertIn("2026-07-09", data["by_day_model_cost"])
+        self.assertEqual(data["data_quality"]["pricing_coverage_pct"], 100.0)
+        self.assertEqual(data["pricing"]["as_of"], "2026-07-19")
+        self.assertIn("models", data["by_session"][0])
+        self.assertEqual(data["activity"]["by_tool"]["cursor"]["sessions"], 1)
+        self.assertEqual(data["activity"]["by_tool"]["cursor"]["messages"], 2)
 
     def test_build_skips_schema_incomplete_manifest_instead_of_crashing(self):
         """Important #4 regression: a structurally-valid-JSON-but-missing-

@@ -40,19 +40,28 @@ def _label_from_dirname(dirname):
     return dirname.replace(_HOME_DASH, "~/").replace("-", "/")
 
 
-def project_label(transcript_path):
+def project_label(transcript_path, dir_index=None):
     """Readable project name for a transcript path under ~/.claude/projects/."""
     if "/projects/" in transcript_path:
         dirname = transcript_path.split("/projects/")[1].split("/")[0]
     else:
         dirname = transcript_path
+    real = (dir_index or {}).get(dirname) or resolve_real_dir(dirname)
+    if real:
+        return project_label_for_path(real)
     return _label_from_dirname(dirname)
 
 
 def project_label_for_path(repo_abs_path):
     """The dashboard label a repo at this filesystem path would get."""
     abs_path = os.path.abspath(os.path.expanduser(repo_abs_path))
-    return _label_from_dirname(abs_path.replace("/", "-"))
+    try:
+        if os.path.commonpath((HOME, abs_path)) == HOME:
+            relative = os.path.relpath(abs_path, HOME)
+            return "~" if relative == "." else "~/" + relative
+    except ValueError:
+        pass
+    return abs_path
 
 
 # ----------------------------------------------------------------- path resolution
@@ -109,11 +118,43 @@ def _git(repo, *a, timeout=10):
 
 
 def git_head(repo):
+    """Read the common worktree HEAD without spawning Git; fall back for edge cases."""
     try:
-        r = _git(repo, "rev-parse", "HEAD")
-        return r.stdout.strip() if r.returncode == 0 else ""
-    except (OSError, subprocess.SubprocessError):
-        return ""
+        marker = os.path.join(repo, ".git")
+        if os.path.isdir(marker):
+            git_dir = marker
+        elif os.path.isfile(marker):
+            with open(marker, encoding="utf-8") as f:
+                line = f.read().strip()
+            if not line.startswith("gitdir: "):
+                raise ValueError("unknown .git file")
+            git_dir = os.path.abspath(os.path.join(repo, line[8:]))
+        else:
+            raise FileNotFoundError(marker)
+        with open(os.path.join(git_dir, "HEAD"), encoding="utf-8") as f:
+            head = f.read().strip()
+        if not head.startswith("ref: "):
+            return head
+        ref = head[5:]
+        ref_path = os.path.join(git_dir, *ref.split("/"))
+        try:
+            with open(ref_path, encoding="utf-8") as f:
+                return f.read().strip()
+        except OSError:
+            with open(os.path.join(git_dir, "packed-refs"), encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith(("#", "^")):
+                        continue
+                    sha, _, name = line.strip().partition(" ")
+                    if name == ref:
+                        return sha
+            return ""
+    except (OSError, ValueError):
+        try:
+            r = _git(repo, "rev-parse", "HEAD")
+            return r.stdout.strip() if r.returncode == 0 else ""
+        except (OSError, subprocess.SubprocessError):
+            return ""
 
 
 def _merged_prs(repo, start, end):
@@ -350,13 +391,14 @@ def cached_discover(root=None, ttl=1800):
     return cached_scan(root, ttl)[0]
 
 
-def cached_dir_value(real_dir, label, tool, start, end):
+def cached_dir_value(real_dir, label, tool, start, end, store=None, dirty=None):
     """Return cached value if HEAD+window unchanged, else recompute and cache.
     Preserves a previously-written AI `summary` across cache hits."""
     real_dir = os.path.abspath(real_dir)
     head = git_head(real_dir)
     window = {"start": start, "end": end}
-    store = load_store()
+    owns_store = store is None
+    store = load_store() if owns_store else store
     prev = store["dirs"].get(real_dir)
     if prev and prev.get("head") == head and prev.get("window") == window:
         return prev["value"]
@@ -365,5 +407,8 @@ def cached_dir_value(real_dir, label, tool, start, end):
         "label": label, "tool": tool, "head": head, "window": window,
         "value": v, "scanned": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    save_store(store)
+    if dirty is not None:
+        dirty[0] = True
+    if owns_store:
+        save_store(store)
     return v

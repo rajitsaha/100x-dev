@@ -10,15 +10,35 @@ hypothetical bare "gpt"). Model ids matching nothing are priced at FALLBACK_KEY'
 rates and counted separately so callers can flag what fraction of spend is an
 estimate rather than a real per-model price.
 
-Values below are LIST PRICES AT TIME OF WRITING ($ per 1M tokens) — verify against
-current published pricing before relying on them for real budgeting decisions.
+Values below are standard API LIST PRICES in USD per 1M tokens. They are estimates
+for local usage economics, not a reconstruction of subscription-plan billing.
 """
 
+PRICING_AS_OF = "2026-07-19"
+PRICING_SOURCES = {
+    "anthropic": "https://www.anthropic.com/pricing",
+    "openai": "https://developers.openai.com/api/docs/models/compare",
+}
+
+# Most-specific patterns must come first. In particular, a broad `gpt-5` entry
+# before `gpt-5.6` would silently price every newer model at the legacy rate.
 RATES = [
-    ("fable-5", {"input": 25.0, "output": 100.0, "cache_read": 2.5, "cache_write": 31.25}),
+    ("fable-5", {"input": 10.0, "output": 50.0, "cache_read": 1.0, "cache_write": 12.5}),
+    ("opus-4-8", {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25}),
+    ("sonnet-5", {"input": 2.0, "output": 10.0, "cache_read": 0.2, "cache_write": 2.5}),
     ("opus-4", {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_write": 18.75}),
     ("sonnet", {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}),
+    ("haiku-3-5", {"input": 0.8, "output": 4.0, "cache_read": 0.08, "cache_write": 1.0}),
+    ("haiku-3", {"input": 0.25, "output": 1.25, "cache_read": 0.03, "cache_write": 0.3}),
     ("haiku", {"input": 1.0, "output": 5.0, "cache_read": 0.1, "cache_write": 1.25}),
+    ("gpt-5.6-luna", {"input": 1.0, "output": 6.0, "cache_read": 0.1, "cache_write": 1.25}),
+    ("gpt-5.6-terra", {"input": 2.5, "output": 15.0, "cache_read": 0.25, "cache_write": 3.125}),
+    ("gpt-5.6", {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 6.25}),
+    ("gpt-5.5", {"input": 5.0, "output": 30.0, "cache_read": 0.5, "cache_write": 6.25}),
+    ("gpt-5.4-mini", {"input": 0.75, "output": 4.5, "cache_read": 0.075, "cache_write": 0.75}),
+    ("gpt-5.4", {"input": 2.5, "output": 15.0, "cache_read": 0.25, "cache_write": 2.5}),
+    ("gpt-5.2", {"input": 1.75, "output": 14.0, "cache_read": 0.175, "cache_write": 1.75}),
+    ("gpt-5.1", {"input": 1.25, "output": 10.0, "cache_read": 0.125, "cache_write": 1.25}),
     ("gpt-5", {"input": 1.25, "output": 10.0, "cache_read": 0.125, "cache_write": 1.25}),
     ("o4", {"input": 10.0, "output": 40.0, "cache_read": 2.5, "cache_write": 10.0}),
     ("o3", {"input": 10.0, "output": 40.0, "cache_read": 2.5, "cache_write": 10.0}),
@@ -58,3 +78,13 @@ def cost_by_model(by_model):
         if is_fallback:
             fallback_tokens += sum(tok.get(k, 0) for k in TOKEN_KEYS)
     return total, fallback_tokens
+
+
+def cost_breakdown(by_model):
+    """Return exact list-price dollars by token purpose for model-keyed usage."""
+    out = {k: 0.0 for k in TOKEN_KEYS}
+    for model_id, tok in by_model.items():
+        rates, _ = rates_for_model(model_id)
+        for key in TOKEN_KEYS:
+            out[key] += tok.get(key, 0) / 1_000_000 * rates[key]
+    return out
