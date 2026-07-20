@@ -49,7 +49,7 @@ select_tools() {
 
 INSTALL_MODULES=true
 INSTALL_PLUGINS=true
-INSTALL_SHELL=true
+INSTALL_SHELL=false
 INSTALL_TEMPLATES=true
 INSTALL_HOOKS=false   # enforcing hooks are opt-in (they change commit behavior)
 
@@ -64,7 +64,7 @@ select_components() {
     if [ "$TOOL_CLAUDE" = true ]; then
       echo "  [$([ "$INSTALL_PLUGINS" = true ] && echo "x" || echo " ")] 2) Plugins      — Claude Code only: superpowers, hookify, claude-mem, ..."
     fi
-    echo "  [$([ "$INSTALL_SHELL" = true ] && echo "x" || echo " ")] 3) Shell        — aliases + shortcuts (cc, ccc, 100x-update, ...)"
+    echo "  [$([ "$INSTALL_SHELL" = true ] && echo "x" || echo " ")] 3) Shell        — print manual alias instructions (no rc-file edits)"
     echo "  [$([ "$INSTALL_TEMPLATES" = true ] && echo "x" || echo " ")] 4) Templates   — project starters (node, python, docker)"
     if [ "$TOOL_CLAUDE" = true ]; then
       echo "  [$([ "$INSTALL_HOOKS" = true ] && echo "x" || echo " ")] 5) Hooks        — Claude Code only: enforce the gate on commit + secret-scan (opt-in)"
@@ -100,52 +100,18 @@ do_install_plugins() {
   if [ "$TOOL_CLAUDE" = true ]; then
     source "$REPO_DIR/adapters/claude-code.sh"
     install_plugins
-    _install_session_hook
   fi
 }
 
-_install_session_hook() {
-  local settings_file="$HOME/.claude/settings.json"
-  [[ -f "$settings_file" ]] || return 0
-
-  SETTINGS_FILE="$settings_file" python3 - <<'PYEOF'
-import json, os
-
-settings_file = os.environ['SETTINGS_FILE']
-hook_cmd = os.path.expanduser('~/100xprism/shell/check-update.sh') + ' --claude-hook'
-
-with open(settings_file) as f:
-    settings = json.load(f)
-
-hooks = settings.setdefault('hooks', {})
-session_start = hooks.setdefault('SessionStart', [])
-
-# Drop any stale hook pointing at the legacy ~/100x-dev path (rebrand cleanup).
-for entry in session_start:
-    entry['hooks'] = [
-        h for h in entry.get('hooks', [])
-        if '100x-dev/shell/check-update.sh' not in h.get('command', '')
-    ]
-session_start[:] = [e for e in session_start if e.get('hooks')]
-
-already_exists = any(
-    h.get('command') == hook_cmd
-    for entry in session_start
-    for h in entry.get('hooks', [])
-)
-
-if not already_exists:
-    session_start.append({
-        'matcher': '',
-        'hooks': [{'type': 'command', 'command': hook_cmd}]
-    })
-    print('  Added SessionStart update-check hook ✓')
-else:
-    print('  SessionStart hook: already configured ✓')
-
-with open(settings_file, 'w') as f:
-    json.dump(settings, f, indent=2)
-PYEOF
+run_preinstall_cleanup() {
+  if [[ "${PRISM_PREINSTALL_CLEANUP_DONE:-}" == "1" ]]; then
+    return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node "$REPO_DIR/lib/uninstall.js" --preinstall-cleanup
+  else
+    echo -e "  ${YELLOW}→ Node.js not found; skipping legacy startup cleanup${NC}" >&2
+  fi
 }
 
 # ── Install enforcing hooks (Claude Code only) ──────────────────────────────
@@ -188,42 +154,15 @@ install_hooks() {
 
 install_shell() {
   echo ""
-  echo "Installing shell aliases..."
-
-  SOURCE_LINE="source $REPO_DIR/shell/aliases.sh"
-
-  if [ -f "$HOME/.zshrc" ]; then
-    RC_FILE="$HOME/.zshrc"
-    SHELL_NAME="zsh"
-  elif [ -f "$HOME/.bashrc" ]; then
-    RC_FILE="$HOME/.bashrc"
-    SHELL_NAME="bash"
-  else
-    RC_FILE="$HOME/.bashrc"
-    SHELL_NAME="bash"
-    touch "$RC_FILE"
-  fi
-
-  # Remove old claude-dev-setup source line if present
-  if grep -qF "claude-dev-setup/shell/claude-aliases.sh" "$RC_FILE" 2>/dev/null; then
-    grep -v "claude-dev-setup/shell/claude-aliases.sh" "$RC_FILE" > "$RC_FILE.tmp" && mv "$RC_FILE.tmp" "$RC_FILE"
-    echo -e "  ${YELLOW}→ Removed old claude-dev-setup alias line${NC}"
-  fi
-
-  # Remove the legacy 100x-dev source line + comment if present (rebrand cleanup)
-  if grep -qE "100x-dev/shell/aliases.sh|# 100x Dev aliases" "$RC_FILE" 2>/dev/null; then
-    grep -vE "100x-dev/shell/aliases.sh|# 100x Dev aliases" "$RC_FILE" > "$RC_FILE.tmp" && mv "$RC_FILE.tmp" "$RC_FILE"
-    echo -e "  ${YELLOW}→ Removed legacy 100x-dev alias line${NC}"
-  fi
-
-  if grep -qF "$SOURCE_LINE" "$RC_FILE" 2>/dev/null; then
-    echo -e "  ${YELLOW}→ Already sourced in ~/${RC_FILE##*/} (no change)${NC}"
-  else
-    { echo ""; echo "# 100xPrism aliases"; echo "$SOURCE_LINE"; } >> "$RC_FILE"
-    echo -e "  ${GREEN}→ Added source line to ~/${RC_FILE##*/} ($SHELL_NAME) ✓${NC}"
-  fi
-
-  echo -e "  ${CYAN}→ Run: source ~/${RC_FILE##*/}  to activate now${NC}"
+  echo "Shell aliases are available but are not added to ~/.zshrc, ~/.bashrc,"
+  echo "or ~/.bash_profile because shell-startup work slows new terminals."
+  echo ""
+  echo -e "  ${CYAN}Use aliases in this terminal only:${NC}"
+  echo "    source \"$REPO_DIR/shell/aliases.sh\""
+  echo ""
+  echo -e "  ${CYAN}Or call the CLI directly:${NC}"
+  echo "    100xprism update"
+  echo "    python3 \"$REPO_DIR/scripts/token-dashboard.py\""
 }
 
 # ── Install templates ───────────────────────────────────────────────────────
@@ -252,6 +191,7 @@ install_templates() {
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+run_preinstall_cleanup
 select_tools
 select_components
 
@@ -274,8 +214,6 @@ if [ "$TOOL_CLAUDE" = true ]; then
   echo ""
 fi
 echo -e "  ${CYAN}In your terminal:${NC}"
-if [ -n "$RC_FILE" ]; then
-  echo -e "    source ~/${RC_FILE##*/}          # reload shell aliases"
-fi
+echo -e "    source \"$REPO_DIR/shell/aliases.sh\"  # optional aliases for this terminal only"
 echo -e "    cd your-project && ${YELLOW}100xprism init${NC}  # set up a project"
 echo ""

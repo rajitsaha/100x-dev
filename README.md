@@ -28,10 +28,10 @@ npm install -g 100xprism && 100xprism install
 **curl (macOS / Linux):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash
-source ~/.zshrc   # or ~/.bashrc — activates the 100xprism command
 ```
 
 Either way, `100xprism install` clones the toolkit to `~/100xprism` and provisions your AI tools. The npm package is a thin launcher — the modules, hooks, and plugins live in that clone, which `100xprism update` keeps current.
+Before installing, 100xPrism cleans legacy startup hooks, stale command links, and any old owned dashboard process. Install does not edit `~/.zshrc`, `~/.bashrc`, or `~/.bash_profile`. If you want optional aliases for the current terminal only, run `source ~/100xprism/shell/aliases.sh`.
 
 > **Windows:** plugin sync works, but native Windows module emit is being reworked ([#54](https://github.com/rajitsaha/100xprism/issues/54)). For full module support today, install under **WSL** with either method above.
 
@@ -44,6 +44,7 @@ cd your-project && 100xprism init
 ```bash
 100xprism update                    # pull latest, then add/update/remove skills + plugins
 100xprism update --plugins-only     # refresh plugins only (repo already current)
+100xprism uninstall                 # stop dashboard + remove legacy shell-startup entries/symlinks
 npm install -g 100xprism@latest     # (optional) upgrade the launcher itself
 ```
 
@@ -96,7 +97,7 @@ This is a first, deliberately humble attempt to **measure both — and to make i
 100x-value    # value economics  — what actually shipped for that spend
 ```
 
-- **`100x-tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-logs-vs-output composition, and $ cost — by project, model, session, and skill. Claude Code and Codex provide exact local token counters; Cursor agent-transcript JSONL and Antigravity local artifacts contribute project/session/activity coverage but are never assigned invented token cost because their local formats expose no counters. Cursor chats, `state.vscdb`, and legacy transcript `.txt` are outside the collector's scope. It auto-refreshes every 30 seconds and auto-starts on shell startup and `install` / `init` / `update` (opt out with `export PRISM_NO_DASHBOARD=1`).
+- **`100x-tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-logs-vs-output composition, and $ cost — by project, model, session, and skill. Claude Code and Codex provide exact local token counters; Cursor agent-transcript JSONL and Antigravity local artifacts contribute project/session/activity coverage but are never assigned invented token cost because their local formats expose no counters. Cursor chats, `state.vscdb`, and legacy transcript `.txt` are outside the collector's scope. It auto-refreshes every 30 seconds once started. Start it explicitly with `100x-tokens`, `python3 ~/100xprism/scripts/token-dashboard.py`, or `100xprism install --dashboard`; shell startup never starts it.
 - **`100x-value`** — the dashboard joins exact local token counters to observable delivery outcomes. It shows **every directory that consumed tokens** plus agentic projects discovered machine-wide via marker files. Git supplies commits, deduplicated merged PRs, releases, files, and churn; non-repos use an explicitly labeled filesystem-mtime estimate. Directories from unsupported tools show `—` cost, never a misleading $0. Visuals report true per-model list-price cost by day/purpose and honest unit economics such as $/merged PR—no synthetic “value score” or claimed business ROI.
 - **Budgets, provenance & recommendations** — optional daily/weekly limits drive dashboard and shell alerts. A provenance strip shows pricing coverage, outcome-join coverage, source counts, and date range. Recommendations are ranked by estimated opportunity and pair the observed evidence with an action that preserves AI-native autonomy.
 

@@ -79,6 +79,15 @@ sync_hooks() {
   python3 "$REPO_DIR/adapters/lib/modules.py" emit-hooks --sync 2>/dev/null || true
 }
 
+remove_session_update_hook() {
+  [ -f "$SETTINGS_FILE" ] || return 0
+  if command -v node >/dev/null 2>&1; then
+    node "$REPO_DIR/lib/uninstall.js" --hooks-only
+  else
+    echo -e "  ${YELLOW}→ Node.js not found; skipping legacy SessionStart hook cleanup${NC}" >&2
+  fi
+}
+
 # Test seam: when sourced with UPDATE_SH_SOURCE_ONLY=1, load the functions above
 # without running the update flow, so tests can exercise them against a stubbed
 # CLAUDE_BIN. No effect when the script is executed normally.
@@ -179,10 +188,10 @@ python3 "$REPO_DIR/adapters/lib/modules.py" emit-claude-code
 echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
 python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
-  --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json" \
-  --session-hook "$HOME/100xprism/shell/check-update.sh --claude-hook"
+  --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+remove_session_update_hook
 
-echo -e "  ${CYAN}→ Shell aliases auto-updated (sourced file)${NC}"
+echo -e "  ${CYAN}→ Shell startup files are not modified. Run 100xprism uninstall to remove legacy source lines.${NC}"
 
 # Refresh any installed hooks so their wired commands stay current.
 sync_hooks
