@@ -9,6 +9,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [2.4.9] — 2026-07-19
+
+### Fixed
+- Installer no longer causes shell/Claude startup side effects: the token dashboard and update check are opt-in (`--dashboard`) instead of auto-starting from `aliases.sh` or a `SessionStart` hook.
+- Install now runs a cleanup-first pass (`lib/uninstall.js --preinstall-cleanup`) across both the npm/mise launcher and the `curl | bash` path, stopping any owned dashboard, stripping legacy rc `source …/aliases.sh` lines (including custom `$DEV_100X_HOME` paths), and removing stale command symlinks.
+- `100xprism uninstall` preserves healthy npm/mise launchers (stale-only link removal); only npm `preuninstall` removes live links.
+- Malformed or unreadable `~/.claude/settings.json` now warns and continues instead of aborting install/update, and unchanged settings are no longer rewritten.
+- Stale-link removal failures (e.g. unwritable bin dir) warn instead of aborting.
+- Dashboard shutdown waits for process exit and escalates to `SIGKILL` before an opt-in restart, avoiding the port race; `mise reshim node` guidance prints only when a mise link was actually removed.
+
+---
+
 ## [2.4.8] — 2026-07-15
 
 ### Fixed
