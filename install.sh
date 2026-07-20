@@ -103,38 +103,15 @@ do_install_plugins() {
   fi
 }
 
-_remove_session_hook() {
-  local settings_file="$HOME/.claude/settings.json"
-  [[ -f "$settings_file" ]] || return 0
-
-  SETTINGS_FILE="$settings_file" python3 - <<'PYEOF'
-import json, os
-
-settings_file = os.environ['SETTINGS_FILE']
-
-with open(settings_file) as f:
-    settings = json.load(f)
-
-hooks = settings.setdefault('hooks', {})
-session_start = hooks.setdefault('SessionStart', [])
-
-removed = 0
-for entry in session_start:
-    before = len(entry.get('hooks', []))
-    entry['hooks'] = [
-        h for h in entry.get('hooks', [])
-        if '100x-dev/shell/check-update.sh' not in h.get('command', '')
-        and '100xprism/shell/check-update.sh' not in h.get('command', '')
-    ]
-    removed += before - len(entry['hooks'])
-session_start[:] = [e for e in session_start if e.get('hooks')]
-
-if removed:
-    print(f'  Removed {removed} startup update-check hook(s) ✓')
-
-with open(settings_file, 'w') as f:
-    json.dump(settings, f, indent=2)
-PYEOF
+run_preinstall_cleanup() {
+  if [[ "${PRISM_PREINSTALL_CLEANUP_DONE:-}" == "1" ]]; then
+    return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node "$REPO_DIR/lib/uninstall.js" --preinstall-cleanup
+  else
+    echo -e "  ${YELLOW}→ Node.js not found; skipping legacy startup cleanup${NC}" >&2
+  fi
 }
 
 # ── Install enforcing hooks (Claude Code only) ──────────────────────────────
@@ -214,6 +191,7 @@ install_templates() {
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+run_preinstall_cleanup
 select_tools
 select_components
 
@@ -222,7 +200,6 @@ echo "────────────────────────�
 
 [ "$INSTALL_MODULES" = true ] && install_modules
 [ "$INSTALL_PLUGINS" = true ] && [ "$TOOL_CLAUDE" = true ] && do_install_plugins
-_remove_session_hook
 [ "$INSTALL_HOOKS" = true ] && [ "$TOOL_CLAUDE" = true ] && install_hooks
 [ "$INSTALL_SHELL" = true ] && install_shell
 [ "$INSTALL_TEMPLATES" = true ] && install_templates

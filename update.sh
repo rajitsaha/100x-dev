@@ -81,43 +81,11 @@ sync_hooks() {
 
 remove_session_update_hook() {
   [ -f "$SETTINGS_FILE" ] || return 0
-  SETTINGS_FILE="$SETTINGS_FILE" python3 - <<'PYEOF'
-import json, os
-
-settings_file = os.environ["SETTINGS_FILE"]
-try:
-    with open(settings_file) as f:
-        settings = json.load(f)
-except (OSError, ValueError):
-    raise SystemExit(0)
-
-session_start = settings.get("hooks", {}).get("SessionStart", [])
-if not isinstance(session_start, list):
-    raise SystemExit(0)
-
-removed = 0
-for entry in session_start:
-    hooks = entry.get("hooks", [])
-    if not isinstance(hooks, list):
-        continue
-    before = len(hooks)
-    entry["hooks"] = [
-        h for h in hooks
-        if "100xprism/shell/check-update.sh" not in h.get("command", "")
-        and "100x-dev/shell/check-update.sh" not in h.get("command", "")
-    ]
-    removed += before - len(entry["hooks"])
-
-settings["hooks"]["SessionStart"] = [
-    e for e in session_start if isinstance(e.get("hooks"), list) and e["hooks"]
-]
-
-if removed:
-    with open(settings_file, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-    print(f"  Removed {removed} startup update-check hook(s) ✓")
-PYEOF
+  if command -v node >/dev/null 2>&1; then
+    node "$REPO_DIR/lib/uninstall.js" --hooks-only
+  else
+    echo -e "  ${YELLOW}→ Node.js not found; skipping legacy SessionStart hook cleanup${NC}" >&2
+  fi
 }
 
 # Test seam: when sourced with UPDATE_SH_SOURCE_ONLY=1, load the functions above
