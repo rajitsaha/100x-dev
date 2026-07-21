@@ -9,6 +9,9 @@ Commands:
   init       Per-project setup — run from your project root
   update     Pull latest workflows and regenerate tracked projects
   check      Check for a newer version without applying
+  tokens     Start/open the AI economics dashboard
+  dashboard  Alias for tokens
+  value      Print value report for a directory
   uninstall  Stop dashboard and remove stale command/shell-startup links
 
 Examples:
@@ -16,6 +19,9 @@ Examples:
   cd my-project && 100xprism init
   100xprism update
   100xprism install --dashboard  # optionally start dashboard after install
+  100xprism tokens               # start and open dashboard
+  100xprism tokens --no-open      # serve without opening browser
+  100xprism value                 # report shipped outcomes for cwd
   100xprism uninstall
 `.trimStart()
 
@@ -26,6 +32,9 @@ switch (cmd) {
   case 'init':    require('../lib/init').run(args);    break
   case 'update':  require('../lib/update').run(args);  break
   case 'check':   require('../lib/update').run(['--check-only']); break
+  case 'tokens':
+  case 'dashboard': require('../lib/tokens').runDashboard(args); break
+  case 'value': require('../lib/tokens').runValue(args); break
   case 'uninstall': require('../lib/uninstall').run(args); break
   default:
     process.stdout.write(HELP)

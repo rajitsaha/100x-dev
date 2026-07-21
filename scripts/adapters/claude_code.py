@@ -250,8 +250,10 @@ def save_cache(files, project_mtimes=None, full_scan_at=0):
                "project_mtimes": project_mtimes or {},
                "full_scan_at": full_scan_at}
     try:
-        with open(CACHE_FILE, "w") as f:
+        tmp = CACHE_FILE + ".tmp"
+        with open(tmp, "w") as f:
             json.dump(payload, f)
+        os.replace(tmp, CACHE_FILE)
         st = os.stat(CACHE_FILE)
         _MEM_PAYLOAD = payload
         _MEM_CACHE_KEY = (CACHE_FILE, st.st_mtime, st.st_size)
@@ -299,22 +301,22 @@ def scan(verbose=False, dir_index=None):
         needs_stat = (full_scan or prev is None or os.path.dirname(p) in changed_projects
                       or prev.get("mtime", 0) >= hot_cutoff)
         if not needs_stat:
-            new_cache[p] = prev
-            continue
-        try:
-            st = os.stat(p)
-        except OSError:
-            cache_changed = True
-            continue
-        if prev and prev.get("mtime") == st.st_mtime and prev.get("size") == st.st_size:
-            summary = prev
+            summary = dict(prev)
         else:
-            summary = parse_file(p)
-            summary["mtime"] = st.st_mtime
-            summary["size"] = st.st_size
-            reparsed += 1
-            if verbose and reparsed % 200 == 0:
-                print(f"  parsed {reparsed} new/changed claude transcripts...", file=sys.stderr)
+            try:
+                st = os.stat(p)
+            except OSError:
+                cache_changed = True
+                continue
+            if prev and prev.get("mtime") == st.st_mtime and prev.get("size") == st.st_size:
+                summary = dict(prev)
+            else:
+                summary = parse_file(p)
+                summary["mtime"] = st.st_mtime
+                summary["size"] = st.st_size
+                reparsed += 1
+                if verbose and reparsed % 200 == 0:
+                    print(f"  parsed {reparsed} new/changed claude transcripts...", file=sys.stderr)
         # Labels are derived on every scan so old cached summaries are corrected
         # when a formerly ambiguous transcript directory is resolved.
         projdir = os.path.basename(os.path.dirname(p))

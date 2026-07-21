@@ -84,22 +84,22 @@ Every `/commit` and `/push` runs a 5-point gate — tests, security, build, Dock
 
 ---
 
-## Token & value economics
+## Token, delivery & value economics
 
 For a while, the goal was singular: make spec-driven, agentic development as **autonomous** as possible — let the agent plan, build, gate, and ship with less and less human steering.
 
-That part is mostly working. The harder, more important question is the one that comes next: **what is all this autonomy costing, and what is it worth?** Every agent run spends real money in tokens. So the question is no longer *can it ship* — it's *how much did we spend, and how much value did we add — to a business, or to humanity.*
+That part is mostly working. The harder, more important question is the one that comes next: **what is all this autonomy costing, what did it help deliver, and what was that delivery worth?** Every agent run spends real money in tokens. The dashboard measures cost and observable engineering delivery separately; business or human value remains explicitly unmeasured until an outcome source is connected.
 
-This is a first, deliberately humble attempt to **measure both — and to make it visible to everyone**, because watching it isn't one person's job. **It's everybody's responsibility.**
+This is a first, deliberately humble attempt to **make the measurement chain visible to everyone**, because watching it isn't one person's job. **It's everybody's responsibility.**
 
 ```bash
-100x-tokens   # token economics — what every session, across every repo, is costing
-100x-value    # value economics  — what actually shipped for that spend
+100xprism tokens   # token economics — what every session, across every repo, is costing
+100xprism value    # delivery economics — observable work associated with that spend
 ```
 
-- **`100x-tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-logs-vs-output composition, and $ cost — by project, model, session, and skill. Claude Code and Codex provide exact local token counters; Cursor agent-transcript JSONL and Antigravity local artifacts contribute project/session/activity coverage but are never assigned invented token cost because their local formats expose no counters. Cursor chats, `state.vscdb`, and legacy transcript `.txt` are outside the collector's scope. It auto-refreshes every 30 seconds once started. Start it explicitly with `100x-tokens`, `python3 ~/100xprism/scripts/token-dashboard.py`, or `100xprism install --dashboard`; shell startup never starts it.
-- **`100x-value`** — the dashboard joins exact local token counters to observable delivery outcomes. It shows **every directory that consumed tokens** plus agentic projects discovered machine-wide via marker files. Git supplies commits, deduplicated merged PRs, releases, files, and churn; non-repos use an explicitly labeled filesystem-mtime estimate. Directories from unsupported tools show `—` cost, never a misleading $0. Visuals report true per-model list-price cost by day/purpose and honest unit economics such as $/merged PR—no synthetic “value score” or claimed business ROI.
-- **Budgets, provenance & recommendations** — optional daily/weekly limits drive dashboard and shell alerts. A provenance strip shows pricing coverage, outcome-join coverage, source counts, and date range. Recommendations are ranked by estimated opportunity and pair the observed evidence with an action that preserves AI-native autonomy.
+- **`100xprism tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-files-read-vs-logs-vs-chat composition, and $ cost — by project, model, session, and skill. Claude Code and Codex provide exact local token counters; Cursor agent-transcript JSONL and Antigravity local artifacts contribute project/session/activity coverage but are never assigned invented token cost because their local formats expose no counters. Cursor chats, `state.vscdb`, and legacy transcript `.txt` are outside the collector's scope. It auto-refreshes every 30 seconds once started. Start it explicitly with `100xprism tokens`, `100xprism dashboard`, or `100xprism install --dashboard`; shell startup never starts it.
+- **`100x-value`** — the dashboard joins exact local token counters to observable delivery evidence. It shows **every directory that consumed tokens** plus agentic projects discovered machine-wide via marker files. Git supplies commits, deduplicated merged PRs, releases, files, insertions, and deletions; non-repos use an explicitly labeled filesystem-mtime estimate. Directories from unsupported tools show `—` cost, never a misleading $0. Delivery unit costs use attributed spend only, show attribution coverage, and are never presented as business ROI.
+- **Budgets, provenance, recommendations & GitHub PR insights** — optional daily/weekly limits drive dashboard and shell alerts. A provenance strip shows pricing coverage, outcome-join coverage, source counts, and date range. Recommendations are ranked by estimated opportunity and pair the observed evidence with an action that preserves AI-native autonomy. Optional GitHub CLI integration can fetch PR metadata for locally checked-out remotes plus configured users/repos.
 
 Full guide: [docs/token-optimization.md](docs/token-optimization.md).
 

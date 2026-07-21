@@ -1,0 +1,24 @@
+'use strict'
+
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const {
+  DASHBOARD_URL,
+  dashboardStartCommand,
+  dashboardStartedMessage,
+  dashboardStartInstructions,
+} = require('../lib/dashboard')
+
+test('dashboard started message is reserved for actual start paths', () => {
+  assert.equal(dashboardStartedMessage(), `📊 AI economics dashboard → ${DASHBOARD_URL}`)
+})
+
+test('dashboard default instructions say it is opt-in and provide start command', () => {
+  assert.equal(dashboardStartCommand(), '100xprism tokens')
+
+  const instructions = dashboardStartInstructions()
+  assert.match(instructions, /not started by default/)
+  assert.match(instructions, /Start and open it with:/)
+  assert.match(instructions, /100xprism tokens/)
+  assert.doesNotMatch(instructions, /dashboard → http:\/\/127\.0\.0\.1:8787/)
+})

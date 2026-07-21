@@ -7,6 +7,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- **AI economics dashboard and GitHub PR insights.** The local dashboard now separates token economics, observable delivery, and unmeasured business value. It surfaces attribution coverage, delivery unit cost, files, churn, commits, merged PRs, and explicit outcome scopes without presenting engineering activity as ROI. Optional GitHub CLI integration fetches bounded, linked PR details for local remotes plus configured users/repos, including status, author, title, comments, sampled file/churn detail, and update dates, cached for 30 minutes.
+- **Dashboard CLI commands.** `100xprism tokens` and `100xprism dashboard` now start/open the AI economics dashboard, and `100xprism value` prints the observable-delivery report for a directory.
+
+### Fixed
+- **Dashboard install messaging is explicit.** Ordinary install output now says the AI economics dashboard is not started by default and prints the command to start and open it. URL output is reserved for paths that actually request dashboard startup.
+
 ---
 
 ## [2.4.9] — 2026-07-19

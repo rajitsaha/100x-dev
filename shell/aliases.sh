@@ -18,7 +18,7 @@ alias 100x-check="$HOME/100xprism/update.sh --check-only"
 # Token usage — one machine-wide dashboard (all sessions & repos); auto-opens the
 # URL, and relaunching from any session just opens the already-running one.
 # shellcheck disable=SC2139
-alias 100x-tokens="python3 $HOME/100xprism/scripts/token-dashboard.py"
+alias 100x-tokens="100xprism tokens"
 # What shipped (value, to read next to token cost) — defaults to the current repo.
 # shellcheck disable=SC2139
-alias 100x-value="python3 $HOME/100xprism/scripts/value-report.py"
+alias 100x-value="100xprism value"

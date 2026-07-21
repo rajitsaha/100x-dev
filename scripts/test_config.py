@@ -23,6 +23,11 @@ class TestConfig(unittest.TestCase):
         self.assertIsNone(cfg["budget"]["daily_usd"])
         self.assertEqual(cfg["pair_loop"]["coder"], "claude")
         self.assertEqual(cfg["pair_loop"]["max_rounds"], 3)
+        self.assertEqual(cfg["github"]["enabled"], False)
+        self.assertEqual(cfg["github"]["max_repos"], 12)
+        self.assertEqual(cfg["github"]["users"], [])
+        self.assertEqual(cfg["github"]["repos"], [])
+        self.assertEqual(cfg["github"]["max_pr_file_fetches_per_repo"], 3)
 
     def test_partial_user_config_merges_over_defaults(self):
         with open(_config.CONFIG_PATH, "w") as f:
@@ -31,6 +36,20 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg["budget"]["daily_usd"], 50)
         self.assertIsNone(cfg["budget"]["weekly_usd"])  # untouched default
         self.assertEqual(cfg["pair_loop"]["reviewer"], "codex")  # untouched section
+        self.assertEqual(cfg["github"]["max_prs_per_repo"], 30)  # untouched section
+
+    def test_github_config_override(self):
+        with open(_config.CONFIG_PATH, "w") as f:
+            json.dump({"github": {"enabled": True, "max_repos": 3,
+                                  "users": ["octocat"],
+                                  "repos": ["acme/example-service"]}}, f)
+        cfg = _config.load_config()
+        self.assertEqual(cfg["github"]["enabled"], True)
+        self.assertEqual(cfg["github"]["max_repos"], 3)
+        self.assertEqual(cfg["github"]["users"], ["octocat"])
+        self.assertEqual(cfg["github"]["repos"], ["acme/example-service"])
+        self.assertEqual(cfg["github"]["max_prs_per_repo"], 30)
+        self.assertEqual(cfg["github"]["max_pr_file_fetches_per_repo"], 3)
 
     def test_pair_loop_role_override(self):
         with open(_config.CONFIG_PATH, "w") as f:

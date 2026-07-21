@@ -65,6 +65,14 @@ class LabelTest(unittest.TestCase):
         self.assertEqual(_value.project_label(transcript, {mangled: repo}),
                          "~/.claude-mem/100x-prism")
 
+    def test_unresolved_transcript_label_does_not_invent_path_separators(self):
+        mangled = _value.mangle_path(os.path.join(
+            _value.HOME, "idle-timeout", "personal", "work", "reserch"))
+        transcript = os.path.join(_value.PROJECTS_DIR, mangled, "session.jsonl")
+        label = _value.project_label(transcript, {})
+        self.assertEqual(label, "~/idle-timeout-personal-work-reserch (unresolved)")
+        self.assertNotIn("/Users/example/person", label)
+
 
 class ResolveDirTest(unittest.TestCase):
     def test_resolves_hyphenated_segment(self):
@@ -215,13 +223,37 @@ class DirectoriesShapeTest(unittest.TestCase):
         self.assertIsNone(dirs[0]["cost"])
 
 
+class DeliveryEconomicsTest(unittest.TestCase):
+    def test_separates_total_attributed_and_unmeasured_value(self):
+        rows = [
+            {"cost": 25.0, "value": {"kind": "git", "commits": 5, "prs": 2,
+                                      "releases": ["v1"], "files": 8,
+                                      "insertions": 100, "deletions": 20}},
+            {"cost": 75.0, "value": {"kind": "none"}},
+        ]
+        result = td._delivery_economics(100.0, rows)
+        self.assertEqual(result["spend"], {
+            "total": 100.0, "attributed": 25.0, "unattributed": 75.0,
+            "coverage_pct": 25.0,
+        })
+        self.assertEqual(result["delivery_unit_cost"]["per_pr"], 12.5)
+        self.assertEqual(result["delivery_unit_cost"]["per_commit"], 5.0)
+        self.assertEqual(result["business_value"]["status"], "not_measured")
+
+    def test_page_uses_delivery_language_and_pr_details(self):
+        self.assertIn("Token cost → observable delivery → business value", td.PAGE)
+        self.assertIn("delivery cost / PR", td.PAGE)
+        self.assertIn("PR details", td.PAGE)
+        self.assertNotIn("unit economics</th>", td.PAGE)
+
+
 class ScanHomeTest(unittest.TestCase):
     def test_mangle_path_non_alnum_to_dash(self):
         """mangle_path replaces every non-alphanumeric char with '-'."""
-        self.assertEqual(_value.mangle_path("/Users/rajit/100x-dev"),
-                         "-Users-rajit-100x-dev")
-        self.assertEqual(_value.mangle_path("/Users/rajit/.claude-mem/observer"),
-                         "-Users-rajit--claude-mem-observer")
+        self.assertEqual(_value.mangle_path("/Users/example/100x-dev"),
+                         "-Users-example-100x-dev")
+        self.assertEqual(_value.mangle_path("/Users/example/.claude-mem/observer"),
+                         "-Users-example--claude-mem-observer")
 
     def test_scan_home_indexes_hidden_and_hyphenated(self):
         """scan_home index contains mangled keys for hidden + hyphenated dirs."""
@@ -517,7 +549,7 @@ class IncrementalClaudeScanTest(unittest.TestCase):
         self.adapter.SOURCE_DIR, self.adapter.CACHE_FILE = self.original
         self.tmp.cleanup()
 
-    def test_recent_cache_skips_cold_transcript_stat_and_parse(self):
+    def test_recent_cache_skips_cold_transcript_stat_and_parse_but_refreshes_label(self):
         transcript = os.path.join(self.project, "old.jsonl")
         write(transcript, "{}\n")
         old = __import__("time").time() - self.adapter.HOT_FILE_SECONDS - 60
@@ -538,7 +570,10 @@ class IncrementalClaudeScanTest(unittest.TestCase):
             rows = self.adapter.scan()
         finally:
             self.adapter.parse_file = original_parse
-        self.assertEqual(rows, [summary])
+        self.assertEqual(rows[0]["mtime"], summary["mtime"])
+        self.assertEqual(rows[0]["size"], summary["size"])
+        self.assertEqual(rows[0]["project"], "Unresolved · tmp-project")
+        self.assertEqual(rows[0]["projdir"], "-tmp-project")
 
     def test_malformed_cache_is_reported_and_ignored(self):
         import contextlib
@@ -709,6 +744,36 @@ class TestBuildIntegration(unittest.TestCase):
             self.assertNotIn("null-outcome-run", [r["run_id"] for r in data["handoff_runs"]])
         finally:
             rm.RUNS_DIR = orig_runs_dir
+
+
+class GitHubInsightsTest(unittest.TestCase):
+    def test_github_slug_parses_common_remote_urls(self):
+        self.assertEqual(td._github_slug("https://github.com/acme/widget.git"), "acme/widget")
+        self.assertEqual(td._github_slug("git@github.com:acme/widget.git"), "acme/widget")
+        self.assertEqual(td._github_slug("https://github.com/acme/widget"), "acme/widget")
+        self.assertIsNone(td._github_slug("https://gitlab.com/acme/widget.git"))
+
+    def test_github_users_from_config_accepts_list_or_string(self):
+        self.assertEqual(td._github_users_from_config({"users": ["octocat", "bad/name"]}), ["octocat"])
+        self.assertEqual(td._github_users_from_config({"users": "octocat, hubot"}), ["octocat", "hubot"])
+        self.assertEqual(td._github_users_from_config({"users": None}), [])
+
+    def test_github_repos_from_config_accepts_urls_or_slugs(self):
+        repos = td._github_repos_from_config({
+            "repos": [
+                "https://github.com/acme/example-service/",
+                "git@github.com:acme/example-docs.git",
+                "bad/repo/name",
+            ]
+        })
+        self.assertEqual([r["slug"] for r in repos],
+                         ["acme/example-service", "acme/example-docs"])
+
+    def test_bounded_int_handles_bad_config_values(self):
+        self.assertEqual(td._bounded_int("7", 12, 1, 50), 7)
+        self.assertEqual(td._bounded_int("bad", 12, 1, 50), 12)
+        self.assertEqual(td._bounded_int(999, 12, 1, 50), 50)
+        self.assertEqual(td._bounded_int(0, 12, 1, 50), 1)
 
 
 if __name__ == "__main__":

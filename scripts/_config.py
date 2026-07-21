@@ -17,6 +17,15 @@ DEFAULTS = {
     "budget": {"daily_usd": None, "weekly_usd": None, "per_run_usd": None},
     "pair_loop": {"coder": "claude", "reviewer": "codex", "max_rounds": 3,
                   "pr_final_round": False},
+    "github": {
+        "enabled": False,
+        "users": [],
+        "repos": [],
+        "max_repos": 12,
+        "max_prs_per_repo": 30,
+        "max_pr_file_fetches_per_repo": 3,
+        "max_user_repos_per_user": 20,
+    },
 }
 
 

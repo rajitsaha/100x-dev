@@ -110,10 +110,11 @@ to you.
 ### This repo's dashboard
 
 ```bash
-100x-tokens                                 # alias → web UI at http://127.0.0.1:8787
-python3 scripts/token-dashboard.py          # (same, explicit)
-python3 scripts/token-dashboard.py --print  # text summary, no server
-python3 scripts/token-dashboard.py --ensure-daemon  # start it detached if not already running
+100xprism tokens                            # web UI at http://127.0.0.1:8787
+100xprism dashboard                         # alias for tokens
+100xprism tokens --print                    # text summary, no server
+100xprism tokens --ensure-daemon            # start it detached if not already running
+100xprism value                             # value report for the current directory
 ```
 
 An explicit `token-dashboard.py` launch stops and replaces the previous owned
@@ -122,8 +123,8 @@ does not restart a healthy daemon. Incremental refreshes inspect recent or newly
 created transcripts; a full transcript reconciliation runs every 30 minutes.
 
 **Start.** The dashboard does not launch during shell startup or ordinary
-`100xprism install` / `init` / `update`. Start it explicitly with `100x-tokens`,
-`python3 scripts/token-dashboard.py`, or `100xprism install --dashboard`.
+`100xprism install` / `init` / `update`. Start it explicitly with
+`100xprism tokens`, `100xprism dashboard`, or `100xprism install --dashboard`.
 
 Offline, no dependencies. Reads `~/.claude/projects/**/*.jsonl` and shows the four
 token purposes, a **startup-bloat meter** (fixed context re-sent per turn), and
@@ -141,8 +142,9 @@ price versus that fallback estimate.
 instance covers **every session and every repo/directory on the machine** at one
 URL (with a by-project breakdown). Launching it again — from any repo, any session
 — just opens the already-running URL instead of failing on a port clash. The
-`100x-tokens` alias and the shell-startup one-liner are added by `install` (opt the
-line out with `export PRISM_NO_TOKEN_LINE=1`).
+`100x-tokens` remains available as a compatibility alias if you manually source
+`shell/aliases.sh`, but install no longer edits shell startup files or auto-starts
+the dashboard. Prefer the CLI command: `100xprism tokens`.
 
 **Content composition (estimate).** The dashboard and `--print` show where your
 conversation *text volume* goes — **code written / code & files read / command
@@ -153,7 +155,7 @@ treat it as directional. It's the closest you can get without re-tokenizing.
 
 ### Value, not just cost
 
-Tokens measure *cost*; the `100x-tokens` dashboard measures *value* in the same view — no registration step needed.
+Tokens measure *cost*; the `100xprism tokens` dashboard measures *value* in the same view — no registration step needed.
 
 The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide by marker files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`) — even directories with zero Claude token spend. Value is derived tool-agnostically from git history (commits / merged PRs / releases / files / churn — merged PRs are deduped by PR number across squash-merge subjects and real merge commits) with a filesystem-mtime fallback for non-repos, plus cached AI one-line summaries generated via the local `claude` CLI (non-blocking, degrades silently when absent).
 
@@ -168,8 +170,9 @@ Cursor and Antigravity expose no provider token counters in these local formats,
 so their rows are explicitly activity-only with `—` cost—never a fabricated $0
 or character-based billing estimate.
 
-The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependency, fully offline:
-- **Outcome efficiency scatter** — observed merged PRs (or commits) versus cost, with a median-efficiency reference line; it does not invent a monetary value score
+The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependency, dark by default, with a persisted light/dark toggle:
+- **Delivery scoreboard** — per-directory spend, shipped PRs/commits/files, insertions/deletions, and unit cost; it does not invent a monetary value score
+- **Work-mix cards** — estimated code authored, files/docs read, model/chat prose, and terminal logs
 - **Daily cost by model** — exact per-model list-price dollars, stacked over the last 30 active days
 - **Dollar-spend donut** and **token-volume split** — separate views of economic cost and raw volume by input / output / cache-read / cache-write
 - **Cost by directory**, plus an **all-directories table**
@@ -180,6 +183,7 @@ The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependen
 - **By skill** — cost and $/invocation per skill (see Skill attribution, below)
 - **Main vs subagent** — cost split between the main conversation and Task-tool subagent branches
 - **Pair-loop handoff runs** — coder/reviewer round costs for `pair-loop.py` runs, once any exist
+- **GitHub PR insights** — opt-in PR metadata for local remotes and configured users/repos
 - **Suggestions** — rule-based, offline cost-reduction suggestions ranked by estimated $ impact
 
 `~/.100xprism/value.json` is an automatic per-directory cache (keyed by dir + git HEAD + date window), not a manual registry.
@@ -187,6 +191,27 @@ The dashboard's charts and tables — all inline SVG / vanilla JS, zero dependen
 **Skill attribution.** Claude Code sets `attributionSkill` natively on transcript lines while a Skill tool is active — this is **exact** attribution, not a heuristic, and the dashboard's "by skill" table marks it `exact`. Built-in slash commands that aren't Skills (e.g. `/model`) don't set `attributionSkill`, so those are segmented via the `<command-name>/xyz</command-name>` marker in the preceding user turn instead — usage between one marker and the next, marked `attr.` in the table. That fallback is a boundary heuristic, same honesty convention as the char-based composition estimate above.
 
 **Budgets.** Add a `budget` section to `~/.100xprism/config.json` (`daily_usd` / `weekly_usd` / `per_run_usd`, all `null` — inert — by default) to get a budget bar in the dashboard, a `⚠`/`‼` glyph in the `--oneline` shell summary, and a native OS notification (macOS `osascript`) the first time a period crosses 80% (WARN) or 100% (ALERT) in a day.
+
+**GitHub PR insights.** Remote GitHub fetching is opt-in. The dashboard always detects local GitHub remotes, but it only calls the GitHub API when `gh` is authenticated and `github.enabled` is true in `~/.100xprism/config.json`. It fetches bounded PR metadata for locally checked-out GitHub repos plus explicitly configured GitHub users, then caches results for 30 minutes:
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "users": ["octocat", "hubot"],
+    "repos": [
+      "acme/example-service",
+      "acme/example-docs"
+    ],
+    "max_repos": 12,
+    "max_prs_per_repo": 30,
+    "max_pr_file_fetches_per_repo": 3,
+    "max_user_repos_per_user": 20
+  }
+}
+```
+
+Run `gh auth login` first. The dashboard then shows PR counts, merged/open/closed split, comment-heavy PRs, docs-touching PRs, deleted-file PRs, and additions/deletions across the fetched repo set.
 
 ### Other options
 - `npx ccusage@latest` and `npx ccusage@latest blocks --live` — terminal dashboards.
