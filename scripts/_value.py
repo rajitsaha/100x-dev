@@ -24,20 +24,31 @@ STORE_DIR = os.path.join(HOME, ".100xprism")
 STORE_PATH = os.path.join(STORE_DIR, "value.json")
 STORE_VERSION = 3
 
-# The dashboard turns a transcript dir like "-Users-rajit-foo-bar" into a label.
-_HOME_DASH = HOME.replace("/", "-") + "-"  # e.g. "-Users-rajit-"
-
-
 def mangle_path(abs_path):
     """The ~/.claude/projects transcript-dir name for a path: every
     non-alphanumeric character becomes '-' (Claude Code's exact rule)."""
     return re.sub(r"[^a-zA-Z0-9]", "-", abs_path)
 
 
+# The dashboard turns a transcript dir like "-Users-rajit-foo-bar" into a label.
+#
+# Important: this is a lossy fallback only. Claude Code mangles every
+# non-alphanumeric character to "-", so "/" vs "." vs literal "-" cannot be
+# reconstructed from the transcript directory name alone. Real paths should be
+# recovered through the home scan index or resolve_real_dir(); this fallback must
+# not pretend ambiguous "-" characters are path separators.
+_HOME_MANGLED = mangle_path(HOME)  # e.g. "-Users-rajit-saha"
+
+
 # ----------------------------------------------------------------- labels
 
 def _label_from_dirname(dirname):
-    return dirname.replace(_HOME_DASH, "~/").replace("-", "/")
+    if dirname == _HOME_MANGLED:
+        return "~"
+    prefix = _HOME_MANGLED + "-"
+    if dirname.startswith(prefix):
+        return "~/" + dirname[len(prefix):] + " (unresolved)"
+    return "Unresolved · " + dirname.strip("-")
 
 
 def project_label(transcript_path, dir_index=None):

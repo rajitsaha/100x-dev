@@ -33,6 +33,8 @@ unmatched model ids fall back to Opus-tier rates and are flagged in fallback_pct
 import argparse
 import json
 import os
+import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -55,11 +57,15 @@ import adapters.antigravity as antigravity  # noqa: E402
 import run_manifest  # noqa: E402
 import _budget  # noqa: E402
 import _suggest  # noqa: E402
+import _config  # noqa: E402
 
 HOME = os.path.expanduser("~")
 PROJECTS_DIR = claude_code.SOURCE_DIR
 REFRESH_SECONDS = 30  # auto-rebuild cadence; mtime/size cache makes a no-op pass cheap
 PID_FILE = os.path.join(HOME, ".100xprism", "token-dashboard.pid")
+GITHUB_CACHE_FILE = os.path.join(HOME, ".100xprism", "github-pr-insights.json")
+GITHUB_CACHE_SECONDS = 1800
+GITHUB_CACHE_VERSION = 3
 
 
 def _empty():
@@ -71,6 +77,54 @@ def _add(dst, i, o, cr, cw):
     dst["output"] += o
     dst["cache_read"] += cr
     dst["cache_write"] += cw
+
+
+def _delivery_economics(total_cost, directories):
+    """Separate metered spend, observable delivery, and unmeasured value.
+
+    Git activity is evidence that work moved through an engineering workflow; it
+    is not a business-value score. Keeping these layers explicit prevents a
+    delivery unit cost from being presented as ROI.
+    """
+    attributed_spend = 0.0
+    outcomes = {
+        "commits": 0, "prs": 0, "releases": 0,
+        "files": 0, "insertions": 0, "deletions": 0,
+    }
+    for row in directories:
+        value = row.get("value") or {}
+        if row.get("cost") is None or value.get("kind") != "git":
+            continue
+        attributed_spend += row["cost"]
+        for key in outcomes:
+            outcomes[key] += (len(value.get(key, [])) if key == "releases"
+                              else value.get(key, 0))
+
+    total_cost = float(total_cost or 0)
+    coverage = 100 * attributed_spend / total_cost if total_cost else 0.0
+    unit_costs = {
+        "per_commit": round(attributed_spend / outcomes["commits"], 2)
+        if outcomes["commits"] else None,
+        "per_pr": round(attributed_spend / outcomes["prs"], 2)
+        if outcomes["prs"] else None,
+        "per_release": round(attributed_spend / outcomes["releases"], 2)
+        if outcomes["releases"] else None,
+    }
+    return {
+        "spend": {
+            "total": round(total_cost, 2),
+            "attributed": round(attributed_spend, 2),
+            "unattributed": round(max(0, total_cost - attributed_spend), 2),
+            "coverage_pct": round(coverage, 1),
+        },
+        "outcomes": outcomes,
+        "delivery_unit_cost": unit_costs,
+        "business_value": {
+            "status": "not_measured",
+            "label": "Not measured",
+            "reason": "Git delivery signals do not establish business or human value.",
+        },
+    }
 
 
 COMP_CATS = claude_code.COMP_CATS
@@ -94,6 +148,7 @@ def build(verbose=True):
     by_day = defaultdict(_empty)
     by_project_day_model = defaultdict(lambda: defaultdict(lambda: defaultdict(_empty)))
     by_day_model_global = defaultdict(lambda: defaultdict(_empty))
+    by_tool_model_day = defaultdict(lambda: defaultdict(lambda: defaultdict(_empty)))
     by_model = defaultdict(_empty)
     comp_chars = defaultdict(int)
     sessions = 0
@@ -115,6 +170,8 @@ def build(verbose=True):
             for model, d in models.items():
                 _add(by_project_day_model[proj][day][model], d["input"], d["output"], d["cache_read"], d["cache_write"])
                 _add(by_day_model_global[day][model], d["input"], d["output"], d["cache_read"], d["cache_write"])
+                _add(by_tool_model_day[s.get("tool", "unknown")][model][day],
+                     d["input"], d["output"], d["cache_read"], d["cache_write"])
         for mdl, d in s.get("by_model", {}).items():
             _add(by_model[mdl], d["input"], d["output"], d["cache_read"], d["cache_write"])
         for cat, n in s.get("comp", {}).items():
@@ -165,9 +222,31 @@ def build(verbose=True):
         for day, models in by_day_model_global.items() if day != "unknown"
     }
 
+    by_day_purpose_cost = {
+        day: {purpose: round(cost, 4)
+              for purpose, cost in pricing.cost_breakdown(models).items()}
+        for day, models in by_day_model_global.items() if day != "unknown"
+    }
+
     by_project_day_cost = {
         lbl: {day: round(pricing.cost_by_model(models)[0], 4) for day, models in days.items()}
         for lbl, days in by_project_day_model.items()
+    }
+
+    tool_model_day_cost = {
+        tool: {
+            model: {day: round(pricing.cost_of(tok, model), 4)
+                    for day, tok in days.items() if day != "unknown"}
+            for model, days in models.items()
+        }
+        for tool, models in by_tool_model_day.items()
+    }
+    tool_model_day_tokens = {
+        tool: {
+            model: {day: sum(tok.values()) for day, tok in days.items() if day != "unknown"}
+            for model, days in models.items()
+        }
+        for tool, models in by_tool_model_day.items()
     }
 
     mangled_by_label, tokens_by_label, window_by_label, tool_by_label = {}, {}, {}, defaultdict(set)
@@ -260,26 +339,21 @@ def build(verbose=True):
     }
     activity_sessions.sort(key=lambda r: r.get("day") or "", reverse=True)
     value_sources = defaultdict(int)
-    matched_cost = 0.0
-    outcome_totals = {"commits": 0, "prs": 0, "releases": 0}
     for row in directories:
         value = row.get("value") or {}
         value_sources[value.get("kind", "none")] += 1
-        if row.get("cost") is not None and value.get("kind") == "git":
-            matched_cost += row["cost"]
-            for key in outcome_totals:
-                outcome_totals[key] += len(value.get(key, [])) if key == "releases" else value.get(key, 0)
-    outcome_coverage = round(100 * matched_cost / total_cost, 1) if total_cost else 0.0
+    delivery_economics = _delivery_economics(total_cost, directories)
+    matched_cost = delivery_economics["spend"]["attributed"]
+    outcome_totals = delivery_economics["outcomes"]
+    outcome_coverage = delivery_economics["spend"]["coverage_pct"]
     economics = {
         "matched_cost": round(matched_cost, 2),
-        "cost_per_commit": round(matched_cost / outcome_totals["commits"], 2)
-        if outcome_totals["commits"] else None,
-        "cost_per_pr": round(matched_cost / outcome_totals["prs"], 2)
-        if outcome_totals["prs"] else None,
-        "cost_per_release": round(matched_cost / outcome_totals["releases"], 2)
-        if outcome_totals["releases"] else None,
+        "cost_per_commit": delivery_economics["delivery_unit_cost"]["per_commit"],
+        "cost_per_pr": delivery_economics["delivery_unit_cost"]["per_pr"],
+        "cost_per_release": delivery_economics["delivery_unit_cost"]["per_release"],
         **outcome_totals,
     }
+    github = _github_insights(directories)
 
     handoff_runs = _build_handoff_runs(all_summaries)
 
@@ -296,6 +370,7 @@ def build(verbose=True):
         "period_cost": {"today": round(today_cost, 2), "week": round(week_cost, 2),
                         "month": round(month_cost, 2), "lifetime": round(total_cost, 2)},
         "economics": economics,
+        "delivery_economics": delivery_economics,
         "data_quality": {
             "usage_sources": dict(sorted(source_counts.items())),
             "activity_sources": activity_summary,
@@ -313,6 +388,9 @@ def build(verbose=True):
         )[:25],
         "by_day": sorted(([k, v] for k, v in by_day.items() if k != "unknown")),
         "by_day_model_cost": by_day_model_cost,
+        "by_day_purpose_cost": by_day_purpose_cost,
+        "tool_model_day_cost": tool_model_day_cost,
+        "tool_model_day_tokens": tool_model_day_tokens,
         "by_model": sorted(
             ([k, v] for k, v in by_model.items()),
             key=lambda r: -(r[1]["input"] + r[1]["cache_read"] + r[1]["cache_write"]),
@@ -328,6 +406,7 @@ def build(verbose=True):
         "activity": {"by_tool": activity_summary,
                      "sessions": activity_sessions[:100],
                      "session_count": len(activity_sessions)},
+        "github": github,
     }
     dataset["suggestions"] = [
         {"impact_usd": round(s.impact_usd, 2), "title": s.title,
@@ -362,6 +441,365 @@ def _build_handoff_runs(all_summaries):
             continue
     rows.sort(key=lambda r: -r["total_cost"])
     return rows
+
+
+_GITHUB_SSH_RE = re.compile(r"git@github\.com:([^/]+)/(.+?)(?:\.git)?$")
+_GITHUB_HTTPS_RE = re.compile(r"https://github\.com/([^/]+)/(.+?)(?:\.git)?$")
+_DOC_EXTS = (".md", ".mdx", ".rst", ".adoc", ".txt")
+
+
+def _github_slug(remote):
+    """Return owner/repo for a GitHub remote URL, or None."""
+    if not remote:
+        return None
+    for pattern in (_GITHUB_SSH_RE, _GITHUB_HTTPS_RE):
+        m = pattern.match(remote.strip())
+        if m:
+            owner, repo = m.group(1), m.group(2).rstrip("/")
+            return f"{owner}/{repo}"
+    return None
+
+
+def _github_repos_from_dirs(directories):
+    repos = {}
+    for row in directories:
+        value = row.get("value") or {}
+        if value.get("kind") != "git" or not row.get("dir"):
+            continue
+        try:
+            remote = subprocess.run(
+                ["git", "-C", row["dir"], "remote", "get-url", "origin"],
+                capture_output=True, text=True, timeout=2, check=False)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        url = remote.stdout.strip()
+        slug = _github_slug(url)
+        if slug:
+            repos.setdefault(slug, {"label": row["label"], "remote": url, "slug": slug,
+                                    "source": "local-remote"})
+    return list(repos.values())
+
+
+def _github_users_from_config(cfg):
+    users = cfg.get("users") or []
+    if isinstance(users, str):
+        users = [u.strip() for u in users.split(",")]
+    if not isinstance(users, list):
+        return []
+    cleaned = []
+    for user in users:
+        if isinstance(user, str):
+            user = user.strip()
+            if user and re.match(r"^[A-Za-z0-9-]+$", user):
+                cleaned.append(user)
+    return cleaned
+
+
+def _github_repos_from_config(cfg):
+    values = cfg.get("repos") or []
+    if isinstance(values, str):
+        values = [v.strip() for v in values.split(",")]
+    if not isinstance(values, list):
+        return []
+    repos = []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        value = value.strip().rstrip("/")
+        slug = _github_slug(value)
+        if not slug and re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", value):
+            slug = value
+        if slug:
+            repos.append({
+                "label": slug,
+                "remote": f"https://github.com/{slug}",
+                "slug": slug,
+                "source": "github-config",
+            })
+    return repos
+
+
+def _github_repos_for_users(users, per_user_limit):
+    repos, errors = [], []
+    for user in users:
+        try:
+            data = _gh_api_json(
+                f"users/{user}/repos?type=owner&sort=updated&per_page={per_user_limit}",
+                timeout=8)
+            if not isinstance(data, list):
+                continue
+            for repo in data[:per_user_limit]:
+                if not isinstance(repo, dict) or not repo.get("full_name"):
+                    continue
+                repos.append({
+                    "label": repo.get("full_name"),
+                    "remote": repo.get("html_url") or f"https://github.com/{repo['full_name']}",
+                    "slug": repo["full_name"],
+                    "source": f"github-user:{user}",
+                })
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+            errors.append(f"{user}: {exc}")
+    return repos, errors
+
+
+def _load_github_cache(key):
+    try:
+        with open(GITHUB_CACHE_FILE, encoding="utf-8") as f:
+            cached = json.load(f)
+        if cached.get("key") == key and time.time() - cached.get("saved_at", 0) < GITHUB_CACHE_SECONDS:
+            data = cached.get("data")
+            if isinstance(data, dict):
+                data["cached"] = True
+                return data
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def _save_github_cache(key, data):
+    try:
+        os.makedirs(os.path.dirname(GITHUB_CACHE_FILE), exist_ok=True)
+        tmp = GITHUB_CACHE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"key": key, "saved_at": time.time(), "data": data}, f, indent=2)
+        os.replace(tmp, GITHUB_CACHE_FILE)
+    except OSError as exc:
+        print(f"warning: could not write GitHub insights cache ({GITHUB_CACHE_FILE}): {exc}",
+              file=sys.stderr)
+
+
+def _gh_api_json(endpoint, timeout=6):
+    result = subprocess.run(
+        ["gh", "api", endpoint],
+        capture_output=True, text=True, timeout=timeout, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"gh api failed for {endpoint}")
+    return json.loads(result.stdout or "null")
+
+
+def _is_doc_file(filename):
+    low = (filename or "").lower()
+    return low.endswith(_DOC_EXTS) or low.startswith("docs/") or "/docs/" in low
+
+
+def _empty_github_summary(repos, enabled, message, auth_ok=False, fetched=False):
+    return {
+        "enabled": enabled,
+        "gh_installed": bool(shutil.which("gh")),
+        "auth_ok": auth_ok,
+        "fetched": fetched,
+        "cached": False,
+        "repo_count": len(repos),
+        "repos": repos[:20],
+        "summary": {
+            "prs": 0, "merged": 0, "open": 0, "closed": 0,
+            "comment_heavy": 0, "docs_prs": 0, "deleted_file_prs": 0,
+            "additions": 0, "deletions": 0,
+        },
+        "top_commented": [],
+        "pr_rows": [],
+        "repo_rows": [],
+        "message": message,
+    }
+
+
+def _bounded_int(value, default, low, high):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        n = default
+    return max(low, min(n, high))
+
+
+def _github_insights(directories):
+    """Opt-in GitHub PR insight collector over locally checked-out GitHub remotes.
+
+    Uses `gh api` only when ~/.100xprism/config.json has
+    {"github":{"enabled":true}} and `gh auth status` succeeds. Results are cached
+    so the 30-second dashboard refresh does not repeatedly hit the network.
+    """
+    local_repos = _github_repos_from_dirs(directories)
+    cfg = _config.load_config().get("github", {})
+    users = _github_users_from_config(cfg)
+    configured_repos = _github_repos_from_config(cfg)
+    enabled = bool(cfg.get("enabled"))
+    if not enabled:
+        return _empty_github_summary(
+            local_repos, False,
+            "GitHub PR insights are available for detected GitHub remotes, but remote fetching is off. Enable with gh auth + github.enabled=true.")
+    if not shutil.which("gh"):
+        return _empty_github_summary(local_repos, True, "GitHub CLI (`gh`) is not installed or not on PATH.")
+    try:
+        auth = subprocess.run(
+            ["gh", "auth", "status", "-h", "github.com"],
+            capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return _empty_github_summary(local_repos, True, "Could not check GitHub CLI authentication.")
+    if auth.returncode != 0:
+        return _empty_github_summary(local_repos, True, "Run `gh auth login` to allow PR metadata fetches.", auth_ok=False)
+
+    max_repos = _bounded_int(cfg.get("max_repos"), 12, 1, 50)
+    max_prs = _bounded_int(cfg.get("max_prs_per_repo"), 30, 1, 100)
+    max_pr_file_fetches = _bounded_int(cfg.get("max_pr_file_fetches_per_repo"), 3, 0, 30)
+    max_user_repos = _bounded_int(cfg.get("max_user_repos_per_user"), 20, 1, 100)
+    cache_key = {
+        "schema": GITHUB_CACHE_VERSION,
+        "local": sorted(r["slug"] for r in local_repos),
+        "users": sorted(users),
+        "repos": sorted(r["slug"] for r in configured_repos),
+        "max_repos": max_repos,
+        "max_prs": max_prs,
+        "max_pr_file_fetches": max_pr_file_fetches,
+        "max_user_repos": max_user_repos,
+    }
+    cached = _load_github_cache(cache_key)
+    if cached:
+        return cached
+
+    user_repos, user_errors = _github_repos_for_users(users, max_user_repos) if users else ([], [])
+    merged_repos = {r["slug"]: r for r in local_repos}
+    for repo in configured_repos:
+        merged_repos[repo["slug"]] = repo
+    for repo in user_repos:
+        merged_repos.setdefault(repo["slug"], repo)
+    repos = list(merged_repos.values())
+    if not repos:
+        return _empty_github_summary(
+            repos, True,
+            "No GitHub remotes found locally and no configured GitHub users returned repositories.",
+            auth_ok=True)
+    selected = sorted(
+        repos,
+        key=lambda r: (0 if r.get("source") == "github-config" else 1, r["slug"])
+    )[:max_repos]
+
+    summary = {
+        "prs": 0, "merged": 0, "open": 0, "closed": 0,
+        "comment_heavy": 0, "docs_prs": 0, "deleted_file_prs": 0,
+        "additions": 0, "deletions": 0,
+    }
+    pr_rows, top_commented, repo_rows, errors = [], [], [], list(user_errors)
+    by_developer = {}
+    for repo in selected:
+        slug = repo["slug"]
+        row = {"repo": slug, "label": repo["label"], "prs": 0, "merged": 0,
+               "comment_heavy": 0, "docs_prs": 0, "deleted_file_prs": 0,
+               "additions": 0, "deletions": 0}
+        try:
+            pulls = _gh_api_json(f"repos/{slug}/pulls?state=all&per_page={max_prs}", timeout=8)
+            if not isinstance(pulls, list):
+                pulls = []
+            file_fetches = 0
+            for pr in pulls[:max_prs]:
+                number = pr.get("number")
+                if number is None:
+                    continue
+                detail, files, files_sampled = {}, [], False
+                if file_fetches < max_pr_file_fetches:
+                    try:
+                        detail = _gh_api_json(f"repos/{slug}/pulls/{number}", timeout=3)
+                        if not isinstance(detail, dict):
+                            detail = {}
+                        files = _gh_api_json(
+                            f"repos/{slug}/pulls/{number}/files?per_page=100",
+                            timeout=3)
+                        if not isinstance(files, list):
+                            files = []
+                        files_sampled = True
+                    except (OSError, ValueError, RuntimeError,
+                            subprocess.SubprocessError, json.JSONDecodeError) as exc:
+                        errors.append(f"{slug}#{number} detail: {exc}")
+                        detail, files, files_sampled = {}, [], False
+                    file_fetches += 1
+                meta = {**pr, **detail}
+                additions = meta.get("additions")
+                deletions = meta.get("deletions")
+                if additions is None:
+                    additions = sum(f.get("additions", 0) for f in files if isinstance(f, dict))
+                if deletions is None:
+                    deletions = sum(f.get("deletions", 0) for f in files if isinstance(f, dict))
+                deleted_files = sum(1 for f in files if isinstance(f, dict) and f.get("status") == "removed")
+                docs_files = sum(1 for f in files if isinstance(f, dict) and _is_doc_file(f.get("filename")))
+                comments_sampled = bool(detail) or "comments" in pr or "review_comments" in pr
+                comments = (int(meta.get("comments") or 0) + int(meta.get("review_comments") or 0)
+                            if comments_sampled else None)
+                state = meta.get("state")
+                merged = bool(meta.get("merged_at"))
+                author = ((meta.get("user") or {}).get("login") or "unknown")
+
+                summary["prs"] += 1
+                summary["merged"] += 1 if merged else 0
+                summary["open"] += 1 if state == "open" else 0
+                summary["closed"] += 1 if state == "closed" and not merged else 0
+                summary["additions"] += additions
+                summary["deletions"] += deletions
+                summary["comment_heavy"] += 1 if comments is not None and comments >= 5 else 0
+                summary["docs_prs"] += 1 if docs_files else 0
+                summary["deleted_file_prs"] += 1 if deleted_files else 0
+
+                row["prs"] += 1
+                row["merged"] += 1 if merged else 0
+                row["additions"] += additions
+                row["deletions"] += deletions
+                row["comment_heavy"] += 1 if comments is not None and comments >= 5 else 0
+                row["docs_prs"] += 1 if docs_files else 0
+                row["deleted_file_prs"] += 1 if deleted_files else 0
+                dev = by_developer.setdefault(author, {
+                    "developer": author, "prs": 0, "merged": 0, "open": 0,
+                    "closed": 0, "comments": 0, "comment_heavy": 0,
+                    "docs_prs": 0, "deleted_file_prs": 0,
+                    "additions": 0, "deletions": 0,
+                })
+                dev["prs"] += 1
+                dev["merged"] += 1 if merged else 0
+                dev["open"] += 1 if state == "open" else 0
+                dev["closed"] += 1 if state == "closed" and not merged else 0
+                dev["comments"] += comments or 0
+                dev["comment_heavy"] += 1 if comments is not None and comments >= 5 else 0
+                dev["docs_prs"] += 1 if docs_files else 0
+                dev["deleted_file_prs"] += 1 if deleted_files else 0
+                dev["additions"] += additions
+                dev["deletions"] += deletions
+                top_commented.append({
+                    "repo": slug, "number": number, "title": meta.get("title", ""),
+                    "author": author, "comments": comments, "docs_files": docs_files,
+                    "deleted_files": deleted_files, "additions": additions,
+                    "deletions": deletions, "merged": merged,
+                })
+                pr_rows.append({
+                    "repo": slug, "number": number, "title": meta.get("title", ""),
+                    "url": meta.get("html_url") or f"https://github.com/{slug}/pull/{number}",
+                    "author": author, "state": state, "merged": merged,
+                    "created_at": meta.get("created_at"), "updated_at": meta.get("updated_at"),
+                    "merged_at": meta.get("merged_at"), "comments": comments,
+                    "comments_sampled": comments_sampled,
+                    "docs_files": docs_files, "deleted_files": deleted_files,
+                    "files_sampled": files_sampled, "additions": additions,
+                    "deletions": deletions,
+                })
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+            errors.append(f"{slug}: {exc}")
+        repo_rows.append(row)
+
+    top_commented.sort(key=lambda r: (-(r["comments"] or 0), -r["deleted_files"], -r["docs_files"]))
+    pr_rows.sort(key=lambda r: (r.get("updated_at") or "", r["repo"], r["number"]), reverse=True)
+    repo_rows.sort(key=lambda r: (-r["comment_heavy"], -r["prs"], r["repo"]))
+    developer_rows = sorted(
+        by_developer.values(),
+        key=lambda r: (-r["prs"], -r["comments"], r["developer"])
+    )
+    data = {
+        "enabled": True, "gh_installed": True, "auth_ok": True, "fetched": True,
+        "cached": False, "repo_count": len(repos), "repos": repos[:20],
+        "summary": summary, "top_commented": top_commented[:10], "pr_rows": pr_rows,
+        "repo_rows": repo_rows, "developer_rows": developer_rows[:20],
+        "errors": errors[:5],
+        "message": f"Fetched PR metadata from {len(selected)} GitHub repo(s): local remotes"
+                   + (", configured repos" if configured_repos else "")
+                   + (f" plus configured users {', '.join(users)}." if users else "."),
+    }
+    _save_github_cache(cache_key, data)
+    return data
 
 
 def fmt(n):
@@ -452,20 +890,59 @@ PAGE = """<!doctype html><html><head><meta charset=utf-8>
 :root{--ink:#0E1116;--surface:#171B22;--line:#262C36;--text:#E6E9EF;--muted:#8A93A2;
 --cost:#E8B24A;--value:#5BD0A6;--warn:#E5704B;
 --in:#58a6ff;--out:#f778ba;--cr:#3fb950;--cw:#d29922;
---m1:#58a6ff;--m2:#a371f7;--m3:#5BD0A6;--m4:#E8B24A;--m5:#f778ba;--m6:#8A93A2}
+--m1:#58a6ff;--m2:#a371f7;--m3:#5BD0A6;--m4:#E8B24A;--m5:#f778ba;--m6:#8A93A2;
+--glow:rgba(91,208,166,.28);--shadow:rgba(0,0,0,.28)}
+[data-theme=light]{--ink:#F6F8FB;--surface:#FFFFFF;--line:#DCE3EE;--text:#111827;--muted:#64748B;
+--cost:#B7791F;--value:#047857;--warn:#C2410C;--in:#2563EB;--out:#BE185D;--cr:#16A34A;--cw:#CA8A04;
+--glow:rgba(37,99,235,.18);--shadow:rgba(15,23,42,.12)}
 *{box-sizing:border-box}
 body{margin:0;background:radial-gradient(circle at 20% -10%,#18263a 0,transparent 34%),var(--ink);color:var(--text);
-font:14px/1.55 'IBM Plex Sans',-apple-system,Segoe UI,Roboto,sans-serif}
+font:14px/1.55 'IBM Plex Sans',-apple-system,Segoe UI,Roboto,sans-serif;transition:background .35s ease,color .25s ease}
+body[data-theme=light]{background:radial-gradient(circle at 20% -10%,#DCEBFF 0,transparent 34%),var(--ink)}
 .num,td.n,.money{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 header{padding:18px 28px;border-bottom:1px solid var(--line);display:flex;background:rgba(14,17,22,.88);
 align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:10;backdrop-filter:blur(12px)}
+body[data-theme=light] header{background:rgba(255,255,255,.84)}
 h1{font-size:18px;margin:0}.sub{color:var(--muted);font-size:13px}
 .wrap{padding:24px 28px 60px;max-width:1180px;margin:0 auto}
+.dashboard-shell{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px;align-items:start}
+.side-panel{position:sticky;top:82px;background:color-mix(in srgb,var(--surface),transparent 5%);
+border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 18px 50px var(--shadow)}
+.side-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:4px 6px 8px}
+.tabbtn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;margin:4px 0;border-radius:10px;
+background:transparent}.tabbtn.active{border-color:var(--value);background:linear-gradient(90deg,rgba(91,208,166,.16),transparent)}
+.tabbtn small{display:block;color:var(--muted);font-size:11px}.tabpane{display:none}.tabpane.active{display:block;animation:riseIn .22s ease both}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--in),var(--line) 45%);box-shadow:0 14px 34px var(--shadow)}
 .card .lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .card .val{font-size:26px;font-weight:600;margin-top:4px}
 .card .note{color:var(--muted);font-size:12px;margin-top:6px}
+.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(91,208,166,.14),rgba(88,166,255,.1) 42%,rgba(232,178,74,.08));
+border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 24px 80px var(--shadow);
+animation:riseIn .45s ease both}
+.hero:before{content:"";position:absolute;right:-100px;top:-120px;width:320px;height:320px;border-radius:50%;
+background:radial-gradient(circle,var(--glow),transparent 64%);animation:drift 9s ease-in-out infinite alternate}
+.hero h2{font-size:24px;text-transform:none;letter-spacing:0;color:var(--text);border:0;margin:0 0 8px;padding:0}
+.hero p{max-width:760px;margin:0;color:var(--muted)}
+.hero-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;align-items:center;position:relative}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.chip{border:1px solid var(--line);border-radius:999px;padding:5px 9px;background:rgba(23,27,34,.72);font-size:12px;color:var(--muted)}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.flow .step{background:color-mix(in srgb,var(--surface),transparent 18%);border:1px solid var(--line);border-radius:12px;padding:12px;
+animation:riseIn .45s ease both}.flow .step:nth-child(2){animation-delay:.05s}.flow .step:nth-child(3){animation-delay:.1s}.flow .step:nth-child(4){animation-delay:.15s}
+.flow .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}.flow .v{font-size:20px;font-weight:650;margin-top:4px}
+.economics-flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 0;position:relative}
+.economics-stage{background:color-mix(in srgb,var(--surface),transparent 12%);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.economics-stage.cost{border-top:3px solid var(--cost)}.economics-stage.delivery{border-top:3px solid var(--value)}.economics-stage.value{border-top:3px solid var(--muted)}
+.economics-stage .stage-title{font-weight:650}.economics-stage .stage-value{font:650 22px/1.25 'IBM Plex Mono',ui-monospace,monospace;margin:6px 0 3px}
+.coverage{height:8px;background:#21262d;border-radius:99px;overflow:hidden;margin:8px 0 5px}.coverage span{display:block;height:100%;background:var(--value)}
+.status-pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 7px;font-size:11px;color:var(--muted);white-space:nowrap}
+.status-pill.merged{color:var(--value);border-color:color-mix(in srgb,var(--value),var(--line) 55%)}
+.status-pill.open{color:var(--in);border-color:color-mix(in srgb,var(--in),var(--line) 55%)}
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+.insight{background:linear-gradient(180deg,color-mix(in srgb,var(--surface),transparent 2%),color-mix(in srgb,var(--surface),transparent 14%));border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+animation:riseIn .38s ease both;transition:transform .18s ease,border-color .18s ease}.insight:hover{transform:translateY(-2px);border-color:var(--value)}
+.insight .big{font-size:23px;font-weight:650}.insight .caption{color:var(--muted);font-size:12px;margin-top:4px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
 h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
 margin:28px 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px}
@@ -483,13 +960,36 @@ button{background:var(--surface);color:var(--text);border:1px solid var(--line);
 padding:6px 12px;cursor:pointer;font-size:13px}button:hover{border-color:var(--in)}
 .muted{color:var(--muted)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+section{transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}section:hover{border-color:color-mix(in srgb,var(--value),var(--line) 55%);box-shadow:0 12px 36px var(--shadow)}
 section h2{margin-top:0;border-bottom-color:var(--line)}
 .cards2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:8px 0 24px}
 .wide{grid-column:1/-1}.table-wrap{overflow-x:auto}
 .quality{display:flex;gap:10px 24px;flex-wrap:wrap;padding:12px 0 20px;color:var(--muted);font-size:12px}
-.quality b{color:var(--text);font-weight:600}.rec{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
-.rec:last-child{border-bottom:0}.rank{color:var(--cost);font:600 12px/1.4 'IBM Plex Mono',ui-monospace,monospace}.rec strong{font-size:14px}.action{color:var(--value);margin-top:3px}
-@media(max-width:760px){.cards2{grid-template-columns:1fr}.wide{grid-column:auto}.wrap{padding:18px 14px 40px}header{padding:14px}.cards{grid-template-columns:1fr 1fr;gap:10px}.card .val{font-size:22px}td,th{padding:7px 8px}}
+.quality b{color:var(--text);font-weight:600}.rec{border:1px solid var(--line);border-radius:12px;margin:12px 0;background:color-mix(in srgb,var(--surface),transparent 8%);overflow:hidden}
+.rec summary{cursor:pointer;list-style:none}.rec summary::-webkit-details-marker{display:none}
+.rec-head{display:grid;grid-template-columns:112px minmax(0,1fr) 110px;gap:14px;align-items:center;padding:14px}
+.rank{color:var(--cost);font:650 16px/1.2 'IBM Plex Mono',ui-monospace,monospace}.rec strong{font-size:15px}.action{color:var(--value);margin-top:3px}
+.rec-body{border-top:1px solid var(--line);padding:14px}.whatif{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.whatif .option{border:1px solid var(--line);border-radius:10px;padding:10px;background:color-mix(in srgb,var(--surface),transparent 14%)}
+.whatif .option b{display:block;color:var(--cost);font-size:16px}.tradeoffs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.tradeoffs div{border-left:3px solid var(--line);padding-left:10px}.tradeoffs b{display:block;color:var(--text);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.examples{margin:10px 0 0;padding-left:18px}.examples li{margin:4px 0}.rec-pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--muted);font-size:12px}
+.snippet{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden;background:color-mix(in srgb,var(--ink),#000 12%)}
+.snippet-head{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px}
+.snippet pre{margin:0;padding:12px;overflow:auto;font:12px/1.45 'IBM Plex Mono',ui-monospace,monospace;color:var(--text)}
+.snippet button{padding:4px 8px;font-size:12px}
+.windowbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.windowbar .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+.windowbtn{border-radius:999px;padding:6px 10px}.windowbtn.active{border-color:var(--cost);background:rgba(232,178,74,.14);color:var(--text)}
+.windowbtn.limited{border-style:dashed;color:var(--muted)}.window-note{color:var(--muted);font-size:12px;margin-left:4px}
+.cost-tree{display:grid;gap:10px;margin-top:12px}.tree-node{border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--surface),transparent 8%);overflow:hidden}
+.tree-node summary{cursor:pointer;list-style:none}.tree-node summary::-webkit-details-marker{display:none}
+.tree-row{display:grid;grid-template-columns:150px minmax(160px,1fr) 92px 90px;gap:12px;align-items:center;padding:11px 13px}
+.tree-row:hover{background:color-mix(in srgb,var(--surface),var(--ink) 16%)}.tree-name{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-meta{color:var(--muted);font-size:12px}.tree-bar{height:11px;border-radius:999px;background:#21262d;overflow:hidden;position:relative}.tree-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--cost),var(--value))}
+.tree-children{border-top:1px solid var(--line);padding:4px 0}.tree-children .tree-row{grid-template-columns:150px minmax(160px,1fr) 92px 90px;padding:8px 13px 8px 30px}.tree-empty{padding:12px 13px;color:var(--muted)}
+@media(max-width:900px){.dashboard-shell{grid-template-columns:1fr}.side-panel{position:static;display:flex;overflow-x:auto;gap:6px}.side-title{display:none}.tabbtn{min-width:150px;margin:0;white-space:nowrap}}
+@media(max-width:760px){.cards2,.hero-grid,.economics-flow{grid-template-columns:1fr}.wide{grid-column:auto}.wrap{padding:18px 14px 40px}header{padding:14px}.cards{grid-template-columns:1fr 1fr;gap:10px}.card .val{font-size:22px}.flow{grid-template-columns:1fr 1fr}.tree-row,.tree-children .tree-row,.rec-head{grid-template-columns:1fr;gap:5px}.whatif,.tradeoffs{grid-template-columns:1fr}td,th{padding:7px 8px}}
 @media(max-width:430px){.cards{grid-template-columns:1fr}.sub{width:100%}}
 .howto{margin:-4px 0 14px;font-size:13px;color:var(--muted)}
 .howto summary{cursor:pointer;color:var(--text);user-select:none}
@@ -500,16 +1000,23 @@ padding:3px 5px;border:1px solid var(--line);border-radius:4px;color:var(--muted
 #tip{position:fixed;z-index:1000;pointer-events:none;display:none;background:var(--surface);
 border:1px solid var(--line);border-radius:6px;padding:6px 9px;font:12px/1.3 'IBM Plex Mono',ui-monospace,monospace;
 color:var(--text);max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
-</style></head><body>
+@keyframes riseIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes drift{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-28px,34px,0) scale(1.08)}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+</style></head><body data-theme=dark>
 <div id=tip role=tooltip></div>
 <header><h1>100xPrism · AI Economics</h1>
 <span class=sub id=meta></span>
-<span style=margin-left:auto><button onclick=refresh()>↻ Rescan</button></span></header>
+<span style=margin-left:auto><button id=themeToggle onclick=toggleTheme()>☾ Dark</button> <button onclick=refresh()>↻ Rescan</button></span></header>
 <div class=wrap id=app><p class=muted>Loading…</p></div>
 <script>
 const C={input:'var(--in)',output:'var(--out)',cache_read:'var(--cr)',cache_write:'var(--cw)'};
+function applyTheme(theme){document.body.dataset.theme=theme;const b=document.getElementById('themeToggle');if(b)b.textContent=theme==='light'?'☀ Light':'☾ Dark';}
+function toggleTheme(){const next=document.body.dataset.theme==='light'?'dark':'light';localStorage.setItem('100xprism-theme',next);applyTheme(next);}
+applyTheme(localStorage.getItem('100xprism-theme')||'dark');
 function fmt(n){n=+n;for(const[u,d]of[['B',1e9],['M',1e6],['K',1e3]])if(Math.abs(n)>=d)return(n/d).toFixed(1)+u;return''+Math.round(n);}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function copyText(id){const el=document.getElementById(id);if(!el)return;const text=el.textContent||'';navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):null;}
 function bar(v){const tot=v.input+v.output+v.cache_read+v.cache_write||1;
  const seg=k=>`<span style="width:${100*v[k]/tot}%;background:${C[k]}"></span>`;
  return `<div class=bar>${seg('cache_read')}${seg('cache_write')}${seg('input')}${seg('output')}</div>`;}
@@ -519,30 +1026,117 @@ function legend(){return `<div class=legend>
  <span><i class=dot style=background:var(--in)></i>input</span>
  <span><i class=dot style=background:var(--out)></i>output</span></div>`;}
 function emptyState(msg){return `<p class=muted style="padding:24px 0">${esc(msg)}</p>`;}
+const TABS=[
+ ['overview','Economics','cost → delivery → value'],
+ ['recommendations','Recommendations','optimize tokens'],
+ ['delivery','Delivery','dirs, churn, cost'],
+ ['github','GitHub','developers + PRs'],
+ ['sessions','Sessions','runs + handoffs'],
+ ['skills','Skills','skill economics'],
+ ['diagnostics','Diagnostics','coverage + bloat']
+];
+const WINDOWS=[['1d','1 day',1],['7d','7 days',7],['30d','30 days',30],['90d','3 months',90],['180d','6 months',180],['365d','1 year',365],['all','All time',null]];
+let LAST_DATA=null;
+function tabId(id){return 'tab-'+id;}
+function activeTab(){const saved=localStorage.getItem('100xprism-tab')||'overview';return TABS.some(t=>t[0]===saved)?saved:'overview';}
+function activeWindow(){const saved=localStorage.getItem('100xprism-window')||'30d';return WINDOWS.some(w=>w[0]===saved)?saved:'30d';}
+function setWindow(id){if(!WINDOWS.some(w=>w[0]===id))id='30d';localStorage.setItem('100xprism-window',id);if(LAST_DATA)render(LAST_DATA);}
+function windowDef(id){return WINDOWS.find(w=>w[0]===id)||WINDOWS[2];}
+function meteredDays(d){return Object.keys((d||{}).by_day_model_cost||{}).sort();}
+function daySpan(days){
+ if(!days.length)return 0;
+ const start=new Date(days[0]+'T00:00:00'), end=new Date(days[days.length-1]+'T00:00:00');
+ return Math.floor((end-start)/86400000)+1;
+}
+function windowButtons(current,d){
+ const days=meteredDays(d), span=daySpan(days);
+ const note=days.length?`Available metered range: ${esc(days[0])} → ${esc(days[days.length-1])} (${span} calendar days, ${days.length} active days)`:'No dated metered usage yet';
+ return `<div class=windowbar aria-label="Time window"><span class=label>Time window</span>`+
+   WINDOWS.map(([id,label,n])=>{
+    const limited=n!=null&&span>0&&span<n;
+    const tip=limited?`Only ${span} calendar days of metered token history are available, so this window currently matches all available data.`:`Show ${label} of available metered token history.`;
+    return `<button class="windowbtn ${id===current?'active':''} ${limited?'limited':''}" data-tip="${esc(tip)}" onclick="setWindow('${id}')">${esc(label)}</button>`;
+   }).join('')+
+   `<span class=window-note>${note}</span></div>`;
+}
+function datedKeysFrom(raw){
+ const days=new Set();
+ Object.values(raw||{}).forEach(v=>{
+  if(!v||typeof v!=='object')return;
+  Object.values(v).forEach(daysObj=>Object.keys(daysObj||{}).forEach(day=>{if(day&&day!=='unknown')days.add(day);}));
+ });
+ return [...days].sort();
+}
+function dayInWindow(day,current,allDays){
+ const def=windowDef(current); if(def[2]==null)return true;
+ const end=(allDays&&allDays.length?allDays[allDays.length-1]:new Date().toISOString().slice(0,10));
+ const cutoff=new Date(end+'T00:00:00'); cutoff.setDate(cutoff.getDate()-def[2]+1);
+ return day>=cutoff.toISOString().slice(0,10)&&day<=end;
+}
+function sumWindowDaily(raw,current){
+ const days=Object.keys(raw||{}).sort(); let total=0;
+ for(const day of days)if(dayInWindow(day,current,days))for(const v of Object.values(raw[day]||{}))total+=+v||0;
+ return total;
+}
+function selectedProjectCost(d,label,current){
+ const daycost=((d.by_project_day_cost||{})[label])||{}, days=meteredDays(d);
+ let total=0, observed=false;
+ for(const [day,cost] of Object.entries(daycost))if(dayInWindow(day,current,days)){total+=+cost||0;observed=true;}
+ return observed?total:null;
+}
+function projectRowsForWindow(d,current,includeUnpriced=false){
+ const rows=(d.directories||[]).map(row=>({...row,window_cost:selectedProjectCost(d,row.label,current)}));
+ return rows.filter(row=>includeUnpriced||row.window_cost!=null)
+   .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||a.label.localeCompare(b.label));
+}
+function sumWindowTokens(d,current){
+ const days=(d.by_day||[]).map(r=>r[0]).sort(), out={input:0,output:0,cache_read:0,cache_write:0};
+ for(const [day,tok] of d.by_day||[]){
+  if(!dayInWindow(day,current,days))continue;
+  for(const k of Object.keys(out))out[k]+=+(tok||{})[k]||0;
+ }
+ return out;
+}
+function sumWindowPurposeCost(d,current){
+ const raw=d.by_day_purpose_cost||{}, days=Object.keys(raw).sort(), out={input:0,output:0,cache_read:0,cache_write:0};
+ for(const [day,costs] of Object.entries(raw)){
+  if(!dayInWindow(day,current,days))continue;
+  for(const k of Object.keys(out))out[k]+=+(costs||{})[k]||0;
+ }
+ return out;
+}
+function sideTabs(current){
+ return `<aside class=side-panel aria-label="Dashboard sections"><div class=side-title>Dashboard</div>`+
+   TABS.map(([id,label,note])=>`<button class="tabbtn ${id===current?'active':''}" data-tab="${esc(id)}" onclick="showTab('${esc(id)}')"><span>${esc(label)}<small>${esc(note)}</small></span></button>`).join('')+
+   `</aside>`;
+}
+function showTab(id){
+ if(!TABS.some(t=>t[0]===id)) id='overview';
+ localStorage.setItem('100xprism-tab',id);
+ document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.id===tabId(id)));
+ document.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+}
+function pane(id,content,current){return `<div class="tabpane ${id===current?'active':''}" id="${tabId(id)}">${content}</div>`;}
 function svgEl(w,h,inner,label){return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${esc(label)}" style="max-width:100%">${inner}</svg>`;}
-function leverageChart(dirs){
- const unit=dirs.some(d=>d.cost!=null&&(d.value||{}).prs>0)?'merged PRs':'commits';
- const field=unit==='merged PRs'?'prs':'commits';
- const pts=dirs.filter(d=>d.cost!=null&&d.value&&(d.value[field]||0)>0)
-   .map(d=>({x:d.cost,y:d.value[field],d}));
- if(!pts.length) return emptyState('No cost-bearing git outcomes yet.');
- const W=520,H=300,PL=50,PB=46,PR=36,PT=36;
- const mx=Math.max(...pts.map(p=>p.x),1), my=Math.max(...pts.map(p=>p.y),1);
- const X=x=>PL+(W-PL-PR)*x/mx, Y=y=>H-PB-(H-PB-PT)*y/my;
- const ratios=pts.map(p=>p.y/(p.x||1)).sort((a,b)=>a-b), r=ratios[ratios.length>>1]||1;
- const bline=`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(Math.min(my,r*mx))}" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
- const dots=pts.map(p=>{const above=p.y>=r*p.x; const col=above?'var(--value)':'var(--warn)';
-   const tip=`${esc(p.d.label)} — $${p.x.toFixed(2)} · ${p.y} ${unit} · $${(p.x/p.y).toFixed(2)}/unit`;
-   return `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="5" fill="${col}" fill-opacity=".85" data-tip="${tip}" tabindex="0"/>`;}).join('');
- const ax=`<line x1="${PL}" y1="${H-PB}" x2="${W-PR}" y2="${H-PB}" stroke="var(--line)"/><line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H-PB}" stroke="var(--line)"/>`;
- const tickAttrs='fill="var(--muted)" font-size="11"';
- const xTicks=`<text x="${PL}" y="${H-PB+14}" ${tickAttrs} text-anchor="middle">$0</text>`+
-   `<text x="${W-PR}" y="${H-PB+14}" ${tickAttrs} text-anchor="middle">$${Math.round(mx)}</text>`;
- const yTicks=`<text x="${PL-6}" y="${H-PB}" ${tickAttrs} text-anchor="end" dominant-baseline="middle">0</text>`+
-   `<text x="${PL-6}" y="${PT}" ${tickAttrs} text-anchor="end" dominant-baseline="middle">${Math.round(my)}</text>`;
- const xLabel=`<text x="${PL+(W-PL-PR)/2}" y="${H-2}" ${tickAttrs} text-anchor="middle">token cost ($) →</text>`;
- const yLabel=`<text x="${12}" y="${PT+(H-PB-PT)/2}" ${tickAttrs} text-anchor="middle" transform="rotate(-90,12,${PT+(H-PB-PT)/2})">↑ ${unit} shipped</text>`;
- return svgEl(W,H,ax+bline+dots+xTicks+yTicks+xLabel+yLabel,`${unit} shipped versus estimated token cost; dashed line is median observed outcomes per dollar, not break-even`);
+function deliveryScoreboard(d,current){
+ const rows=projectRowsForWindow(d,current).filter(r=>r.value&&r.value.kind==='git'&&(r.window_cost||r.value.commits||r.value.prs))
+   .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||(b.value.prs||0)-(a.value.prs||0)||(b.value.commits||0)-(a.value.commits||0))
+   .slice(0,8);
+ if(!rows.length) return emptyState('No git outcomes joined to token-bearing directories in the selected window yet.');
+ const maxCost=Math.max(...rows.map(r=>r.window_cost||0),1);
+ const maxOut=Math.max(...rows.map(r=>(r.value.prs||0)*3+(r.value.commits||0)),1);
+ let h='<p class=muted style="margin-top:0">Read this row by row: spend follows the global selected time window. Delivery is local git evidence from the directory source scope until exact per-window PR/commit attribution is added. Lower delivery cost is directional, not business ROI.</p>';
+ h+='<table><tr><th>directory</th><th>spend</th><th>observable delivery</th><th>churn</th><th>delivery unit cost</th></tr>';
+ for(const r of rows){
+  const v=r.value||{}, outcomes=(v.prs||0)*3+(v.commits||0);
+  const costW=100*(r.window_cost||0)/maxCost, outW=100*outcomes/maxOut;
+  const shipped=`${v.prs||0} PRs · ${v.commits||0} commits · ${v.files||0} files`;
+  const unit=v.prs?`$${(r.window_cost/v.prs).toFixed(2)} / PR`:v.commits?`$${(r.window_cost/v.commits).toFixed(2)} / commit`:'—';
+  h+=`<tr><td>${esc(r.label)}</td><td><div class=bar data-tip="${esc(r.label)} selected-window spend: ${money2(r.window_cost)}"><span style="width:${costW}%;background:var(--cost)"></span></div><span class=muted>${money2(r.window_cost)}</span></td>`+
+     `<td><div class=bar data-tip="${esc(shipped)}"><span style="width:${outW}%;background:var(--value)"></span></div><span class=muted>${esc(shipped)}</span></td>`+
+     `<td class=n>+${fmt(v.insertions||0)} / -${fmt(v.deletions||0)}</td><td class=money>${esc(unit)}</td></tr>`;
+ }
+ return h+'</table>';
 }
 function costOverTime(d){
  const bpd=d.by_project_day_cost||{}; const days=[...new Set(Object.values(bpd).flatMap(o=>Object.keys(o)))].sort();
@@ -571,14 +1165,73 @@ function purposeSplit(t){
    const r=`<rect x="${x}" y="0" width="${w}" height="${H}" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (${pct}%)"/>`; x+=w; return r;}).join('');
  return svgEl(W,H,segs,'Share of tokens by purpose: cache read, cache write, input, output');
 }
-function costByDir(dirs){
- const rows=dirs.filter(d=>d.cost!=null).slice(0,12); if(!rows.length) return emptyState('No cost yet.');
- const mx=Math.max(...rows.map(r=>r.cost),1); const H=rows.length*26+8,W=520;
- const bars=rows.map((r,i)=>{const w=(W-160)*r.cost/mx; const y=i*26+4;
+function compValue(d,needle){
+ const rows=d.composition||[]; const row=rows.find(r=>r[0].toLowerCase().includes(needle));
+ return row?{label:row[0],tokens:row[1],pct:row[2]}:{label:needle,tokens:0,pct:0};
+}
+function workMix(d){
+ const code=compValue(d,'code written'), read=compValue(d,'files read'), chat=compValue(d,'model output'), logs=compValue(d,'logs');
+ const items=[['Code authored',code,'var(--in)'],['Files/docs read',read,'var(--m2)'],['Model/chat prose',chat,'var(--out)'],['Terminal logs',logs,'var(--cw)']];
+ return `<div class=insights>${items.map(([name,row,col])=>`<div class=insight><div class=lbl><i class=dot style=background:${col}></i>${esc(name)}</div><div class=big>${fmt(row.tokens)}</div><div class=caption>${row.pct||0}% of estimated conversation text volume</div></div>`).join('')}</div>`;
+}
+function outcomeFlow(d,current){
+ const de=d.delivery_economics||{}, spend=de.spend||{}, outcomes=de.outcomes||{}, unit=de.delivery_unit_cost||{}, value=de.business_value||{};
+ const selectedSpend=sumWindowDaily(d.by_day_model_cost||{},current), coverage=spend.coverage_pct||0;
+ return `<div class=economics-flow aria-label="AI economics measurement chain">
+   <div class="economics-stage cost"><div class=stage-title>1 · Token economics</div><div class=stage-value>${money2(selectedSpend)}</div><div class=muted>selected-window list-price spend</div></div>
+   <div class="economics-stage delivery"><div class=stage-title>2 · Observable delivery</div><div class=stage-value>${fmt(outcomes.prs||0)} PRs · ${fmt(outcomes.commits||0)} commits</div><div class=muted>${money2(spend.attributed)} attributed spend · source-scope outcomes</div><div class=coverage aria-label="${coverage}% of spend joined to git outcomes"><span style="width:${Math.min(100,coverage)}%"></span></div><div class=muted>${coverage}% attribution coverage · ${money2(unit.per_pr)} delivery cost / PR</div></div>
+   <div class="economics-stage value"><div class=stage-title>3 · Business value</div><div class=stage-value>${esc(value.label||'Not measured')}</div><div class=muted>${esc(value.reason||'Delivery activity is not ROI.')}</div></div>
+ </div>`;
+}
+function githubPanel(github){
+ const g=github||{}, repos=g.repos||[], s=g.summary||{};
+ let rows=repos.slice(0,8).map(r=>{const remote=r.remote.replace('git@github.com:','github.com/').replace('https://github.com/','github.com/');
+   return `<tr><td>${esc(r.label)}</td><td class=muted>${esc(remote)}</td></tr>`;}).join('');
+ if(!rows) rows='<tr><td colspan=2 class=muted>No GitHub remotes detected in discovered/token-bearing directories.</td></tr>';
+ const prDetails=(g.pr_rows||[]).slice(0,30).map(p=>{const status=p.merged?'merged':p.state==='open'?'open':'closed';
+   const sampled=p.files_sampled?`${p.docs_files||0} docs · ${p.deleted_files||0} removed`:'not sampled';
+   const comments=p.comments==null?'—':p.comments, churn=p.files_sampled?`+${fmt(p.additions||0)} / -${fmt(p.deletions||0)}`:'—';
+   return `<tr><td><a href="${esc(p.url||'#')}" target=_blank rel="noopener noreferrer">${esc(p.repo)} #${p.number}</a></td><td><span class="status-pill ${status}">${status}</span></td><td>${esc(p.author||'unknown')}</td><td style="text-align:left">${esc(p.title||'')}</td><td class=n>${comments}</td><td class=muted>${sampled}</td><td class=n>${churn}</td><td class=muted>${esc((p.updated_at||'—').slice(0,10))}</td></tr>`;
+  }).join('');
+ const top=(g.top_commented||[]).slice(0,6).map(p=>`<tr><td>${esc(p.repo)} #${p.number}</td><td>${esc(p.author||'unknown')}</td><td>${esc(p.title||'')}</td><td class=n>${p.comments==null?'—':p.comments}</td><td class=n>${p.docs_files}</td><td class=n>${p.deleted_files}</td><td class=n>+${fmt(p.additions||0)} / -${fmt(p.deletions||0)}</td></tr>`).join('');
+ const repoRows=(g.repo_rows||[]).slice(0,8).map(r=>`<tr><td>${esc(r.repo)}</td><td class=n>${r.prs}</td><td class=n>${r.merged}</td><td class=n>${r.comment_heavy}</td><td class=n>${r.docs_prs}</td><td class=n>${r.deleted_file_prs}</td><td class=n>+${fmt(r.additions||0)} / -${fmt(r.deletions||0)}</td></tr>`).join('');
+ const devRows=(g.developer_rows||[]).slice(0,12).map(r=>`<tr><td>${esc(r.developer)}</td><td class=n>${r.prs}</td><td class=n>${r.merged}</td><td class=n>${r.open}</td><td class=n>${r.closed}</td><td class=n>${r.comments}</td><td class=n>${r.comment_heavy}</td><td class=n>${r.docs_prs}</td><td class=n>${r.deleted_file_prs}</td><td class=n>+${fmt(r.additions||0)} / -${fmt(r.deletions||0)}</td></tr>`).join('');
+ const fetched=g.fetched?`<div class=cards style="margin:12px 0">
+     <div class=card><div class=lbl>PRs fetched</div><div class=val>${s.prs||0}</div><div class=note>${s.merged||0} merged · ${s.open||0} open · ${s.closed||0} closed</div></div>
+     <div class=card><div class=lbl>Comment-heavy PRs</div><div class=val>${s.comment_heavy||0}</div><div class=note>5+ issue/review comments</div></div>
+     <div class=card><div class=lbl>Docs PRs</div><div class=val>${s.docs_prs||0}</div><div class=note>docs/ or markdown files touched</div></div>
+     <div class=card><div class=lbl>Deleted-file PRs</div><div class=val>${s.deleted_file_prs||0}</div><div class=note>at least one removed file</div></div>
+   </div>
+   <h2 style="margin-top:18px">PR details</h2>
+   <p class=muted>Newest fetched pull requests across the configured repository scope. File/churn detail is explicitly marked when sampled; status, author, title, and dates come from GitHub PR metadata.</p>
+   <div class=table-wrap><table><tr><th>PR</th><th>status</th><th>author</th><th>title</th><th>comments</th><th>file detail</th><th>+ / -</th><th>updated</th></tr>${prDetails||'<tr><td colspan=8 class=muted>No PR details returned.</td></tr>'}</table></div>
+   <h2 style="margin-top:18px">Developer breakdown</h2>
+   <p class=muted>Grouped by GitHub PR author across configured users, configured repos, and detected local remotes. This is repository evidence, not performance scoring.</p>
+   <div class=table-wrap><table><tr><th>developer</th><th>PRs</th><th>merged</th><th>open</th><th>closed</th><th>comments</th><th>comment-heavy</th><th>docs PRs</th><th>deleted-file PRs</th><th>+ / -</th></tr>${devRows||'<tr><td colspan=10 class=muted>No developer rows returned.</td></tr>'}</table></div>
+   <h2 style="margin-top:18px">Repository breakdown</h2>
+   <div class=table-wrap><table><tr><th>repo</th><th>PRs</th><th>merged</th><th>comment-heavy</th><th>docs PRs</th><th>deleted-file PRs</th><th>+ / -</th></tr>${repoRows||'<tr><td colspan=7 class=muted>No PR rows returned.</td></tr>'}</table></div>
+   <h2 style="margin-top:18px">Most discussed PRs</h2>
+   <div class=table-wrap><table><tr><th>PR</th><th>author</th><th>title</th><th>comments</th><th>docs files</th><th>deleted files</th><th>+ / -</th></tr>${top||'<tr><td colspan=7 class=muted>No comment-heavy PRs returned.</td></tr>'}</table></div>`
+   : `<div class=cards style="margin:12px 0">
+     <div class=card><div class=lbl>GitHub repos detected locally</div><div class=val>${g.repo_count||0}</div><div class=note>from remotes in discovered dirs</div></div>
+     <div class=card><div class=lbl>Remote PR insights</div><div class=val>${g.enabled?'Blocked':'Off'}</div><div class=note>${g.gh_installed?'gh found':'gh missing'} · ${g.auth_ok?'authenticated':'auth needed'}</div></div>
+   </div>
+   <p class=muted>To fetch PR comments, reviews, changed files, additions, and deletions for local GitHub remotes: <code>gh auth login</code>, then add <code>{"github":{"enabled":true}}</code> to <code>~/.100xprism/config.json</code>.</p>
+   <div class=table-wrap><table><tr><th>local repo</th><th>origin</th></tr>${rows}</table></div>`;
+ return `<section style="margin:24px 0"><h2>GitHub deep dive <span class=muted style="text-transform:none;font-weight:400">— local remotes + opt-in remote PR metadata</span></h2>
+   <p class=muted>${esc(g.message||'GitHub analytics are not enabled.')}</p>
+   ${fetched}
+   ${(g.errors||[]).length?`<p class=muted>Fetch warnings: ${esc((g.errors||[]).join(' | '))}</p>`:''}
+ </section>`;
+}
+function costByDir(d,current){
+ const rows=projectRowsForWindow(d,current).slice(0,12); if(!rows.length) return emptyState('No directory cost in the selected window yet.');
+ const mx=Math.max(...rows.map(r=>r.window_cost),1); const H=rows.length*26+8,W=520;
+ const bars=rows.map((r,i)=>{const w=(W-160)*r.window_cost/mx; const y=i*26+4;
    return `<text x="0" y="${y+14}" fill="var(--muted)" font-size="12">${esc(r.label.slice(-26))}</text>`+
-     `<rect x="150" y="${y+3}" width="${w}" height="14" rx="3" fill="var(--cost)" data-tip="${esc(r.label)}: $${Math.round(r.cost)}" tabindex="0"/>`+
-     `<text x="${156+w}" y="${y+14}" fill="var(--text)" font-size="11">$${Math.round(r.cost)}</text>`;}).join('');
- return svgEl(W,H,bars,'Estimated token cost by directory, highest first');
+     `<rect x="150" y="${y+3}" width="${w}" height="14" rx="3" fill="var(--cost)" data-tip="${esc(r.label)}: ${money2(r.window_cost)} in selected window" tabindex="0"/>`+
+     `<text x="${156+w}" y="${y+14}" fill="var(--text)" font-size="11">$${Math.round(r.window_cost)}</text>`;}).join('');
+ return svgEl(W,H,bars,'Estimated token cost by directory for the selected time window, highest first');
 }
 function donut(totals){
  const parts=[['cache_read',totals.cache_read,'var(--cr)'],['cache_write',totals.cache_write,'var(--cw)'],
@@ -634,7 +1287,7 @@ function skillsTable(rows){
  for(const r of rows.slice(0,20)){
   const perInv=r.cost/(r.invocations||1);
   h+=`<tr><td>${esc(r.skill)}</td><td class=n>${r.invocations}</td><td class=money>$${r.cost.toFixed(2)}</td>`+
-     `<td class=money>$${perInv.toFixed(3)}</td><td>${r.exact?'<span class=badge title="exact — from Claude Code\\'s native attribution">exact</span>':'<span class=badge title="attributed — heuristic segmentation">attr.</span>'}</td></tr>`;
+     `<td class=money>$${perInv.toFixed(3)}</td><td>${r.exact?'<span class=badge title="exact — native Claude Code attribution">exact</span>':'<span class=badge title="attributed — heuristic segmentation">attr.</span>'}</td></tr>`;
  }
  return h+'</table>';
 }
@@ -649,14 +1302,305 @@ function handoffTable(rows){
  }
  return h+'</table>';
 }
-function suggestionsCard(rows){
+function suggestionsCard(rows,scale,scopeLabel){
  if(!rows.length) return '';
- let h='<section style="margin:24px 0"><h2>Recommended next actions <span class=muted style="text-transform:none;font-weight:400">— preserves agent autonomy</span></h2>';
- for(const s of rows){h+=`<div class=rec><div class=rank>~$${s.impact_usd.toFixed(2)}</div><div><strong>${esc(s.title)}</strong><div class=muted>${esc(s.message)}</div><div class=action>Do: ${esc(s.action)}</div></div></div>`;}
+ let h='<section style="margin:24px 0"><h2>Recommended next actions <span class=muted style="text-transform:none;font-weight:400">— what-if savings, autonomy, and tradeoffs</span></h2><p class=muted style="margin-top:0">These are not hard mandates. Each card shows the observed signal, a conservative what-if model, examples of changes, and the expected impact on agent autonomy/performance.</p>';
+ rows.forEach((s,i)=>{h+=suggestionCard(s,i,scale,scopeLabel);});
  return h+'</section>';
 }
+function suggestionDetails(s){
+ const title=(s.title||'').toLowerCase();
+ if(title.includes('fixed context')||title.includes('startup')){
+  return {
+   why:'Every new session pays for fixed startup context before useful work starts. Reducing duplicated always-loaded instructions lowers cost without changing the agent loop.',
+   examples:[
+    'Move rarely used policy, release, or debugging playbooks from always-loaded files into on-demand skills/docs.',
+    'Deduplicate repeated MCP/tool descriptions that appear in multiple startup surfaces.',
+    'Keep the short routing contract in the default context; put long examples behind explicit reads.'
+   ],
+   autonomy:'Usually positive. The agent still has access to the knowledge, but retrieves it only when the task needs it.',
+   performance:'May improve startup speed and focus. Risk: if instructions are moved too far away, the agent may need one extra lookup on specialized tasks.',
+   monitor:'Watch median fixed tokens, first-turn latency, and whether task quality drops on specialized workflows.'
+  };
+ }
+ if(title.includes('skill')){
+  return {
+   why:'A high cost per invocation usually means the skill loads too much context or produces too broad an answer by default.',
+   examples:[
+    'Keep the skill trigger, but replace long inline examples with links/paths the agent reads only when needed.',
+    'Split “quick answer” and “deep review” modes so routine calls do not pay for the deep mode.',
+    'Tighten the default output contract: decision, evidence, next action; optional appendix only on request.'
+   ],
+   autonomy:'Neutral if the skill remains available. Negative only if you remove capability instead of moving depth behind on-demand reads.',
+   performance:'Routine calls get cheaper and usually faster. Deep calls may add one extra read step but preserve quality.',
+   monitor:'Watch $/invocation, invocation count, and whether follow-up corrections increase.'
+  };
+ }
+ if(title.includes('route')||title.includes('short tasks')||title.includes('difficulty')){
+  return {
+   why:'Short deterministic tasks often do not need the most expensive model. Routing simple edits/lookups to lower-cost models saves money while reserving premium models for ambiguity and risk.',
+   examples:[
+    'Use lower-cost routing for formatting, small renames, obvious test updates, and mechanical docs edits.',
+    'Keep premium routing for architecture decisions, high-risk migrations, unclear failures, and security-sensitive changes.',
+    'Escalate automatically when tests fail, uncertainty is high, or the diff crosses a risk threshold.'
+   ],
+   autonomy:'Preserved if routing is a default with escalation, not a hard ban. The agent can still choose premium when risk rises.',
+   performance:'Simple tasks should stay similar or faster. Complex tasks can degrade if routed too aggressively, so escalation rules matter.',
+   monitor:'Watch short-session spend, rework rate, failed tests after short sessions, and manual escalations.'
+  };
+ }
+ return {
+  why:'This signal crossed the dashboard threshold for avoidable token cost.',
+  examples:['Apply the proposed change to a small subset first.', 'Compare cost and quality before broad rollout.', 'Keep a rollback path if task quality changes.'],
+  autonomy:'Depends on implementation. Prefer defaults and on-demand context over removing capabilities.',
+  performance:'Expected to improve cost efficiency; validate quality with the same tests/review loop.',
+  monitor:'Watch spend, task completion rate, test failures, and follow-up correction rate.'
+ };
+}
+function suggestionSnippets(s){
+ const title=(s.title||'').toLowerCase();
+ if(title.includes('fixed context')||title.includes('startup')){
+  return [
+   ['CLAUDE.md: keep startup small', 'markdown', [
+    '# Project AI instructions',
+    '',
+    'Default behavior:',
+    '- Prefer small, testable changes.',
+    '- Read only the files needed for the current task.',
+    '- Use repository search before opening large files.',
+    '',
+    'On demand:',
+    '- For release workflow, read docs/release.md.',
+    '- For architecture review, read docs/architecture.md.',
+    '- For incident/debug workflow, read docs/debug-playbook.md.'
+   ].join('\\n')],
+   ['Diff: move rarely used content out of startup', 'diff', [
+    '--- CLAUDE.md',
+    '+++ CLAUDE.md',
+    '@@',
+    '- Long release checklist...',
+    '- Long architecture history...',
+    '- Long debug playbook...',
+    '+ For release workflow, read docs/release.md only when release work is requested.',
+    '+ For architecture review, read docs/architecture.md only when design tradeoffs matter.',
+    '+ For incidents/debugging, read docs/debug-playbook.md only when failures are being diagnosed.'
+   ].join('\\n')],
+   ['Tool/MCP definition pattern', 'markdown', [
+    '## Tool definitions',
+    '',
+    'Keep always-loaded tool descriptions short:',
+    '- what the tool does',
+    '- when to use it',
+    '- one safety rule',
+    '',
+    'Move examples, schemas, and long provider docs to:',
+    '- docs/tools/<tool-name>.md',
+    '- skills/<tool-name>/references/'
+   ].join('\\n')]
+  ];
+ }
+ if(title.includes('skill')){
+  return [
+   ['SKILL.md: compact default contract', 'markdown', [
+    '---',
+    'name: effort',
+    'description: Use for effort sizing when the user asks for complexity, estimate, or implementation effort.',
+    '---',
+    '',
+    'Default output:',
+    '1. Short answer: S / M / L / XL',
+    '2. Main drivers: 3 bullets max',
+    '3. Risks: only material risks',
+    '4. Next action: one concrete step',
+    '',
+    'If deeper analysis is needed, read references/effort-deep-dive.md first.'
+   ].join('\\n')],
+   ['Diff: progressive disclosure for an expensive skill', 'diff', [
+    '--- modules/effort/SKILL.md',
+    '+++ modules/effort/SKILL.md',
+    '@@',
+    '- Include all examples, rubrics, and historical cases in every invocation.',
+    '+ Start with the compact sizing rubric below.',
+    '+ Read references/effort-examples.md only when the task is ambiguous.',
+    '+ Read references/historical-cases.md only when the user asks for calibration.',
+    '+ Keep the default answer under 250 words unless the user requests detail.'
+   ].join('\\n')]
+  ];
+ }
+ if(title.includes('route')||title.includes('short tasks')||title.includes('difficulty')){
+  return [
+   ['AGENTS.md / CLAUDE.md: routing policy', 'markdown', [
+    '## Model routing policy',
+    '',
+    'Use a lower-cost capable model for:',
+    '- formatting and copy edits',
+    '- small deterministic refactors',
+    '- simple documentation updates',
+    '- straightforward test updates',
+    '',
+    'Escalate to premium models for:',
+    '- ambiguous failures',
+    '- architecture or data-model changes',
+    '- security-sensitive work',
+    '- migrations touching many files',
+    '- any task where tests fail after the first attempt'
+   ].join('\\n')],
+   ['Checklist: safe short-task routing', 'markdown', [
+    'Before using lower-cost routing:',
+    '- Is the task deterministic?',
+    '- Is the expected diff small?',
+    '- Can tests or static checks validate it?',
+    '',
+    'Escalate immediately if:',
+    '- requirements are unclear',
+    '- generated diff grows unexpectedly',
+    '- tests fail',
+    '- user impact is high'
+   ].join('\\n')]
+  ];
+ }
+ return [
+  ['Safe rollout checklist', 'markdown', [
+   '1. Apply the recommendation to one workflow first.',
+   '2. Compare cost before/after in this dashboard.',
+   '3. Check quality: tests, review comments, follow-up corrections.',
+   '4. Keep a rollback path if quality drops.'
+  ].join('\\n')]
+ ];
+}
+function snippetsHtml(s,i){
+ const snippets=suggestionSnippets(s);
+ if(!snippets.length)return '';
+ return `<details class=howto open><summary>Copy/paste examples</summary>`+
+  snippets.map(([label,lang,text],j)=>{const id=`snippet-${i}-${j}`;return `<div class=snippet><div class=snippet-head><span>${esc(label)} · ${esc(lang)}</span><button onclick="copyText('${id}')">Copy</button></div><pre><code id="${id}">${esc(text)}</code></pre></div>`;}).join('')+
+  `</details>`;
+}
+function suggestionCard(s,i,scale,scopeLabel){
+ const d=suggestionDetails(s), impact=+s.impact_usd||0;
+ const scopedImpact=impact*scale;
+ const options=[['Low-risk pilot',.25,'Apply to one workflow or a few sessions'],['Practical default',.5,'Adopt for common cases with escape hatch'],['Aggressive',.8,'Apply broadly; monitor quality closely']];
+ const optHtml=options.map(([label,frac,note])=>`<div class=option data-tip="${esc(note)}"><span class=rec-pill>${esc(label)}</span><b>${money2(scopedImpact*frac)}</b><span class=muted>${Math.round(frac*100)}% of ${esc(scopeLabel)} opportunity</span></div>`).join('');
+ return `<details class=rec ${i===0?'open':''}><summary><div class=rec-head>
+   <div class=rank>~${money2(scopedImpact)}</div>
+   <div><strong>${esc(s.title)}</strong><div class=muted>${esc(s.message)}</div><div class=action>Recommended change: ${esc(s.action)}</div></div>
+   <div><span class=rec-pill>${esc(scopeLabel)}</span><div class=tree-meta>${scale===1?'exact source scope':'scaled from spend share'}</div></div>
+  </div></summary><div class=rec-body>
+   <p class=muted style="margin-top:0"><b style="color:var(--text)">Why this saves money:</b> ${esc(d.why)}</p>
+   <p class=muted>${scale===1?'This estimate uses the recommendation source scope directly.':'Selected-window estimate is scaled by this window’s share of metered spend. Some signals, such as fixed startup context and skill attribution, do not yet have exact per-day attribution, so this is directional.'}</p>
+   <div class=whatif>${optHtml}</div>
+   <div><b>Concrete examples</b><ul class=examples>${d.examples.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+   ${snippetsHtml(s,i)}
+   <div class=tradeoffs>
+    <div><b>Autonomy impact</b><span class=muted>${esc(d.autonomy)}</span></div>
+    <div><b>Performance impact</b><span class=muted>${esc(d.performance)}</span></div>
+    <div><b>Monitor after change</b><span class=muted>${esc(d.monitor)}</span></div>
+   </div>
+  </div></details>`;
+}
+function modelDisplay(model){
+ const raw=String(model||'unknown'), low=raw.toLowerCase();
+ const family=low.includes('opus')?'Opus':low.includes('sonnet')?'Sonnet':low.includes('haiku')?'Haiku':low.includes('gpt')?'GPT':low.includes('codex')?'Codex':null;
+ const match=low.match(/(?:opus|sonnet|haiku)-(\\d)-(\\d)/);
+ const version=match?`${match[1]}.${match[2]}`:'';
+ const claudeRaw=/^claude-/.test(low);
+ if(family&&claudeRaw){
+  const label=version?`${family} ${version}`:family;
+  return {
+   label,
+   detail:`raw transcript id: ${raw}`,
+   tip:`${label} was read from Claude Code transcript field message.model=${raw}. Claude Code logs can expose provider/internal model ids that do not exactly match the visible model-picker labels.`
+  };
+ }
+ return {label:raw,detail:'',tip:`model id: ${raw}`};
+}
+function toolModelCostTree(d,current){
+ const raw=d.tool_model_day_cost||{}, tokRaw=d.tool_model_day_tokens||{}, allDays=datedKeysFrom(raw);
+ const activity=(d.activity||{}).by_tool||{};
+ const tools=Object.keys({...raw,...activity});
+ if(!tools.length)return emptyState('No tool-level usage has been observed yet.');
+ const rows=tools.map(tool=>{
+  const models=Object.keys(raw[tool]||{}).map(model=>{
+   let cost=0,tokens=0,activeDays=0;
+   const dayCosts=(raw[tool]||{})[model]||{}, dayTokens=(tokRaw[tool]||{})[model]||{};
+   for(const day of Object.keys(dayCosts)){
+    if(!dayInWindow(day,current,allDays))continue;
+    cost+=+dayCosts[day]||0; tokens+=+dayTokens[day]||0; activeDays+=1;
+   }
+   return {model,cost,tokens,activeDays};
+  }).filter(r=>r.cost||r.tokens).sort((a,b)=>b.cost-a.cost||b.tokens-a.tokens);
+  const cost=models.reduce((a,r)=>a+r.cost,0), tokens=models.reduce((a,r)=>a+r.tokens,0);
+  const act=activity[tool]||{};
+  return {tool,cost,tokens,models,activity:act};
+ }).sort((a,b)=>b.cost-a.cost||b.tokens-a.tokens||a.tool.localeCompare(b.tool));
+ const max=Math.max(...rows.map(r=>r.cost),1);
+ const total=rows.reduce((a,r)=>a+r.cost,0);
+ let h=`<section style="margin:24px 0"><h2>Total cost tree <span class=muted style="text-transform:none;font-weight:400">— tool → model, selected window</span></h2>
+   <p class=muted style="margin-top:0">Click a metered tool row to expand the models that drove spend. Model rows use raw transcript IDs as metadata because Claude Code logs provider/internal model IDs, which may not exactly match the visible model-picker labels. Cursor and Antigravity are shown as <b>Unpriced</b> when only activity coverage exists; this means their local logs did not expose exact token/model counters, not that the work was free.</p>
+   <div class=cost-tree>`;
+ for(const r of rows){
+  const hasMetered=r.models.length>0, pct=hasMetered&&total?Math.round(100*r.cost/total):null, w=hasMetered?Math.max(0,100*r.cost/max):0;
+  const activityNote=r.activity&&r.activity.sessions?`${r.activity.sessions} activity sessions · ${r.activity.projects||0} projects`:'metered token counters';
+  const costLabel=hasMetered?money2(r.cost):'<span class=muted>Unpriced</span>';
+  const shareLabel=hasMetered?`${pct}%`:'activity-only';
+  const tip=hasMetered
+    ? `${r.tool}: ${money2(r.cost)} · ${fmt(r.tokens)} tokens · ${activityNote}`
+    : `${r.tool}: activity detected, but token/model counters are unavailable in local logs, so cost is not calculated`;
+  h+=`<details class=tree-node ${hasMetered?'open':''}><summary>
+      <div class=tree-row data-tip="${esc(tip)}">
+       <div><span class=tree-name>${toolBadge(r.tool)} ${esc(r.tool)}</span><div class=tree-meta>${esc(activityNote)}</div></div>
+       <div class=tree-bar><span style="width:${w}%"></span></div>
+       <div class=money>${costLabel}</div>
+       <div class=tree-meta>${shareLabel}</div>
+      </div></summary><div class=tree-children>`;
+  const modelMax=Math.max(...r.models.map(m=>m.cost),1);
+  if(r.models.length){
+   for(const m of r.models){
+    const mw=Math.max(0,100*m.cost/modelMax), share=r.cost?Math.round(100*m.cost/r.cost):0;
+    const md=modelDisplay(m.model);
+    h+=`<div class=tree-row data-tip="${esc(md.tip)} · ${fmt(m.tokens)} tokens · ${m.activeDays} active days">
+       <div><span class=tree-name>${esc(md.label)}</span><div class=tree-meta>${esc(md.detail||`${fmt(m.tokens)} tokens`)}</div></div>
+       <div class=tree-bar><span style="width:${mw}%"></span></div>
+       <div class=money>${money2(m.cost)}</div>
+       <div class=tree-meta>${share}%</div>
+      </div>`;
+   }
+  }else{
+   h+=`<div class=tree-empty>Activity was detected for this tool, but token/model counters are not available from its local logs yet.</div>`;
+  }
+  h+='</div></details>';
+ }
+ return h+'</div></section>';
+}
+function recommendationPanel(d){
+ const current=activeWindow();
+ const t=sumWindowTokens(d,current), total=(t.input||0)+(t.output||0)+(t.cache_read||0)+(t.cache_write||0);
+ const cachePct=total?Math.round(100*((t.cache_read||0)+(t.cache_write||0))/total):0;
+ const b=d.bloat||{}, bloatPct=b.median?((b.median/200000)*100).toFixed(1):'0.0';
+ const pricingCoverage=(d.data_quality||{}).pricing_coverage_pct||0;
+ const selectedSpend=sumWindowDaily(d.by_day_model_cost||{},current);
+ const selectedLabel=windowDef(current)[1];
+ const lifetimeSpend=(d.period_cost||{}).lifetime||d.total_cost||selectedSpend||0;
+ const suggestionScale=current==='all'||!lifetimeSpend?1:Math.min(1,selectedSpend/lifetimeSpend);
+ const spendRows=projectRowsForWindow(d,current).slice(0,5);
+ const rows=spendRows.map(x=>`<tr><td>${esc(x.label)}</td><td class=money>${money2(x.window_cost)}</td><td>${toolBadge(x.tool)}</td><td class=muted>${x.value&&x.value.kind==='git'?`${x.value.commits||0} commits · ${x.value.prs||0} PRs <span class=muted>(source scope)</span>`:'local activity'}</td></tr>`).join('');
+ let h=`<section><h2>Recommendations to optimize tokens</h2>
+   <p class=muted style="margin-top:0">Start here. This panel separates token-optimization signals from delivery and GitHub analytics.</p>
+   <div class=cards>
+     <div class=card tabindex=0 data-tip="Sum of metered token usage inside the selected dashboard window. Cost is computed from local provider token counters by model using the bundled pricing catalog; it is a list-price estimate, not your provider invoice."><div class=lbl>${esc(selectedLabel)} spend</div><div class=val>${money2(selectedSpend)}</div><div class=note>list-price estimate from metered sources</div></div>
+     <div class=card tabindex=0 data-tip="(cache_read + cache_write) divided by all observed tokens. High cache share means much of the context was served through provider prompt caching; it does not mean the work was free."><div class=lbl>Cache share</div><div class=val>${cachePct}%</div><div class=note>higher usually means less repeated prompt cost</div></div>
+     <div class=card tabindex=0 data-tip="Median fixed startup context observed in Claude Code sessions, divided by a 200K reference context window. This includes system/tool/skill/hook descriptions re-sent at session start."><div class=lbl>Startup bloat</div><div class=val>${bloatPct}%</div><div class=note>median fixed context vs 200K window</div></div>
+     <div class=card tabindex=0 data-tip="Percent of observed tokens whose model id matched a named rate in the local pricing catalog. 100% means no fallback rate was used; it does not prove the dollar estimate is invoice-exact because subscriptions, credits, regional pricing, and provider-side billing adjustments are not reconstructed."><div class=lbl>Pricing coverage</div><div class=val>${pricingCoverage}%</div><div class=note>${d.fallback_pct?`${d.fallback_pct}% fallback pricing`:'all observed models matched named rates'}</div></div>
+  </div>
+   <p class=muted style="margin:0">Accuracy note: token counts come from local metered logs where available. Dollar values are deterministic list-price estimates from those counters; “100%” coverage means model-pricing match coverage, not invoice certainty.</p>
+ </section>`;
+ h+=toolModelCostTree(d,current);
+ h+=suggestionsCard(d.suggestions||[],suggestionScale,selectedLabel)||'<section style="margin:24px 0"><h2>Recommended next actions</h2><p class=muted>No automated optimization suggestions crossed the current threshold for the selected window. Check the top spend directories below and the Diagnostics tab for startup bloat.</p></section>';
+ h+=`<section style="margin:24px 0"><h2>Highest token spend areas <span class=muted style="text-transform:none;font-weight:400">— ${esc(selectedLabel)}</span></h2><p class=muted style="margin-top:0">Spend follows the global selected time window. Outcome text is source-scoped where exact per-window git attribution is not available yet.</p><div class=table-wrap><table><tr><th>directory</th><th>selected-window spend</th><th>tool</th><th>observed outcome</th></tr>${rows||'<tr><td colspan=4 class=muted>No directory spend found in the selected window.</td></tr>'}</table></div></section>`;
+ return h;
+}
 function stackedByModel(d){
- const raw=d.by_day_model_cost||{}, days=Object.keys(raw).sort().slice(-30); if(!days.length) return emptyState('No dated cost yet.');
+ const raw=d.by_day_model_cost||{}, current=activeWindow(), allDays=Object.keys(raw).sort(), days=allDays.filter(day=>dayInWindow(day,current,allDays));
+ if(!days.length) return emptyState('No dated cost yet for the selected window.');
  const modelTotals={}; for(const day of days)for(const[m,c]of Object.entries(raw[day]))modelTotals[m]=(modelTotals[m]||0)+c;
  const models=Object.keys(modelTotals).sort((a,b)=>modelTotals[b]-modelTotals[a]).slice(0,5), hasOther=Object.keys(modelTotals).length>5;
  const series=[...models,...(hasOther?['Other']:[])], colors=['var(--m1)','var(--m2)','var(--m3)','var(--m4)','var(--m5)','var(--m6)'];
@@ -665,25 +1609,33 @@ function stackedByModel(d){
  const slot=(W-PL-PR)/days.length,bw=Math.max(2,slot*.72),Y=v=>(H-PB-PT)*v/max; let bars='';
  values.forEach((vals,i)=>{let used=0; vals.forEach((v,j)=>{const h=Y(v),x=PL+i*slot+(slot-bw)/2,y=H-PB-used-h;bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(0,h)}" fill="${colors[j]}" data-tip="${esc(days[i])} · ${esc(series[j])}: $${v.toFixed(2)}" tabindex="0"/>`;used+=h;});});
  const ticks=`<text x="${PL}" y="${H-8}" fill="var(--muted)" font-size="11">${esc(days[0].slice(5))}</text><text x="${W-PR}" y="${H-8}" fill="var(--muted)" font-size="11" text-anchor="end">${esc(days[days.length-1].slice(5))}</text><text x="${PL-5}" y="${PT+3}" fill="var(--muted)" font-size="11" text-anchor="end">$${max.toFixed(0)}</text>`;
- const leg=series.map((m,i)=>`<span><i class=dot style="background:${colors[i]}"></i>${esc(m)}</span>`).join('');
- return svgEl(W,H,bars+ticks,'Daily estimated list-price cost stacked by model for the last 30 active days')+`<div class=legend>${leg}</div>`;
+ const leg=series.map((m,i)=>{const md=m==='Other'?{label:'Other',tip:'Other lower-cost models'}:modelDisplay(m);return `<span data-tip="${esc(md.tip)}"><i class=dot style="background:${colors[i]}"></i>${esc(md.label)}</span>`;}).join('');
+ return svgEl(W,H,bars+ticks,'Daily estimated list-price cost stacked by model for the selected time window')+`<div class=legend>${leg}</div>`;
 }
-function toolBadge(t){const m={'claude-code':'CC','codex':'CX','cursor':'CU','antigravity':'AG'}; return `<span class=badge title="${esc(t||'unknown')}">${esc(m[t]||'?')}</span>`;}
+function toolBadge(t){
+ const m={'claude-code':'CC','codex':'CX','cursor':'CU','antigravity':'AG'};
+ const raw=String(t||'unknown');
+ const parts=raw.split('+').filter(Boolean);
+ const label=parts.map(p=>m[p]||p.replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?').join(' + ');
+ return `<span class=badge title="${esc(raw)}">${esc(label)}</span>`;
+}
 function activityTable(activity){const rows=(activity||{}).sessions||[], byTool=(activity||{}).by_tool||{}; if(!rows.length)return '';
  const summary=Object.entries(byTool).map(([tool,v])=>`${tool}: ${v.sessions} sessions · ${v.projects} projects${v.messages?' · '+v.messages+' messages':''}${v.artifacts?' · '+v.artifacts+' artifacts':''}`).join(' | ');
  let h=`<section style="margin:24px 0"><h2>Activity coverage without token counters</h2><p class=muted>${esc(summary)}. These sources improve project/session coverage but never enter token cost.</p><div class=table-wrap><table><tr><th>date</th><th>tool</th><th>project</th><th>session</th><th>messages</th><th>artifacts</th></tr>`;
  for(const r of rows.slice(0,30)){h+=`<tr><td>${esc(r.day||'—')}</td><td>${toolBadge(r.tool)}</td><td>${esc(r.project||'unmapped')}</td><td class=muted>${esc((r.session_id||'').slice(0,8))}</td><td>${r.messages==null?'—':r.messages}</td><td>${r.artifacts==null?'—':r.artifacts}</td></tr>`;}
  return h+'</table></div></section>';}
-function dirsTable(dirs){
- let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— token economics × observable shipped outcomes</span></h2>`;
+function dirsTable(d,current){
+ const rows=projectRowsForWindow(d,current,true);
+ let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— selected-window spend × source-scope delivery evidence</span></h2>`;
  h+=`<details class=howto><summary>How this is calculated</summary>
    <ul>
      <li><b style="color:var(--cost)">Cost</b> is computed from exact local token counters per model using standard API list prices. It is not a subscription invoice; unknown models are visibly marked through pricing coverage.</li>
-     <li><b style="color:var(--value)">Outcomes</b> are observed over the same active-date window. Git repos use commits, deduplicated merged PRs, releases, and changed files. Non-repos use modified-file counts and are explicitly estimates.</li>
+     <li><b style="color:var(--value)">Delivery</b> uses each directory's available source window, shown in the table. Git repos use commits, deduplicated merged PRs, releases, and changed files. Non-repos use modified-file counts and are explicitly estimates.</li>
      <li><b>Coverage</b> includes Claude Code and Codex transcripts plus agentic directories discovered by marker files. A dash means no supported local token source, never zero spend.</li>
+     <li><b>Business value</b> is not inferred from engineering activity. PRs, commits, files, and churn are delivery evidence—not ROI.</li>
    </ul></details>`;
- h+=`<div class=table-wrap><table><tr><th>directory</th><th>tool</th><th>list-price $</th><th>observable outcomes</th><th>unit economics</th></tr>`;
- for(const d of dirs){
+ h+=`<div class=table-wrap><table><tr><th>directory</th><th>tool</th><th>selected-window $</th><th>observable delivery</th><th>outcome scope</th><th>+ / -</th><th>delivery unit cost</th></tr>`;
+ for(const d of rows){
   const v=d.value||{}; const removed=!d.dir;
   const shipped = removed ? '<span class=muted>(removed)</span>'
     : v.kind==='git' ? esc(`${v.commits||0} commits${v.prs?'·'+v.prs+' PRs':''}`)
@@ -692,11 +1644,13 @@ function dirsTable(dirs){
     ? `<span class=muted title="directory no longer on disk — value can't be computed">${esc(d.label)}</span>`
     : esc(d.label);
   h+=`<tr><td>${lbl}</td><td>${toolBadge(d.tool)}</td>`+
-     `<td class=money>${d.cost==null?'<span class=muted>—</span>':'$'+Math.round(d.cost).toLocaleString()}</td>`+
+     `<td class=money>${money2(d.window_cost)}</td>`+
      `<td style="color:var(--value)">${shipped}</td>`+
-     `<td class=muted>${v.cost_per_pr!=null?'$'+v.cost_per_pr.toFixed(2)+'/PR':v.cost_per_commit!=null?'$'+v.cost_per_commit.toFixed(2)+'/commit':'—'}</td></tr>`;
+     `<td class=muted>${d.window&&d.window.start?`${esc(d.window.start)} → ${esc(d.window.end||d.window.start)}`:'discovery snapshot'}</td>`+
+     `<td class=n>${v.kind==='git'?`+${fmt(v.insertions||0)} / -${fmt(v.deletions||0)}`:'—'}</td>`+
+     `<td class=muted>${d.window_cost!=null&&v.prs?'$'+(d.window_cost/v.prs).toFixed(2)+'/PR':d.window_cost!=null&&v.commits?'$'+(d.window_cost/v.commits).toFixed(2)+'/commit':'—'}</td></tr>`;
  }
- return h+'</table></div>';
+ return h+(rows.length?'':'<tr><td colspan=7 class=muted>No directory spend found in the selected window.</td></tr>')+'</table></div>';
 }
 async function load(){render(await (await fetch('/api/data')).json());}
 async function refresh(){document.getElementById('app').innerHTML='<p class=muted>Rescanning…</p>';render(await (await fetch('/api/refresh')).json());}
@@ -706,40 +1660,55 @@ function qualityStrip(d){const q=d.data_quality||{},u=q.usage_sources||{},a=q.ac
  const activity=Object.entries(a).map(([k,x])=>`${esc(k)} ${x.sessions}`).join(' · ');
  return `<div class=quality aria-label="Data provenance"><span><b>${Object.entries(u).map(([k,n])=>`${esc(k)} ${n}`).join(' · ')||'No metered sources'}</b> records with provider token counters</span><span><b>${activity||'No activity-only sources'}</b> activity sessions without counters</span><span><b>${q.pricing_coverage_pct||0}%</b> tokens matched to a named price</span><span><b>${q.outcome_cost_coverage_pct||0}%</b> spend joined to git outcomes</span><span><b>${v.git||0} git · ${v.fs||0} filesystem</b> outcome sources</span><span>${w.start?`${esc(w.start)} → ${esc(w.end)}`:'No dated usage'}</span></div>`;}
 function render(d){
+ if(d.loading){
+  document.getElementById('meta').textContent=`building local dataset · ${d.generated||''}`;
+  document.getElementById('app').innerHTML=`<section><h2>Building dashboard</h2><p class=muted>${esc(d.message||'Scanning local transcripts and repositories…')}</p>${d.error?`<p class=muted>Last error: ${esc(d.error)}</p>`:''}<div class=meter><b style="width:42%;background:var(--value)"></b><em>scanning in background</em></div></section>`;
+  return;
+ }
+ LAST_DATA=d;
  document.getElementById('meta').textContent=
   `${d.transcripts} source records · ${d.sessions} metered sessions · ${(d.activity||{}).session_count||0} activity-only · updated ${d.generated}`;
- const t=d.totals, p=d.period_cost||{}, e=d.economics||{};
+ const win=activeWindow(), winLabel=windowDef(win)[1], winSpend=sumWindowDaily(d.by_day_model_cost||{},win);
+ const t=sumWindowTokens(d,win), p=d.period_cost||{}, e=d.economics||{};
+ const winPurposeCost=sumWindowPurposeCost(d,win);
  const card=(lbl,val,note,col)=>`<div class=card><div class=lbl>${col?`<i class=dot style=background:${col}></i>`:''}${lbl}</div>
    <div class=val>${val}</div><div class=note>${note||''}</div></div>`;
  const W=200000, mw=Math.min(100,100*d.bloat.median/W);
- let h=`<div class=cards>
-   ${card('today',money2(p.today),'estimated list-price spend','var(--cost)')}
-   ${card('last 7 days',money2(p.week),'estimated list-price spend','var(--cost)')}
-   ${card('last 30 days',money2(p.month),'estimated list-price spend','var(--cost)')}
-   ${card('$ / merged PR',money2(e.cost_per_pr),`${e.prs||0} observed PRs · matched spend only`,'var(--value)')}
-   ${card('$ / commit',money2(e.cost_per_commit),`${e.commits||0} observed commits · not business ROI`,'var(--value)')}
+ const current=activeTab();
+ const de=d.delivery_economics||{}, deSpend=de.spend||{}, deOutcomes=de.outcomes||{}, deUnit=de.delivery_unit_cost||{};
+ const overview=`<div class=hero>
+   <h2>Token cost → observable delivery → business value</h2>
+   <p>This dashboard measures the first two layers separately. Token counters establish estimated cost; Git establishes delivery evidence. Business or human value remains explicitly unmeasured until an outcome source is connected.</p>
+   ${outcomeFlow(d,win)}
+   <div class=chips><span class=chip>no cloud upload</span><span class=chip>list-price estimate</span><span class=chip>observable delivery</span><span class=chip>no synthetic value score</span></div>
+  </div>
+ ${workMix(d)}
+ <div class=cards>
+   ${card(`${esc(winLabel)} spend`,money2(winSpend),'selected-window list-price spend','var(--cost)')}
+   ${card('selected tokens',fmt((t.input||0)+(t.output||0)+(t.cache_read||0)+(t.cache_write||0)),'provider counters in selected window','var(--in)')}
+   ${card('attributed spend',money2(deSpend.attributed),`${deSpend.coverage_pct||0}% of all-time spend joined to git`,'var(--value)')}
+   ${card('delivery cost / PR',money2(deUnit.per_pr),`${deOutcomes.prs||0} observed PRs · attributed spend only`,'var(--value)')}
+   ${card('delivery cost / commit',money2(deUnit.per_commit),`${deOutcomes.commits||0} commits · not business ROI`,'var(--value)')}
+   ${card('business value','Not measured','connect an outcome source before claiming ROI','var(--muted)')}
   </div>${qualityStrip(d)}`;
- h+=`<div class=cards2>
-   <section><h2>Outcome efficiency <span class=muted style="text-transform:none;font-weight:400">— no synthetic value score</span></h2>${leverageChart(d.directories||[])}</section>
-   <section><h2>Cost by directory</h2>${costByDir(d.directories||[])}</section>
-   <section class=wide><h2>Daily list-price cost by model</h2>${stackedByModel(d)}</section>
-   <section><h2>Dollar spend by token purpose</h2>${donut(d.cost_by_purpose||{})}${legend()}</section>
-   <section><h2>Token volume by purpose</h2>${purposeSplit(d.totals)}${legend()}</section>
- </div>`;
- h+=`<section style="margin-bottom:24px"><h2>Budget</h2>
+ const budget=`<section style="margin-bottom:24px"><h2>Budget</h2>
    ${d.budget.daily.limit==null&&d.budget.weekly.limit==null
      ? '<p class=muted>No budget configured — add "budget" to ~/.100xprism/config.json.</p>'
      : budgetBar(d.budget.daily,'today')+budgetBar(d.budget.weekly,'last 7 days')}
    <p class=muted style="margin-top:8px">Pricing catalog checked ${esc((d.pricing||{}).as_of||'unknown')}. ${d.fallback_pct?`${d.fallback_pct}% of tokens use conservative fallback pricing.`:'All model tokens matched a named rate.'} Subscription plans and provider credits are not reconstructed.</p>
  </section>`;
- h+=handoffTable(d.handoff_runs||[]);
- h+=activityTable(d.activity);
- h+=`<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— top 50 by cost, last 30 days</span></h2>${sessionsTable(d.by_session||[])}`;
- h+=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— "exact" from Claude Code's native attribution, "attr." from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[])}`;
- h+=`<h2>Main vs subagent</h2><p>main $${(d.main_subagent_split.main_cost||0).toFixed(2)} · subagent $${(d.main_subagent_split.subagent_cost||0).toFixed(2)}</p>`;
- h+=suggestionsCard(d.suggestions||[]);
- h+=dirsTable(d.directories||[]);
- h+=`<h2>Startup bloat — fixed context re-sent every turn</h2>
+ const delivery=`<div class=cards2>
+   <section><h2>Directory delivery scoreboard <span class=muted style="text-transform:none;font-weight:400">— selected-window spend, source-scope delivery, churn</span></h2>${deliveryScoreboard(d,win)}</section>
+   <section><h2>Cost by directory <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${costByDir(d,win)}</section>
+   <section class=wide><h2>Daily list-price cost by model</h2>${stackedByModel(d)}</section>
+   <section><h2>Dollar spend by token purpose <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${donut(winPurposeCost)}${legend()}</section>
+   <section><h2>Token volume by purpose <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${purposeSplit(t)}${legend()}</section>
+ </div>${dirsTable(d,win)}`;
+ const sessions=handoffTable(d.handoff_runs||[])+activityTable(d.activity)+
+  `<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— top 50 by cost, last 30 days</span></h2>${sessionsTable(d.by_session||[])}`;
+ const skills=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— "exact" from Claude Code's native attribution, "attr." from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[])}
+   <h2>Main vs subagent</h2><p>main $${(d.main_subagent_split.main_cost||0).toFixed(2)} · subagent $${(d.main_subagent_split.subagent_cost||0).toFixed(2)}</p>`;
+ let diagnostics=`<h2>Startup bloat — fixed context re-sent every turn</h2>
    <div class=meter><b style="width:${mw}%;background:${mw>30?'var(--cw)':'var(--cr)'}"></b>
    <em>median ${fmt(d.bloat.median)} of 200K window (${(d.bloat.median/W*100).toFixed(1)}%)</em></div>
    <p class=muted style=margin-top:8px>avg ${fmt(d.bloat.avg)} · lower is better. This is system prompt + tool/skill/agent descriptions + SessionStart injections, read on every turn.</p>`;
@@ -750,20 +1719,30 @@ function render(d){
   d.composition.forEach((r,i)=>{const col=CC[i%CC.length];
    segs+=`<span style="width:${100*r[1]/ct}%;background:${col}"></span>`;
    rows+=`<tr><td><i class=dot style=background:${col}></i>${esc(r[0])}</td><td>${fmt(r[1])}</td><td>${r[2]}%</td></tr>`;});
-  h+=`<h2>Content composition <span class=muted style="text-transform:none;font-weight:400">— estimate, char-based (not billed tokens)</span></h2>
+  diagnostics+=`<h2>Content composition <span class=muted style="text-transform:none;font-weight:400">— estimate, char-based (not billed tokens)</span></h2>
    <div class=bar style="height:14px;margin-bottom:12px">${segs}</div>
    <table><tr><th>content type</th><th>est. tokens</th><th>share</th></tr>${rows}</table>
    <p class=muted style=margin-top:8px>The API bills per-turn aggregates, so this approximates where your conversation <em>text volume</em> goes (chars÷4): code written, files read, command output/logs, model prose, prompts. Directional, not exact.</p>`;
  }
- h+=`<h2>By model</h2><table><tr><th>model</th><th>mix</th><th>cache read</th><th>output</th></tr>`;
- for(const[name,v]of d.by_model){h+=`<tr><td>${esc(name)}</td><td>${bar(v)}</td>
+ diagnostics+=`<h2>By model</h2><table><tr><th>model</th><th>mix</th><th>cache read</th><th>output</th></tr>`;
+ for(const[name,v]of d.by_model){diagnostics+=`<tr><td>${esc(name)}</td><td>${bar(v)}</td>
    <td>${fmt(v.cache_read)}</td><td>${fmt(v.output)}</td></tr>`;}
- h+='</table>';
+ diagnostics+='</table>';
  const days=d.by_day.slice(-30);
- h+=`<h2>Last ${days.length} active days</h2><table><tr><th>day</th><th>mix</th><th>read</th><th>out</th></tr>`;
- for(const[day,v]of days.reverse()){h+=`<tr><td>${esc(day)}</td><td>${bar(v)}</td>
+ diagnostics+=`<h2>Last ${days.length} active days</h2><table><tr><th>day</th><th>mix</th><th>read</th><th>out</th></tr>`;
+ for(const[day,v]of days.reverse()){diagnostics+=`<tr><td>${esc(day)}</td><td>${bar(v)}</td>
    <td>${fmt(v.cache_read)}</td><td>${fmt(v.output)}</td></tr>`;}
- h+='</table>';
+ diagnostics+='</table>';
+ const h=`<div class=dashboard-shell>${sideTabs(current)}<main>
+   ${windowButtons(win,d)}
+   ${pane('recommendations',recommendationPanel(d),current)}
+   ${pane('overview',overview+budget,current)}
+   ${pane('delivery',delivery,current)}
+   ${pane('github',githubPanel(d.github),current)}
+   ${pane('sessions',sessions,current)}
+   ${pane('skills',skills,current)}
+   ${pane('diagnostics',diagnostics,current)}
+ </main></div>`;
  document.getElementById('app').innerHTML=h;
 }
 load();
@@ -780,22 +1759,49 @@ document.addEventListener('focusout',()=>{document.getElementById('tip').style.d
 
 
 _build_lock = threading.Lock()
+_build_state = {"building": False, "error": None}
 
 
-def _rebuild():
+def _rebuild(verbose=False):
+    _build_state["building"] = True
+    _build_state["error"] = None
     with _build_lock:
-        Handler.data = build(verbose=False)
-    threading.Thread(target=lambda: _summaries.backfill(), daemon=True).start()
-    return Handler.data
+        try:
+            Handler.data = build(verbose=verbose)
+            threading.Thread(target=lambda: _summaries.backfill(), daemon=True).start()
+            return Handler.data
+        except Exception as exc:
+            _build_state["error"] = str(exc)
+            raise
+        finally:
+            _build_state["building"] = False
+
+
+def _start_rebuild(verbose=False):
+    if _build_state["building"]:
+        return
+    threading.Thread(target=lambda: _safe_rebuild(verbose=verbose), daemon=True).start()
+
+
+def _safe_rebuild(verbose=False):
+    try:
+        _rebuild(verbose=verbose)
+    except Exception as exc:
+        print(f"dashboard rebuild failed: {exc}", file=sys.stderr)
 
 
 def _client_data(data):
-    """Token data for the browser. Trim per-day cost to the dirs we chart."""
-    top = [d["label"] for d in data.get("directories", [])[:12]]
-    bpd = {k: v for k, v in data.get("by_project_day_cost", {}).items() if k in top}
-    out = {k: v for k, v in data.items() if k != "by_project_day_cost"}
-    out["by_project_day_cost"] = bpd
-    return out
+    """Token data for the browser."""
+    return data
+
+
+def _loading_data():
+    return {
+        "loading": True,
+        "generated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "message": "Dashboard is scanning local transcripts and repositories. Refresh will update automatically when the first build finishes.",
+        "error": _build_state.get("error"),
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -815,11 +1821,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             if self.path.startswith("/api/refresh"):
-                self._send(json.dumps(_client_data(_rebuild())))
+                if _build_state["building"]:
+                    self._send(json.dumps(_loading_data()))
+                else:
+                    data = _rebuild()
+                    self._send(json.dumps(_client_data(data)))
             elif self.path.startswith("/api/data"):
                 if Handler.data is None:
-                    _rebuild()
-                self._send(json.dumps(_client_data(Handler.data)))
+                    _start_rebuild(verbose=False)
+                    self._send(json.dumps(_loading_data()))
+                else:
+                    self._send(json.dumps(_client_data(Handler.data)))
             else:
                 self._send(PAGE, "text/html; charset=utf-8")
         except Exception as exc:
@@ -992,7 +2004,7 @@ def ensure_daemon(port: int) -> str | None:
         s = _token_summary()
         suffix = f"  · {s}" if s else ""
         if _port_in_use(port):
-            return f"📊 token + value dashboard live → {url}{suffix}"
+            return f"📊 AI economics dashboard live → {url}{suffix}"
         # A recorded owned process that is no longer listening is stale/hung;
         # stop it before creating the replacement daemon.
         _stop_previous_dashboard(port)
@@ -1004,7 +2016,7 @@ def ensure_daemon(port: int) -> str | None:
                 [sys.executable, os.path.abspath(__file__), "--no-open", "--port", str(port)],
                 stdout=log, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL, start_new_session=True)
-        return f"📊 token + value dashboard starting → {url}{suffix}  (first scan runs in the background)"
+        return f"📊 AI economics dashboard starting → {url}{suffix}  (first scan runs in the background)"
     except Exception as exc:
         print(f"dashboard startup failed: {exc}", file=sys.stderr)
         return None
@@ -1048,14 +2060,12 @@ def main():
                   file=sys.stderr)
             return
 
-    print("Scanning transcripts (first run is slow; later runs use the cache)...", file=sys.stderr)
-    data = build(verbose=True)
-
     if args.text:
+        print("Scanning transcripts (first run is slow; later runs use the cache)...", file=sys.stderr)
+        data = build(verbose=True)
         print_summary(data)
         return
 
-    Handler.data = data
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     except OSError:
@@ -1068,7 +2078,9 @@ def main():
                 print(f"dashboard browser open failed: {exc}", file=sys.stderr)
         return
     _write_pid(args.port)
-    print(f"\nToken dashboard → {url}  (Ctrl-C to stop) — all sessions & repos on this machine")
+    print(f"\nToken dashboard → {url}  (Ctrl-C to stop) — all sessions & repos on this machine", flush=True)
+    print("Scanning transcripts in the background; the page will update when ready.", file=sys.stderr)
+    threading.Timer(5.0, lambda: _start_rebuild(verbose=True)).start()
 
     def _auto_refresh():
         while True:

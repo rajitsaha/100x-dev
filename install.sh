@@ -162,7 +162,10 @@ install_shell() {
   echo ""
   echo -e "  ${CYAN}Or call the CLI directly:${NC}"
   echo "    100xprism update"
-  echo "    python3 \"$REPO_DIR/scripts/token-dashboard.py\""
+  echo ""
+  echo -e "  ${CYAN}AI economics dashboard:${NC}"
+  echo "    Not started by default. Start and open it with:"
+  echo "    100xprism tokens"
 }
 
 # ── Install templates ───────────────────────────────────────────────────────

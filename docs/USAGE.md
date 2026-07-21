@@ -390,16 +390,17 @@ Claude Code records every session's token usage in `~/.claude/projects/**/*.json
 100xprism ships a local, offline dashboard to make sense of it:
 
 ```bash
-python3 ~/100xprism/scripts/token-dashboard.py          # web UI at http://127.0.0.1:8787
-python3 ~/100xprism/scripts/token-dashboard.py --print   # text summary, no server
+100xprism tokens           # web UI at http://127.0.0.1:8787
+100xprism tokens --print   # text summary, no server
 ```
 
 It does not start during shell startup or ordinary `install` / `init` / `update`.
+Install output prints the command to start it; it does not imply the URL is live.
 Start it explicitly when you want it:
 
 ```bash
-100x-tokens
-python3 ~/100xprism/scripts/token-dashboard.py
+100xprism tokens
+100xprism dashboard
 100xprism install --dashboard   # optional one-time start after install
 ```
 
@@ -408,7 +409,7 @@ It breaks usage into the four token "purposes" — **input**, **output**,
 shows a **startup-bloat meter** (the fixed context re-sent every turn) plus
 per-project / per-model / per-day breakdowns, **every directory you build in**
 (token-spend dirs plus agentic projects discovered machine-wide via marker files),
-and **observable outcome vs cost** charts. Cost tracking covers Claude Code and Codex CLI
+and an **observable delivery scoreboard**. Cost tracking covers Claude Code and Codex CLI
 sessions, priced per-model from a dated, source-linked catalog (`scripts/pricing.py`).
 Cursor agent-transcript JSONL files and Antigravity conversations/task artifacts are also
 collected for project, session, message/artifact, and date coverage. Cursor coverage is
@@ -419,10 +420,26 @@ activity-only and leaves cost unavailable rather than estimating it. The first r
 transcripts; later runs use an incremental cache. The page auto-refreshes every
 30s.
 
+The default Economics view keeps three layers separate:
+
+1. **Token economics** — metered tokens and estimated list-price spend.
+2. **Observable delivery** — Git-backed PRs, commits, releases, files, and churn,
+   with the percentage of spend that could be attributed to those sources.
+3. **Business value** — explicitly **Not measured** until an outcome source such
+   as adoption, revenue, incidents avoided, or verified time saved is connected.
+
+`$/PR` and `$/commit` are labeled **delivery unit costs** and use attributed
+spend only. They are not ROI or employee-performance scores. Outcome snapshots
+currently use each directory's available source window; the UI does not present
+them as selected-window outcomes.
+
 It also shows top sessions and skills by cost, a main-vs-subagent cost split, and
 a **recommendations panel** — rule-based, offline cost-reduction opportunities ranked by
 estimated $ impact (e.g. trimming fixed startup context, or skills with a high
 $/invocation).
+
+The dashboard defaults to a dark, animated interface with a persisted light/dark
+toggle. Motion is CSS-only and respects `prefers-reduced-motion`.
 
 **Budgets.** Add a `budget` section to `~/.100xprism/config.json` to get a budget
 bar in the dashboard, a `⚠`/`‼` glyph in the `--oneline` shell summary, and a
@@ -439,6 +456,34 @@ native OS notification the first time a period crosses 80%/100%:
 ```
 
 All keys default to `null` (no limit — the feature is inert until you set one).
+
+**GitHub PR insights.** Remote GitHub metadata is opt-in. With `gh` authenticated,
+the dashboard can fetch bounded PR data for detected local GitHub remotes plus
+explicit users/repos:
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "users": ["octocat", "hubot"],
+    "repos": [
+      "acme/example-service",
+      "acme/example-docs"
+    ],
+    "max_repos": 12,
+    "max_prs_per_repo": 30,
+    "max_pr_file_fetches_per_repo": 3,
+    "max_user_repos_per_user": 20
+  }
+}
+```
+
+The GitHub view includes PR-level links, status, author, title, comments,
+last-updated date, and bounded file/churn detail. Rows explicitly identify when
+file details were not sampled.
+
+It reports PR counts, merged/open/closed split, comment-heavy PRs, docs-touching
+PRs, deleted-file PRs, and additions/deletions. Results are cached for 30 minutes.
 
 To shrink token spend, audit your installed plugins/skills/MCP servers for
 duplication and trim the fixed context — see
