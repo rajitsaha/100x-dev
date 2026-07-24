@@ -5,3 +5,4 @@
 __pycache__/
 *.pyc
 HANDOFF.md
+*.tgz
