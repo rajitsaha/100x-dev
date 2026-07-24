@@ -7,18 +7,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+---
+
+## [2.4.9] — 2026-07-23
+
 ### Added
 - **AI economics dashboard and GitHub PR insights.** The local dashboard now separates token economics, observable delivery, and unmeasured business value. It surfaces attribution coverage, delivery unit cost, files, churn, commits, merged PRs, and explicit outcome scopes without presenting engineering activity as ROI. Optional GitHub CLI integration fetches bounded, linked PR details for local remotes plus configured users/repos, including status, author, title, comments, sampled file/churn detail, and update dates, cached for 30 minutes.
 - **Dashboard CLI commands.** `100xprism tokens` and `100xprism dashboard` now start/open the AI economics dashboard, and `100xprism value` prints the observable-delivery report for a directory.
 
+### Removed
+- **11 orphaned module reference files.** Files under `copywriting/`, `page-cro/`, and `seo-audit/` that had shipped in every install since the v2.0.0 unification but were never linked from any `SKILL.md`, so no adapter path could reach them. Two were byte-identical duplicates of files `email-sequence/` already links. Package-weight only — references load on demand, so context cost is unchanged.
+
 ### Fixed
 - **Dashboard install messaging is explicit.** Ordinary install output now says the AI economics dashboard is not started by default and prints the command to start and open it. URL output is reserved for paths that actually request dashboard startup.
-
----
-
-## [2.4.9] — 2026-07-19
-
-### Fixed
 - Installer no longer causes shell/Claude startup side effects: the token dashboard and update check are opt-in (`--dashboard`) instead of auto-starting from `aliases.sh` or a `SessionStart` hook.
 - Install now runs a cleanup-first pass (`lib/uninstall.js --preinstall-cleanup`) across both the npm/mise launcher and the `curl | bash` path, stopping any owned dashboard, stripping legacy rc `source …/aliases.sh` lines (including custom `$DEV_100X_HOME` paths), and removing stale command symlinks.
 - `100xprism uninstall` preserves healthy npm/mise launchers (stale-only link removal); only npm `preuninstall` removes live links.
