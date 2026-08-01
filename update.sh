@@ -131,25 +131,44 @@ regenerate_tracked_projects() {
   local pruned_total=0
   local pruned_projects=0
   local prune_failures=0
-  local backup_dir=""
+  local adapter_failures=0
+  # One backup root for the whole run, so every removal is reported as a single
+  # recoverable location even if the loop crosses a one-second boundary.
+  local backup_dir
+  backup_dir="$(prune_backup_root)"
+
   while IFS= read -r project_path; do
     [[ -z "$project_path" ]] && continue
     [[ -d "$project_path" ]] || continue  # skip deleted projects
 
     local regenerated=false
 
-    { [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; } \
-      && bash "$REPO_DIR/adapters/cursor.sh" "$project_path" && regenerated=true
-    [[ -f "$project_path/AGENTS.md" ]] \
-      && bash "$REPO_DIR/adapters/codex.sh"  "$project_path" && regenerated=true
+    # Explicit if-blocks, not `&&` chains: inside an AND-list a failing adapter is
+    # exempt from `errexit`, so a broken regeneration used to be silently reported
+    # as "not regenerated" while the update still claimed success.
+    if [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; then
+      if bash "$REPO_DIR/adapters/cursor.sh" "$project_path"; then
+        regenerated=true
+      else
+        echo -e "  ${YELLOW}→ $project_path: Cursor adapter failed${NC}"
+        adapter_failures=$(( adapter_failures + 1 ))
+      fi
+    fi
+    if [[ -f "$project_path/AGENTS.md" ]]; then
+      if bash "$REPO_DIR/adapters/codex.sh" "$project_path"; then
+        regenerated=true
+      else
+        echo -e "  ${YELLOW}→ $project_path: Codex adapter failed${NC}"
+        adapter_failures=$(( adapter_failures + 1 ))
+      fi
+    fi
 
     # Prune artifacts from tools dropped in v3.0.0 (Windsurf/Copilot/Gemini/Antigravity).
-    prune_deprecated_artifacts "$project_path"
+    prune_deprecated_artifacts "$project_path" "$backup_dir"
     if (( PRUNED_COUNT > 0 )); then
       echo -e "  ${YELLOW}→ $project_path: removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
       pruned_total=$(( pruned_total + PRUNED_COUNT ))
       pruned_projects=$(( pruned_projects + 1 ))
-      backup_dir="$PRUNE_BACKUP_DIR"
     fi
     (( PRUNE_FAILED > 0 )) && prune_failures=$(( prune_failures + PRUNE_FAILED ))
 
@@ -166,6 +185,9 @@ regenerate_tracked_projects() {
   fi
   if (( prune_failures > 0 )); then
     echo -e "  ${YELLOW}→ $prune_failures deprecated file(s) could not be removed and were left in place${NC}"
+  fi
+  if (( adapter_failures > 0 )); then
+    echo -e "  ${YELLOW}→ $adapter_failures adapter run(s) failed; those projects were not regenerated${NC}"
   fi
 }
 

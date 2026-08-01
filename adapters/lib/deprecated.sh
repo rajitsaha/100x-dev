@@ -41,18 +41,39 @@ _resolve_dir() {
   (cd "$1" 2>/dev/null && pwd -P) || return 1
 }
 
-# prune_deprecated_artifacts <project_path>
+# prune_backup_root — one backup directory per run, created on first use.
+# Callers looping over many projects should set this once so every removal from a
+# single run lands under the same root and can be reported as one location.
+prune_backup_root() {
+  local home="${HOME:-}"
+  if [[ -z "$home" ]]; then
+    # Without HOME there is nowhere to guarantee recoverability. Return empty and
+    # let the caller treat it as a backup failure rather than aborting under `set -u`.
+    echo ""
+    return 0
+  fi
+  echo "$home/.100xprism/removed-artifacts/$(date +%Y%m%d-%H%M%S)"
+}
+
+# prune_deprecated_artifacts <project_path> [backup_root]
 # Sets PRUNED_COUNT (removed), PRUNE_FAILED (wanted to remove, could not), and
 # PRUNE_BACKUP_DIR (where copies went, '' if nothing was removed).
 prune_deprecated_artifacts() {
   local project_path="$1"
-  local f real_project real_parent target backup_root rel
+  local backup_root="${2:-}"
+  local f real_project real_parent target rel slot
   PRUNED_COUNT=0
   PRUNE_FAILED=0
   PRUNE_BACKUP_DIR=""
 
   real_project="$(_resolve_dir "$project_path")" || return 0
-  backup_root="$HOME/.100xprism/removed-artifacts/$(date +%Y%m%d-%H%M%S)"
+  [[ -n "$backup_root" ]] || backup_root="$(prune_backup_root)"
+
+  # Key the backup slot by the project's FULL resolved path, not its basename:
+  # /work/client/app and /work/internal/app share a basename, and keying by that
+  # let the second backup overwrite the first while both originals were deleted —
+  # silently destroying the recoverability this function exists to guarantee.
+  slot="$(printf '%s' "${real_project#/}" | tr '/' '_')"
 
   for f in "${DEPRECATED_ARTIFACTS[@]}"; do
     target="$project_path/$f"
@@ -70,8 +91,14 @@ prune_deprecated_artifacts() {
     head -n "$DEPRECATED_MARKER_LINES" "$target" 2>/dev/null \
       | grep -q "$DEPRECATED_MARKER" || continue
 
-    # Recoverability: copy first, and only delete if the copy landed.
-    rel="$backup_root/$(basename "$real_project")/$f"
+    # Recoverability: copy first, and only delete if the copy landed. No backup
+    # root (HOME unset) means no way to guarantee recovery, so refuse to delete.
+    if [[ -z "$backup_root" ]]; then
+      echo "     FAILED to back up $f (HOME unset) — leaving it in place"
+      PRUNE_FAILED=$((PRUNE_FAILED + 1))
+      continue
+    fi
+    rel="$backup_root/$slot/$f"
     if ! mkdir -p "$(dirname "$rel")" 2>/dev/null || ! cp -p "$target" "$rel" 2>/dev/null; then
       echo "     FAILED to back up $f — leaving it in place"
       PRUNE_FAILED=$((PRUNE_FAILED + 1))
