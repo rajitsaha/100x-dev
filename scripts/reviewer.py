@@ -18,6 +18,12 @@ If neither CLI is on PATH there is no reviewer to be had; that raises with both
 missing binaries named, rather than letting subprocess fail with a bare
 FileNotFoundError from a command that was never going to run.
 
+Known limitation: the coder is the interactive session, whose model we cannot
+observe from here, so `fallback_models` is configured rather than derived. If
+you set the coder session to the same model named in `fallback_models`, the
+fallback review is a true self-review again — pick a fallback model you don't
+code with.
+
 `run_command` is injectable for tests; production code never needs to pass it.
 No test in this module (or its companion scripts/test_reviewer.py) may shell
 out to a real `codex`/`claude` binary — `run_command` and `_which` exist
@@ -88,7 +94,12 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
         raise ValueError(f"unsupported reviewer tool: {tool!r}")
 
     run_command = run_command or _default_run_command
-    fallback_models = fallback_models or {}
+    # Coerce rather than trust: config.json is user-editable and _config.py's
+    # contract is that malformed input never raises. A scalar here (e.g.
+    # `"fallback_models": "sonnet"`) would otherwise blow up on .get() at the
+    # exact moment the fallback is needed.
+    if not isinstance(fallback_models, dict):
+        fallback_models = {}
     actual_tool = tool
     model = None
     fallback_used = False

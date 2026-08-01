@@ -85,6 +85,17 @@ class TestReviewer(unittest.TestCase):
         self.assertIsNone(result.model)
         self.assertNotIn("--model", calls[0])
 
+    def test_malformed_fallback_models_does_not_raise(self):
+        # config.json is user-editable and _config.py's contract is that
+        # malformed input never raises. A scalar where a dict belongs must not
+        # blow up at the exact moment the fallback is needed.
+        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+            result = reviewer.invoke("codex", "x", "/repo",
+                                     run_command=lambda *a: "VERDICT: APPROVED",
+                                     fallback_models="sonnet")
+        self.assertTrue(result.fallback_used)
+        self.assertIsNone(result.model)
+
     def test_invoke_raises_when_neither_cli_is_available(self):
         # There is no reviewer to fall back to. Fail with both binaries named
         # rather than letting subprocess raise FileNotFoundError on a command
