@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -254,6 +255,88 @@ class TestPairLoopReview(unittest.TestCase):
 
         self.assertEqual(manifest["coder"], "codex")
         self.assertEqual(manifest["rounds"][0]["session_id"], "codex-coder-session-xyz")
+
+
+class TestPairLoopReviewRealFallback(unittest.TestCase):
+    """cmd_review()'s fallback attribution, exercised through the REAL
+    _installed/select_fallback path (not --reviewer-cmd, which bypasses it
+    entirely and so cannot catch this class of bug).
+
+    Regression: cmd_review() used to re-derive "which tool ran" with its own
+    hardcoded two-vendor guess, completely independent of what
+    reviewer.select_fallback() actually picked inside invoke(). A configured
+    codex reviewer falling back to cursor was recorded as "claude" everywhere
+    — the manifest, HANDOFF.md, the round, and the printed JSON — because the
+    guess only knew "codex" and "not codex". This builds a controlled PATH
+    with fake `claude` and `cursor-agent` executables and no `codex`, so the
+    real fallback and vendor-attribution code actually runs.
+    """
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp()
+        git(self.repo, "init", "-q")
+        with open(os.path.join(self.repo, "a.txt"), "w") as f:
+            f.write("x")
+        git(self.repo, "add", "a.txt")
+        git(self.repo, "commit", "-q", "-m", "init")
+
+        # A PATH containing ONLY git + fake claude/cursor-agent stubs — no real
+        # codex, so `codex` genuinely isn't found, forcing the real fallback.
+        self.fake_bin = tempfile.mkdtemp()
+        git_dir = os.path.dirname(shutil.which("git"))
+        for name in ("claude", "cursor-agent"):
+            path = os.path.join(self.fake_bin, name)
+            with open(path, "w") as f:
+                f.write(f"#!/usr/bin/env bash\necho '{name} ran' >> "
+                        f"{self.repo}/who-ran.log\necho 'VERDICT: APPROVED'\n")
+            os.chmod(path, 0o755)
+
+        home = tempfile.mkdtemp()
+        os.makedirs(os.path.join(home, ".100xprism"), exist_ok=True)
+        with open(os.path.join(home, ".100xprism", "config.json"), "w") as f:
+            json.dump({"pair_loop": {"coder": "claude", "reviewer": "codex",
+                                     "fallback_models": {"cursor": "composer-2.5"}}}, f)
+
+        # /bin must stay on PATH: the stub scripts' `#!/usr/bin/env bash`
+        # shebang execs /usr/bin/env directly (kernel resolves that by
+        # absolute path), but env then searches ITS OWN process PATH to find
+        # bash — omitting /bin here makes every stub fail with
+        # "env: bash: No such file or directory", which looks identical to
+        # the reviewer producing no output and is easy to misdiagnose as a
+        # parser bug instead of a test-harness one.
+        self.env = dict(os.environ, HOME=home,
+                        PATH=os.pathsep.join([self.fake_bin, git_dir, "/bin", "/usr/bin"]))
+
+    def _run(self, *args):
+        return subprocess.run([sys.executable, SCRIPT, *args], cwd=self.repo,
+                              capture_output=True, text=True, env=self.env)
+
+    def test_fallback_to_cursor_is_attributed_to_cursor_not_claude(self):
+        r = self._run("start", "--task", "x")
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        r2 = self._run("review", "--run", run_id)
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+        out = json.loads(r2.stdout)
+
+        self.assertTrue(out["fallback_used"])
+        self.assertEqual(out["reviewer_tool"], "cursor",
+                         "coder=claude, so select_fallback must prefer cursor "
+                         "(multi-vendor, non-coder) over claude (same as coder)")
+        self.assertEqual(out["reviewer_model"], "composer-2.5")
+
+        log_path = os.path.join(self.repo, "who-ran.log")
+        self.assertTrue(os.path.exists(log_path), "no stub executable ran at all")
+        with open(log_path) as f:
+            ran = f.read()
+        self.assertIn("cursor-agent ran", ran)
+        self.assertNotIn("claude ran", ran, "claude must not have been invoked")
+
+        handoff_path = os.path.join(self.repo, "HANDOFF.md")
+        with open(handoff_path) as f:
+            handoff_text = f.read()
+        self.assertIn("cursor", handoff_text.lower())
 
 
 class TestSessionGuessing(unittest.TestCase):

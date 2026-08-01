@@ -80,10 +80,13 @@ class TestReviewer(unittest.TestCase):
         self.assertNotIn("--model", reviewer.command_for("claude"))
         self.assertNotIn("-m", reviewer.command_for("codex"))
 
-    def test_fallback_forces_a_different_model_than_the_coder(self):
-        # The whole point of the coder<->reviewer split is an independent
-        # opinion. When the cross-vendor CLI is missing we have to run on the
-        # coder's vendor, so the model MUST differ or it is a self-review.
+    def test_fallback_pins_the_configured_model(self):
+        # Renamed from "...forces_a_different_model...": that name overstated
+        # what this proves. It only shows fallback_models[vendor] gets passed
+        # through to the argv — nothing here compares it to the coder's model,
+        # and nothing in the code does either (see reviewer.py's docstring,
+        # #93). A user who configures the SAME model they code with gets a
+        # same-model review and this test would still pass.
         calls = []
 
         def fake_run(cmd, prompt, cwd, timeout):
@@ -97,7 +100,7 @@ class TestReviewer(unittest.TestCase):
         self.assertTrue(result.fallback_used)
         self.assertEqual(result.model, "sonnet")
         self.assertEqual(calls[0][0], "claude")
-        self.assertEqual(calls[0][-2:], ["--model", "sonnet"], "reviewer must be pinned off the coder's model")
+        self.assertEqual(calls[0][-2:], ["--model", "sonnet"], "configured fallback model must reach argv")
 
     def test_fallback_without_configured_model_does_not_invent_one(self):
         # No configured fallback model -> no --model flag. Better to run the
