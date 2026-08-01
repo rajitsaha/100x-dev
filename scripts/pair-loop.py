@@ -217,12 +217,16 @@ def cmd_review(args):
                     glob.glob(os.path.join(codex.SOURCE_DIR, "**", "*.jsonl"), recursive=True)} \
         if os.path.isdir(codex.SOURCE_DIR) else {}
 
-    result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command)
+    fallback_models = _config.load_config()["pair_loop"].get("fallback_models", {})
+
+    result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
+                             fallback_models=fallback_models)
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
         retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
-        result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command)
+        result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command,
+                                 fallback_models=fallback_models)
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:
@@ -234,6 +238,9 @@ def cmd_review(args):
     if result.fallback_used:
         actual_tool = "claude" if manifest["reviewer"] == "codex" else "codex"
         manifest["reviewer_fallback"] = True
+        # Record the model too: "claude reviewed claude" is only acceptable
+        # because a different model ran, so the model is the evidence.
+        manifest["reviewer_fallback_model"] = result.model
 
     session_id = (_guess_current_codex_session(codex_before) if actual_tool == "codex"
                   else _guess_current_claude_session(cwd))
@@ -241,7 +248,83 @@ def cmd_review(args):
     run_manifest.close_round(manifest, round_, findings=len(findings), verdict=verdict)
     handoff.append_reviewer_round(os.path.join(cwd, handoff.HANDOFF_FILENAME),
                                   round_["n"], actual_tool, findings, verdict)
-    print(json.dumps({"verdict": verdict, "findings": findings, "fallback_used": result.fallback_used}))
+    print(json.dumps({"verdict": verdict, "findings": findings,
+                      "fallback_used": result.fallback_used,
+                      "reviewer_model": result.model}))
+
+
+def render_review_summary(manifest):
+    """Markdown summary of the loop, for posting as a PR comment.
+
+    A reviewer on GitHub otherwise sees only the final diff, with no evidence
+    that an adversarial pass happened at all. This records who reviewed, on
+    which model, how many rounds it took, and how many findings were raised
+    and resolved.
+    """
+    reviewer_rounds = [r for r in manifest["rounds"] if r["role"] == "reviewer"]
+    coder_rounds = [r for r in manifest["rounds"] if r["role"] == "coder"]
+    findings_raised = sum(r.get("findings") or 0 for r in reviewer_rounds)
+    findings_addressed = sum(r.get("findings_addressed") or 0 for r in coder_rounds)
+
+    reviewer_label = manifest["reviewer"]
+    if manifest.get("reviewer_fallback"):
+        # Name the model explicitly — it is the only thing separating this from
+        # a self-review, so burying it would misrepresent the result.
+        actual = "claude" if manifest["reviewer"] == "codex" else "codex"
+        model = manifest.get("reviewer_fallback_model") or "unspecified"
+        reviewer_label = f"{actual} (`{model}`)"
+
+    lines = [
+        "## Pair-loop review",
+        "",
+        "| | |",
+        "|---|---|",
+        f"| Coder | {manifest['coder']} |",
+        f"| Reviewer | {reviewer_label} |",
+        f"| Rounds | {manifest['outcome']['rounds']} |",
+        f"| Findings raised | {findings_raised} |",
+        f"| Findings addressed | {findings_addressed} |",
+        f"| Verdict | **{manifest['outcome']['verdict']}** |",
+        "",
+    ]
+
+    if manifest.get("reviewer_fallback"):
+        lines += [
+            f"> ⚠️ **Cross-vendor review unavailable.** The `{manifest['reviewer']}` CLI "
+            f"was not on PATH, so the review ran on the coder's own vendor with a "
+            f"different model. This is weaker than a true cross-vendor review — treat "
+            f"the approval accordingly.",
+            "",
+        ]
+
+    for r in reviewer_rounds:
+        lines.append(
+            f"- Round {r['n']} — {r.get('findings', 0)} finding(s), "
+            f"{r.get('verdict', 'no verdict')}"
+        )
+
+    return "\n".join(lines) + "\n"
+
+
+def post_pr_comment(pr, body, cwd, run=None):
+    """Post `body` to PR `pr` via gh. Returns True on success.
+
+    A failed post must not fail the run: the review itself already happened and
+    is recorded in the manifest, so a network blip or a missing gh should warn,
+    not discard the result.
+    """
+    run = run or (lambda cmd, **kw: subprocess.run(cmd, **kw))
+    try:
+        result = run(["gh", "pr", "comment", str(pr), "--body", body],
+                     cwd=cwd, capture_output=True, text=True)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"warning: could not post review summary to PR #{pr}: {exc}", file=sys.stderr)
+        return False
+    if result.returncode != 0:
+        print(f"warning: could not post review summary to PR #{pr}: "
+              f"{(result.stderr or '').strip()}", file=sys.stderr)
+        return False
+    return True
 
 
 def cmd_finish(args):
@@ -270,7 +353,15 @@ def cmd_finish(args):
                              f"{manifest['run_id']}-pr-body.md")
     with open(body_path, "w", encoding="utf-8") as f:
         f.write(body)
-    print(json.dumps({"pr_body_path": body_path}))
+
+    # Only once the PR exists (the second `finish` call — see the comment above)
+    # is there somewhere to post the summary.
+    summary_posted = False
+    if manifest.get("pr") is not None and not args.no_comment:
+        summary_posted = post_pr_comment(manifest["pr"], render_review_summary(manifest),
+                                         manifest["cwd"])
+
+    print(json.dumps({"pr_body_path": body_path, "summary_posted": summary_posted}))
 
 
 def main():
@@ -302,6 +393,8 @@ def main():
     p_finish.add_argument("--run", required=True)
     p_finish.add_argument("--verdict", required=True, choices=["APPROVED", "CHANGES_REQUESTED"])
     p_finish.add_argument("--pr", type=int, default=None)
+    p_finish.add_argument("--no-comment", action="store_true",
+                          help="skip posting the review summary to the PR")
     p_finish.set_defaults(func=cmd_finish)
 
     args = ap.parse_args()

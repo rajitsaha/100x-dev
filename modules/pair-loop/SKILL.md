@@ -54,10 +54,15 @@ python3 ~/100xprism/scripts/pair-loop.py coder-done --run "$RUN_ID" \
 python3 ~/100xprism/scripts/pair-loop.py review --run "$RUN_ID"
 ```
 
-This shells out to the configured reviewer (falling back to the coder's vendor
-if that CLI is missing — the output will say `"fallback_used": true`; mention
-this to the user once, don't repeat it every round) and returns
-`{"verdict":, "findings": [...], "fallback_used":}`.
+This shells out to the configured reviewer and returns
+`{"verdict":, "findings": [...], "fallback_used":, "reviewer_model":}`.
+
+If the reviewer's CLI is missing, it falls back to the coder's vendor **on a
+different model** (`pair_loop.fallback_models`, default `sonnet` for Claude and
+`gpt-5.6-luna` for Codex) so the review isn't a same-model self-review. The
+output says `"fallback_used": true` with the model in `"reviewer_model"` —
+mention it to the user once, don't repeat it every round. If neither CLI is on
+PATH the command fails with both binaries named; that is a stop condition.
 
 - `"verdict": "APPROVED"` → go to Step 5 (PR phase).
 - `"verdict": "CHANGES_REQUESTED"` and you have rounds remaining (round count
@@ -82,6 +87,11 @@ manifest records it for the dashboard's `$/merged-PR` metric:
 python3 ~/100xprism/scripts/pair-loop.py finish --run "$RUN_ID" --verdict APPROVED --pr <NUMBER>
 ```
 
+This second call also posts a review summary to the PR — rounds, reviewer tool
+and model, findings raised/resolved, verdict, and an explicit warning when the
+fallback was used. Pass `--no-comment` to skip it. A failed post warns and
+returns `"summary_posted": false`; it never fails the run.
+
 If `pair_loop.pr_final_round` is `true` in the config, run one more `review`
 round against the pushed PR diff before this step, and post any findings as a
 PR comment via `gh pr comment` — then do exactly one more local coder round to
@@ -93,4 +103,4 @@ address them before finishing.
 - Round cap hit without approval (Step 4).
 - Never auto-merge — a human merges the PR, always.
 
-**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true`), but do not block — this is not a stop condition.
+**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true` and name the model in `"reviewer_model"`), but do not block — this is not a stop condition. A same-vendor review on a different model is weaker than a cross-vendor one; the PR summary says so explicitly.

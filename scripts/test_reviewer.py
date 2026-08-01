@@ -41,12 +41,60 @@ class TestReviewer(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][2], "/repo")
 
-    def test_invoke_falls_back_to_same_vendor_when_cli_missing(self):
+    def test_command_for_pins_model_per_vendor(self):
+        self.assertEqual(reviewer.command_for("claude", "sonnet")[-2:], ["--model", "sonnet"])
+        self.assertEqual(reviewer.command_for("codex", "gpt-5.6-luna")[-2:], ["-m", "gpt-5.6-luna"])
+
+    def test_command_for_without_model_adds_no_flag(self):
+        # The cross-vendor path must keep each CLI's own configured default.
+        self.assertNotIn("--model", reviewer.command_for("claude"))
+        self.assertNotIn("-m", reviewer.command_for("codex"))
+
+    def test_fallback_forces_a_different_model_than_the_coder(self):
+        # The whole point of the coder<->reviewer split is an independent
+        # opinion. When the cross-vendor CLI is missing we have to run on the
+        # coder's vendor, so the model MUST differ or it is a self-review.
+        calls = []
+
+        def fake_run(cmd, prompt, cwd, timeout):
+            calls.append(cmd)
+            return "fallback review\nVERDICT: APPROVED"
+
+        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+            result = reviewer.invoke("codex", "review this", "/repo", run_command=fake_run,
+                                     fallback_models={"claude": "sonnet"})
+
+        self.assertTrue(result.fallback_used)
+        self.assertEqual(result.model, "sonnet")
+        self.assertEqual(calls[0][0], "claude")
+        self.assertEqual(calls[0][-2:], ["--model", "sonnet"], "reviewer must be pinned off the coder's model")
+
+    def test_fallback_without_configured_model_does_not_invent_one(self):
+        # No configured fallback model -> no --model flag. Better to run the
+        # vendor default than to guess a model id that may not exist.
+        calls = []
+
+        def fake_run(cmd, prompt, cwd, timeout):
+            calls.append(cmd)
+            return "VERDICT: APPROVED"
+
+        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+            result = reviewer.invoke("codex", "x", "/repo", run_command=fake_run, fallback_models={})
+
+        self.assertTrue(result.fallback_used)
+        self.assertIsNone(result.model)
+        self.assertNotIn("--model", calls[0])
+
+    def test_invoke_raises_when_neither_cli_is_available(self):
+        # There is no reviewer to fall back to. Fail with both binaries named
+        # rather than letting subprocess raise FileNotFoundError on a command
+        # that was never going to run.
         with mock.patch("reviewer._which", return_value=None):
-            def fake_run(cmd, prompt, cwd, timeout):
-                return "fallback review\nVERDICT: APPROVED"
-            result = reviewer.invoke("codex", "review this", "/repo", run_command=fake_run)
-            self.assertTrue(result.fallback_used)
+            with self.assertRaises(RuntimeError) as ctx:
+                reviewer.invoke("codex", "review this", "/repo",
+                                run_command=lambda *a: "unused")
+        self.assertIn("codex", str(ctx.exception))
+        self.assertIn("claude", str(ctx.exception))
 
     def test_invoke_unsupported_tool_raises_even_when_path_lookup_fails(self):
         # A genuinely unsupported tool name must raise ValueError, not silently
