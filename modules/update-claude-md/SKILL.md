@@ -38,7 +38,7 @@ Short rules stick. Long paragraphs get ignored.
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 ```
 
 Append the rule under a `## Rules` or `## Corrections` section in the project's instruction file. If no instruction file exists, create `CLAUDE.md` in the project root.

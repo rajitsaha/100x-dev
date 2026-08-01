@@ -193,13 +193,13 @@ test_adapter_writes_tracked_projects() {
     export HUNDRED_X_REPO_OVERRIDE="$fake_repo"
     bash -c "
       source '$REPO_DIR/adapters/lib/shared.sh'
-      _run_generate '$project_dir' '.cursorrules' 'TestTool'
+      _run_cursor '$project_dir'
     "
   ) 2>/dev/null || true
 
   local tracked="$HOME/.100xprism/tracked-projects"
   if grep -qxF "$project_dir" "$tracked" 2>/dev/null; then
-    echo "  PASS: _run_generate writes project path to tracked-projects"
+    echo "  PASS: _run_cursor writes project path to tracked-projects"
     (( PASS++ )) || true
   else
     echo "  FAIL: project path not found in tracked-projects"

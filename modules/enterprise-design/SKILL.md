@@ -26,7 +26,7 @@ Produce a comprehensive technical blueprint for a web product or SaaS, suitable 
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 [ -n "$INSTRUCTION_FILE" ] && head -100 "$INSTRUCTION_FILE"
 ```
 

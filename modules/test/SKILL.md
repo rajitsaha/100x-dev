@@ -51,7 +51,7 @@ Defaults below apply **only when the project does not declare its own** — chec
 #   - the instruction file (CLAUDE.md/AGENTS.md/…): a line like "coverage: lines 80, branches 70"
 #   - jest/vitest config: coverageThreshold.global.{lines,functions,statements,branches}
 #   - pyproject.toml / .coveragerc: [tool.coverage.report] fail_under
-grep -hiE "coverage(Threshold)?|fail_under" CLAUDE.md AGENTS.md GEMINI.md jest.config.* vitest.config.* vite.config.* pyproject.toml .coveragerc 2>/dev/null | head
+grep -hiE "coverage(Threshold)?|fail_under" CLAUDE.md AGENTS.md jest.config.* vitest.config.* vite.config.* pyproject.toml .coveragerc 2>/dev/null | head
 ```
 
 | Metric | Default threshold (project-declared value overrides) |

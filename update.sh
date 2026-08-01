@@ -205,25 +205,40 @@ regenerate_tracked_projects() {
   local tracked="$HOME/.100xprism/tracked-projects"
   [[ -f "$tracked" ]] || return 0
 
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/adapters/lib/deprecated.sh"
+
   local count=0
+  local pruned_total=0
+  local pruned_projects=0
   while IFS= read -r project_path; do
     [[ -z "$project_path" ]] && continue
     [[ -d "$project_path" ]] || continue  # skip deleted projects
 
     local regenerated=false
 
-    [[ -f "$project_path/.cursorrules" ]]                    && bash "$REPO_DIR/adapters/cursor.sh"      "$project_path" && regenerated=true
-    [[ -f "$project_path/AGENTS.md" ]]                       && bash "$REPO_DIR/adapters/codex.sh"       "$project_path" && regenerated=true
-    [[ -f "$project_path/.windsurfrules" ]]                  && bash "$REPO_DIR/adapters/windsurf.sh"    "$project_path" && regenerated=true
-    [[ -f "$project_path/.github/copilot-instructions.md" ]] && bash "$REPO_DIR/adapters/copilot.sh"    "$project_path" && regenerated=true
-    [[ -f "$project_path/GEMINI.md" ]]                       && bash "$REPO_DIR/adapters/gemini.sh"      "$project_path" && regenerated=true
-    [[ -f "$project_path/ANTIGRAVITY.md" ]]                  && bash "$REPO_DIR/adapters/antigravity.sh" "$project_path" && regenerated=true
+    { [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; } \
+      && bash "$REPO_DIR/adapters/cursor.sh" "$project_path" && regenerated=true
+    [[ -f "$project_path/AGENTS.md" ]] \
+      && bash "$REPO_DIR/adapters/codex.sh"  "$project_path" && regenerated=true
+
+    # Prune artifacts from tools dropped in v3.0.0 (Windsurf/Copilot/Gemini/Antigravity).
+    prune_deprecated_artifacts "$project_path"
+    if (( PRUNED_COUNT > 0 )); then
+      echo -e "  ${YELLOW}→ $project_path: removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
+      pruned_total=$(( pruned_total + PRUNED_COUNT ))
+      pruned_projects=$(( pruned_projects + 1 ))
+    fi
 
     "$regenerated" && (( count++ )) || true
   done < "$tracked"
 
   if (( count > 0 )); then
     echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
+  fi
+  if (( pruned_total > 0 )); then
+    echo -e "  ${GREEN}→ Pruned $pruned_total deprecated file(s) across $pruned_projects project(s) ✓${NC}"
+    echo -e "  ${CYAN}   These are usually committed — review with 'git status' and commit the deletions.${NC}"
   fi
 }
 

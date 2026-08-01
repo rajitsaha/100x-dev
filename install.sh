@@ -32,7 +32,7 @@ TOOL_CLAUDE=false
 
 select_tools() {
   echo "This installs 100xPrism globally for Claude Code."
-  echo "To set up Cursor, Codex, Windsurf, Copilot, Gemini, or Antigravity in a project,"
+  echo "To set up Cursor or Codex in a project,"
   echo "run  100xprism init  from that project directory after this completes."
   echo ""
   read -rp "  Install for Claude Code? [Y/n]: " yn || true
@@ -185,11 +185,8 @@ install_templates() {
   echo ""
   echo "  Copy a template into your project and rename for your tool:"
   echo "    Claude Code  →  CLAUDE.md"
-  echo "    Cursor       →  .cursorrules"
+  echo "    Cursor       →  .cursor/rules/"
   echo "    Codex        →  AGENTS.md"
-  echo "    Windsurf     →  .windsurfrules"
-  echo "    Copilot      →  .github/copilot-instructions.md"
-  echo "    Gemini CLI   →  GEMINI.md"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────

@@ -44,7 +44,7 @@ Security fixes are applied to the **latest minor release** on the `main` branch.
 
 **Out of scope:**
 
-- Vulnerabilities in **upstream tools** that 100xprism integrates with (Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini, Antigravity, npm, GitHub Actions). Report those to the respective vendors.
+- Vulnerabilities in **upstream tools** that 100xprism integrates with (Claude Code, Cursor, Codex, npm, GitHub Actions). Report those to the respective vendors.
 - Vulnerabilities in **your project's** dependencies or generated CI workflows after `100xprism init` runs — these are your project's responsibility.
 - Issues that require an attacker to already have write access to your machine, your `.env`, or your shell config.
 - Social-engineering or phishing scenarios that don't involve a flaw in this codebase.

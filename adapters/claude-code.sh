@@ -35,15 +35,12 @@ install_project() {
   local project_path="${1:-.}"
   local instruction_file=""
 
-  for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md; do
+  for f in CLAUDE.md AGENTS.md .cursorrules; do
     if [ -f "$project_path/$f" ]; then
       instruction_file="$project_path/$f"
       break
     fi
   done
-  if [ -f "$project_path/.github/copilot-instructions.md" ]; then
-    instruction_file="$project_path/.github/copilot-instructions.md"
-  fi
 
   if [ -n "$instruction_file" ]; then
     echo -e "  ${CYAN}→ Instruction file already exists: $instruction_file (skipping scaffold)${NC}"

@@ -81,18 +81,17 @@ test('cursor .mdc emits a vendor-neutral tier hint, never a Claude model name', 
   }
 })
 
-test('concat output surfaces the tier hint for a routed core module', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), '100x-concat-'))
-  const out = path.join(tmp, 'AGENTS.md')
-  py('emit-concat', out)
-  const text = fs.readFileSync(out, 'utf8')
-  assert.match(text, /Suggested model tier:/, 'concat should carry tier hints')
+test('codex index surfaces the tier hint for a routed core module', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), '100x-codex-'))
+  py('emit-codex', tmp)
+  const text = fs.readFileSync(path.join(tmp, '.agents', '100x-index.md'), 'utf8')
+  assert.match(text, /Suggested model tier:/, 'codex index should carry tier hints')
   // Both the fast (haiku) and the balanced (sonnet) tiers must be represented,
   // proving the middle tier introduced by the P1 re-tier actually emits.
-  assert.match(text, /fast \/ low-cost/, 'concat should carry the haiku tier hint')
-  assert.match(text, /balanced \(moderate reasoning\)/, 'concat should carry the sonnet tier hint')
+  assert.match(text, /fast \/ low-cost/, 'codex index should carry the haiku tier hint')
+  assert.match(text, /balanced \(moderate reasoning\)/, 'codex index should carry the sonnet tier hint')
   for (const name of CLAUDE_MODEL_IDS) {
-    assert.ok(!text.includes(name), `concat must not leak Claude model name "${name}"`)
+    assert.ok(!text.includes(name), `codex index must not leak Claude model name "${name}"`)
   }
 })
 

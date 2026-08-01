@@ -24,7 +24,7 @@ git log --oneline -20
 git status
 
 # Detect the stack so later steps don't assume GCP/npm (canonical block — source: _lib/reference.md)
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 CLOUD=""
 if command -v gcloud >/dev/null 2>&1 && gcloud config get-value project >/dev/null 2>&1; then CLOUD=gcp; fi
 [ -z "$CLOUD" ] && grep -rqiE "aws_|amazonaws|::aws" "$PROJECT_ROOT"/terraform "$PROJECT_ROOT"/infra "$PROJECT_ROOT"/cdk.json 2>/dev/null && CLOUD=aws

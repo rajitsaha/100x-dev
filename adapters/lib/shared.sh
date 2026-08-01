@@ -13,33 +13,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# _run_concat <project_path> <output_file_relative> <display_name> [<mode>] [<warning>]
-#
-# Used by tools that consume a single rules file (Codex AGENTS.md, Windsurf, etc.).
-# mode is 'concat' (default — full core bodies + on-demand index) or 'index'
-# (one-line per module; used when the tool has tight size limits).
-_run_concat() {
-  local project_path="$1"
-  local output_rel="$2"
-  local display_name="$3"
-  local mode="${4:-concat}"
-  local warning_message="${5:-}"
-
-  local output_file="$project_path/$output_rel"
-  mkdir -p "$(dirname "$output_file")"
-
-  echo ""
-  echo "Generating $output_rel for $display_name..."
-  if [[ -n "$warning_message" ]]; then
-    echo -e "${YELLOW}${warning_message}${NC}"
-  fi
-
-  python3 "$MODULES_PY" emit-concat "$output_file" "$mode"
-
-  _track_project "$project_path"
-  echo -e "  ${GREEN}→ Generated $output_file ✓${NC}"
-}
-
 # _run_cursor <project_path>
 # Cursor supports per-rule files with description-based auto-trigger, so we
 # write one .cursor/rules/<slug>.mdc per module.
@@ -74,10 +47,4 @@ _track_project() {
   if ! grep -qxF "$_abs_path" "$_tracked_file" 2>/dev/null; then
     echo "$_abs_path" >> "$_tracked_file"
   fi
-}
-
-# Back-compat: old adapters call _run_generate with a single output file.
-# Keep it as an alias for _run_concat with default 'concat' mode.
-_run_generate() {
-  _run_concat "$@"
 }
