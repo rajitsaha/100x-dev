@@ -126,7 +126,7 @@ class TestPairLoopReview(unittest.TestCase):
         self.assertTrue(out.get("fallback_used") is not None)  # key present
 
         with open(call_log) as f:
-            calls = [l for l in f.read().splitlines() if l]
+            calls = [line for line in f.read().splitlines() if line]
         self.assertEqual(len(calls), 2, "reviewer must be invoked exactly twice: "
                           "the original ask + exactly one re-ask")
 
@@ -181,7 +181,7 @@ class TestPairLoopReview(unittest.TestCase):
         self.assertEqual(out["verdict"], "APPROVED")
 
         with open(call_log) as f:
-            calls = [l for l in f.read().splitlines() if l]
+            calls = [line for line in f.read().splitlines() if line]
         self.assertEqual(len(calls), 1, "a parseable first verdict must not trigger a re-ask")
 
     def test_review_prompt_includes_untracked_file_content(self):

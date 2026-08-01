@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Everything below installs into and reads from $HOME. Under `set -u` an unset
+# HOME aborts with an opaque "unbound variable" at the first expansion, so fail
+# with an explanation instead.
+if [ -z "${HOME:-}" ]; then
+  echo "100xprism update: HOME is not set; cannot locate ~/.claude or ~/.100xprism." >&2
+  exit 1
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
@@ -115,6 +123,92 @@ git fetch origin main --quiet 2>/dev/null
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
 
+# ── Regenerate tracked project instruction files ────────────────────────────
+# Defined above the "already up to date" early exit so both paths run it: a v3
+# migration that was interrupted after the pull must still get another chance to
+# prune, rather than being skipped forever once HEAD matches origin.
+
+regenerate_tracked_projects() {
+  local tracked="$HOME/.100xprism/tracked-projects"
+  [[ -f "$tracked" ]] || return 0
+
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/adapters/lib/deprecated.sh"
+
+  local count=0
+  local pruned_total=0
+  local pruned_projects=0
+  local prune_failures=0
+  local adapter_failures=0
+  # One backup root for the whole run, so every removal is reported as a single
+  # recoverable location even if the loop crosses a one-second boundary.
+  local backup_dir
+  backup_dir="$(prune_backup_root)"
+
+  while IFS= read -r project_path; do
+    [[ -z "$project_path" ]] && continue
+    [[ -d "$project_path" ]] || continue  # skip deleted projects
+
+    local regenerated=false
+
+    # Explicit if-blocks, not `&&` chains: inside an AND-list a failing adapter is
+    # exempt from `errexit`, so a broken regeneration used to be silently reported
+    # as "not regenerated" while the update still claimed success.
+    if [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; then
+      if bash "$REPO_DIR/adapters/cursor.sh" "$project_path"; then
+        regenerated=true
+      else
+        echo -e "  ${YELLOW}→ $project_path: Cursor adapter failed${NC}"
+        adapter_failures=$(( adapter_failures + 1 ))
+      fi
+    fi
+    if [[ -f "$project_path/AGENTS.md" ]]; then
+      if bash "$REPO_DIR/adapters/codex.sh" "$project_path"; then
+        regenerated=true
+      else
+        echo -e "  ${YELLOW}→ $project_path: Codex adapter failed${NC}"
+        adapter_failures=$(( adapter_failures + 1 ))
+      fi
+    fi
+
+    # Prune artifacts from tools dropped in v3.0.0 (Windsurf/Copilot/Gemini/Antigravity).
+    prune_deprecated_artifacts "$project_path" "$backup_dir"
+    if (( PRUNED_COUNT > 0 )); then
+      echo -e "  ${YELLOW}→ $project_path: removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
+      pruned_total=$(( pruned_total + PRUNED_COUNT ))
+      pruned_projects=$(( pruned_projects + 1 ))
+    fi
+    (( PRUNE_FAILED > 0 )) && prune_failures=$(( prune_failures + PRUNE_FAILED ))
+
+    "$regenerated" && (( count++ )) || true
+  done < "$tracked" || {
+    # Calling this function in an OR-list suspends errexit inside it, so an
+    # unreadable tracked file (deleted or chmod'd between the -f test and this
+    # redirection) would otherwise fall through to `return 0` and report success.
+    echo -e "  ${YELLOW}→ Could not read $tracked; no projects were reconciled${NC}"
+    return 1
+  }
+
+  if (( count > 0 )); then
+    echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
+  fi
+  if (( pruned_total > 0 )); then
+    echo -e "  ${GREEN}→ Pruned $pruned_total deprecated file(s) across $pruned_projects project(s) ✓${NC}"
+    echo -e "  ${CYAN}   Backups: $backup_dir${NC}"
+    echo -e "  ${CYAN}   These are usually committed — review with 'git status' and commit the deletions.${NC}"
+  fi
+  if (( prune_failures > 0 )); then
+    echo -e "  ${YELLOW}→ $prune_failures deprecated file(s) could not be removed and were left in place${NC}"
+  fi
+  if (( adapter_failures > 0 )); then
+    echo -e "  ${YELLOW}→ $adapter_failures adapter run(s) failed; those projects were not regenerated${NC}"
+  fi
+  # Non-zero so automation sees an incomplete regeneration instead of a silent
+  # partial success. Callers decide whether that is fatal.
+  (( adapter_failures > 0 || prune_failures > 0 )) && return 1
+  return 0
+}
+
 if [ "$LOCAL" = "$REMOTE" ]; then
   echo -e "${GREEN}✓ Repo already up to date.${NC}"
   echo ""
@@ -123,10 +217,20 @@ if [ "$LOCAL" = "$REMOTE" ]; then
     --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
   sync_hooks
   run_plugin_updates
+  # Still reconcile projects: an earlier run may have pulled v3 and then failed
+  # before pruning, and without this the migration would never be retried.
+  # NEVER under --check-only: that contract is notify-only, and reconciliation
+  # DELETES deprecated artifacts from the user's repositories.
+  RECONCILE_STATUS=0
+  if [ "$CHECK_ONLY" = true ]; then
+    echo -e "  ${CYAN}→ --check-only: skipping project reconciliation (it would delete deprecated files)${NC}"
+  else
+    regenerate_tracked_projects || RECONCILE_STATUS=$?
+  fi
   echo ""
   echo -e "${CYAN}Tip: Restart Claude Code to activate any plugin changes.${NC}"
   echo ""
-  exit 0
+  exit "$RECONCILE_STATUS"
 fi
 
 CHANGES=$(git log --oneline "$LOCAL..$REMOTE" 2>/dev/null)
@@ -199,33 +303,6 @@ sync_hooks
 # ── Update Claude plugins ─────────────────────────────────────────────────────
 run_plugin_updates
 
-# ── Regenerate tracked project instruction files ────────────────────────────
-
-regenerate_tracked_projects() {
-  local tracked="$HOME/.100xprism/tracked-projects"
-  [[ -f "$tracked" ]] || return 0
-
-  local count=0
-  while IFS= read -r project_path; do
-    [[ -z "$project_path" ]] && continue
-    [[ -d "$project_path" ]] || continue  # skip deleted projects
-
-    local regenerated=false
-
-    [[ -f "$project_path/.cursorrules" ]]                    && bash "$REPO_DIR/adapters/cursor.sh"      "$project_path" && regenerated=true
-    [[ -f "$project_path/AGENTS.md" ]]                       && bash "$REPO_DIR/adapters/codex.sh"       "$project_path" && regenerated=true
-    [[ -f "$project_path/.windsurfrules" ]]                  && bash "$REPO_DIR/adapters/windsurf.sh"    "$project_path" && regenerated=true
-    [[ -f "$project_path/.github/copilot-instructions.md" ]] && bash "$REPO_DIR/adapters/copilot.sh"    "$project_path" && regenerated=true
-    [[ -f "$project_path/GEMINI.md" ]]                       && bash "$REPO_DIR/adapters/gemini.sh"      "$project_path" && regenerated=true
-    [[ -f "$project_path/ANTIGRAVITY.md" ]]                  && bash "$REPO_DIR/adapters/antigravity.sh" "$project_path" && regenerated=true
-
-    "$regenerated" && (( count++ )) || true
-  done < "$tracked"
-
-  if (( count > 0 )); then
-    echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
-  fi
-}
 
 # Clear update-available flag from cache so banner stops showing
 if [[ -f "$HOME/.100xprism/update-cache" ]]; then
@@ -237,7 +314,11 @@ if [[ -f "$HOME/.100xprism/update-cache" ]]; then
   echo "snoozed_until=0"   >> "$HOME/.100xprism/update-cache"
 fi
 
-regenerate_tracked_projects
+# `|| RECONCILE_STATUS=$?` keeps `set -e` from aborting: a project-level adapter
+# or prune failure must not discard the successful global update, but it must
+# still surface in this script's exit status.
+RECONCILE_STATUS=0
+regenerate_tracked_projects || RECONCILE_STATUS=$?
 
 echo ""
 NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
@@ -247,3 +328,5 @@ echo -e "${CYAN}Tip: Add this to your crontab — notify weekly, or auto-apply w
 echo "  0 9 * * 1 $REPO_DIR/update.sh --check-only   # notify only"
 echo "  0 9 * * 1 $REPO_DIR/update.sh --yes          # auto-apply (no prompt)"
 echo ""
+
+exit "$RECONCILE_STATUS"

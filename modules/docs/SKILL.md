@@ -82,7 +82,7 @@ done
 ## Step 5 — Stage doc files only
 
 ```bash
-git add docs/ README.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md ROADMAP.md ARCHITECTURE.md 2>/dev/null
+git add docs/ README.md CLAUDE.md AGENTS.md .cursorrules ROADMAP.md ARCHITECTURE.md 2>/dev/null
 git diff --cached --stat
 ```
 

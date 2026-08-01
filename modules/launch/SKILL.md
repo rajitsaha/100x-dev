@@ -149,7 +149,7 @@ After CI/CD passes and deployment completes, run the full verification pipeline.
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 ```
 
 ### Step 1 — Health checks
@@ -290,8 +290,8 @@ If new features were implemented or bugs fixed, update the feature audit table. 
 
 ### 7d. Commit doc updates (if any changed)
 ```bash
-git diff --name-only ROADMAP.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md 2>/dev/null | grep -q . && \
-  git add ROADMAP.md CLAUDE.md AGENTS.md .cursorrules .windsurfrules GEMINI.md 2>/dev/null && \
+git diff --name-only ROADMAP.md CLAUDE.md AGENTS.md .cursorrules 2>/dev/null | grep -q . && \
+  git add ROADMAP.md CLAUDE.md AGENTS.md .cursorrules 2>/dev/null && \
   git commit -m "docs: update issue tracker counts and documentation after launch" && \
   git push origin main || true
 ```

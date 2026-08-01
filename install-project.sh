@@ -20,10 +20,6 @@ echo ""
 TOOL_CLAUDE=false
 TOOL_CURSOR=false
 TOOL_CODEX=false
-TOOL_WINDSURF=false
-TOOL_COPILOT=false
-TOOL_GEMINI=false
-TOOL_ANTIGRAVITY=false
 
 select_tools() {
   echo "Which AI coding tools do you use in this project?"
@@ -34,29 +30,19 @@ select_tools() {
     echo "  [$([ "$TOOL_CLAUDE" = true ] && echo "x" || echo " ")] 1) Claude Code"
     echo "  [$([ "$TOOL_CURSOR" = true ] && echo "x" || echo " ")] 2) Cursor"
     echo "  [$([ "$TOOL_CODEX" = true ] && echo "x" || echo " ")] 3) Codex (OpenAI)"
-    echo "  [$([ "$TOOL_WINDSURF" = true ] && echo "x" || echo " ")] 4) Windsurf"
-    echo "  [$([ "$TOOL_COPILOT" = true ] && echo "x" || echo " ")] 5) Copilot CLI"
-    echo "  [$([ "$TOOL_GEMINI" = true ] && echo "x" || echo " ")] 6) Gemini CLI"
-    echo "  [$([ "$TOOL_ANTIGRAVITY" = true ] && echo "x" || echo " ")] 7) Antigravity"
     echo ""
-    read -rp "  Toggle (1-7) or press Enter to confirm: " choice || true
+    read -rp "  Toggle (1-3) or press Enter to confirm: " choice || true
     case "$choice" in
       1) TOOL_CLAUDE=$([ "$TOOL_CLAUDE" = true ] && echo false || echo true) ;;
       2) TOOL_CURSOR=$([ "$TOOL_CURSOR" = true ] && echo false || echo true) ;;
       3) TOOL_CODEX=$([ "$TOOL_CODEX" = true ] && echo false || echo true) ;;
-      4) TOOL_WINDSURF=$([ "$TOOL_WINDSURF" = true ] && echo false || echo true) ;;
-      5) TOOL_COPILOT=$([ "$TOOL_COPILOT" = true ] && echo false || echo true) ;;
-      6) TOOL_GEMINI=$([ "$TOOL_GEMINI" = true ] && echo false || echo true) ;;
-      7) TOOL_ANTIGRAVITY=$([ "$TOOL_ANTIGRAVITY" = true ] && echo false || echo true) ;;
       "") break ;;
-      *) echo "  Invalid choice. Enter 1-7." ;;
+      *) echo "  Invalid choice. Enter 1-3." ;;
     esac
     echo ""
   done
 
-  if [ "$TOOL_CLAUDE" = false ] && [ "$TOOL_CURSOR" = false ] && [ "$TOOL_CODEX" = false ] && \
-     [ "$TOOL_WINDSURF" = false ] && [ "$TOOL_COPILOT" = false ] && [ "$TOOL_GEMINI" = false ] && \
-     [ "$TOOL_ANTIGRAVITY" = false ]; then
+  if [ "$TOOL_CLAUDE" = false ] && [ "$TOOL_CURSOR" = false ] && [ "$TOOL_CODEX" = false ]; then
     echo -e "  ${YELLOW}No tools selected. Exiting.${NC}"
     exit 1
   fi
@@ -69,12 +55,20 @@ if [ "$TOOL_CLAUDE" = true ]; then
   install_project "$PROJECT_PATH"
 fi
 
-[ "$TOOL_CURSOR" = true ]      && bash "$REPO_DIR/adapters/cursor.sh"      "$PROJECT_PATH"
-[ "$TOOL_CODEX" = true ]       && bash "$REPO_DIR/adapters/codex.sh"       "$PROJECT_PATH"
-[ "$TOOL_WINDSURF" = true ]    && bash "$REPO_DIR/adapters/windsurf.sh"    "$PROJECT_PATH"
-[ "$TOOL_COPILOT" = true ]     && bash "$REPO_DIR/adapters/copilot.sh"     "$PROJECT_PATH"
-[ "$TOOL_GEMINI" = true ]      && bash "$REPO_DIR/adapters/gemini.sh"      "$PROJECT_PATH"
-[ "$TOOL_ANTIGRAVITY" = true ] && bash "$REPO_DIR/adapters/antigravity.sh" "$PROJECT_PATH"
+[ "$TOOL_CURSOR" = true ] && bash "$REPO_DIR/adapters/cursor.sh" "$PROJECT_PATH"
+[ "$TOOL_CODEX" = true ]  && bash "$REPO_DIR/adapters/codex.sh"  "$PROJECT_PATH"
+
+# Prune artifacts from tools dropped in v3.0.0. This is the path that reaches
+# repos `update` cannot see — ones cloned fresh, or set up on another machine,
+# so they were never added to ~/.100xprism/tracked-projects.
+# shellcheck disable=SC1091
+source "$REPO_DIR/adapters/lib/deprecated.sh"
+prune_deprecated_artifacts "$PROJECT_PATH"
+if (( PRUNED_COUNT > 0 )); then
+  echo ""
+  echo -e "  ${YELLOW}→ Removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
+  echo -e "  ${CYAN}   Usually committed — review with 'git status' and commit the deletions.${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}✓ Project set up!${NC}"

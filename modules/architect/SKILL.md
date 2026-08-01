@@ -30,7 +30,7 @@ Detect the stack first (canonical block — source: `_lib/reference.md`), then r
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel); cd "$PROJECT_ROOT"
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 
 # Cloud provider: gcp | aws | azure | vercel | "" (config / IaC / instruction-file grep — no network)
 CLOUD=""

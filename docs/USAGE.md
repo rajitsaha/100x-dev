@@ -13,7 +13,8 @@ Each module is the **single source of truth**. Adapters generate the right forma
 | **Global install** | Claude Code | Each module → `~/.claude/skills/<slug>/SKILL.md`, plus slash command aliases in `~/.claude/commands/` |
 | **Per-project (multi-file)** | Cursor | One file per module → `.cursor/rules/<slug>.mdc` (auto-trigger via description) |
 | **Per-project (Codex-native)** | Codex | Compact `AGENTS.md` + repo skills in `.agents/skills/` + hooks in `.codex/hooks.json` |
-| **Per-project (single-file)** | Windsurf, Copilot, Gemini, Antigravity | Core modules inlined + on-demand index → `.windsurfrules` / `GEMINI.md` / etc. |
+
+> Windsurf, Copilot, Gemini, and Antigravity were supported through v2.x via a single concatenated instruction file. That surface was removed in v3.0.0 — see the release notes.
 
 ---
 
@@ -48,7 +49,7 @@ The installer:
 cd my-project && 100xprism init
 ```
 
-This generates the right instruction files for each enabled tool (`.cursor/rules/`, `AGENTS.md`, `.agents/skills/`, `.codex/hooks.json`, `.windsurfrules`, etc.). **Commit the generated files** so teammates get the same modules on clone.
+This generates the right instruction files for each enabled tool (`.cursor/rules/`, `AGENTS.md`, `.agents/skills/`, `.codex/hooks.json`). **Commit the generated files** so teammates get the same modules on clone.
 
 For Codex, `AGENTS.md` stays compact and the full 100xprism modules are emitted as repo-scoped skills under `.agents/skills/`. Use `$gate`, `$commit`, `$test`, or `/skills` in Codex to invoke them explicitly. Generated Codex hooks live in `.codex/hooks.json`; review and trust them with `/hooks` before relying on enforcement.
 
@@ -80,7 +81,7 @@ Open Claude Code in your project and try:
 4. Reconciles plugins in `~/.claude/settings.json`: **adds** newly-declared plugins and **removes** ones 100xprism previously installed but has since dropped, without changing plugins you enabled or disabled yourself
 5. Runs `claude plugin update` for each plugin (updates across all scopes)
 6. Syncs any installed hooks to their latest versions
-7. Regenerates instruction files in all tracked projects (Codex `AGENTS.md`, `.windsurfrules`, etc. are rewritten wholesale, so removed modules simply stop appearing)
+7. Regenerates instruction files in all tracked projects (Cursor `.cursor/rules/` and Codex `AGENTS.md` are rewritten wholesale, so removed modules simply stop appearing)
 
 After updating, **restart your Claude Code session** to load the new modules and plugins.
 
@@ -198,7 +199,7 @@ Codex hooks are generated into `.codex/hooks.json`:
 
 Open `/hooks` in Codex to inspect and trust generated hooks. Claude Code plugins from `plugins/plugins.json` do not install into Codex; use Codex `/plugins` for Codex-native plugins and app/MCP integrations.
 
-### In other tools (Cursor, Windsurf, Copilot, Gemini)
+### In Cursor
 
 Reference modules by name in your prompts:
 
@@ -209,7 +210,7 @@ Reference modules by name in your prompts:
 "Run the security workflow on this project"
 ```
 
-In Cursor, modules auto-trigger from their description (same as Claude Code). In single-file tools (Windsurf, Copilot, Gemini), core modules are always available; on-demand modules appear as an index the AI can reference.
+Modules auto-trigger from their description (same as Claude Code). `tier: core` modules are written with `alwaysApply: true` and stay resident; the rest are agent-requested when their description matches.
 
 ---
 
@@ -312,7 +313,7 @@ Add to your team's onboarding checklist:
 - [ ] Open Claude Code and run /gate to verify
 ```
 
-For Cursor/Codex/Windsurf teams, commit the generated instruction file — new members get modules on clone.
+For Cursor/Codex teams, commit the generated instruction files — new members get modules on clone.
 
 ---
 

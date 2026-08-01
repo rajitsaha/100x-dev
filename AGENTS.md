@@ -4,7 +4,9 @@ Contributor contract for AI coding agents working on this repo. Users see `READM
 
 ## What this repo is
 
-100xprism is a **distributor**, not an app. The product is `modules/` (67 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format (Claude Code skills, Cursor `.mdc`, Codex repo skills + `AGENTS.md`, and Windsurf/Copilot/Gemini/Antigravity single-file configs). Users install via `npm i -g 100xprism` or `get.sh`.
+100xprism is a **distributor**, not an app. The product is `modules/` (67 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, and Codex repo skills + `AGENTS.md`. Users install via `npm i -g 100xprism` or `get.sh`.
+
+Every adapter uses progressive disclosure — descriptions in the always-on index, bodies loaded on demand. The single-file concat adapters (Windsurf/Copilot/Gemini/Antigravity) were removed in v3.0.0 precisely because they could not do this.
 
 ## The golden rule
 
@@ -24,7 +26,7 @@ slash_command: /<name>   # optional — only for the 27 command-style modules
 ---
 ```
 
-A module must work across **all 8 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
+A module must work across **all 3 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
 
 ## After editing a module
 
@@ -34,7 +36,7 @@ Run the Claude Code adapter as a smoke test — it surfaces frontmatter errors a
 ./adapters/claude-code.sh
 ```
 
-Expected output ends with `68 skills + 27 slash command aliases` (or whatever the current totals are). If the count drops unexpectedly, you broke a frontmatter parse.
+Expected output ends with `67 skills + 27 slash command aliases` (or whatever the current totals are). If the count drops unexpectedly, you broke a frontmatter parse.
 
 For the full repo check, run:
 

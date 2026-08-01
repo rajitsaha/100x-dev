@@ -30,7 +30,7 @@ ls package.json api/package.json requirements.txt pyproject.toml 2>/dev/null
 Read the project instruction file for any documented known exceptions before determining what is blocking:
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 [ -n "$INSTRUCTION_FILE" ] && grep -A3 -i "known exception\|security exception\|audit exception" "$INSTRUCTION_FILE" 2>/dev/null | head -30
 ```
 

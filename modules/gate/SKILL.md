@@ -89,7 +89,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 IS_CLOUD_PROJECT=false
 
 # Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules .windsurfrules .github/copilot-instructions.md GEMINI.md; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 
 # GCP: check for gcloud config, Terraform, or project instruction file references
 if [ -n "$INSTRUCTION_FILE" ] && grep -qE "gcloud|GCP_PROJECT|GOOGLE_CLOUD_PROJECT|Cloud Run|Cloud SQL|Firebase" \
