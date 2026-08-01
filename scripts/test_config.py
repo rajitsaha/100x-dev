@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _config
@@ -82,6 +83,39 @@ class TestConfig(unittest.TestCase):
         # must not raise when callers do cfg["budget"].get(...)
         self.assertIsNone(cfg["budget"].get("daily_usd"))
 
+class TestNestedMerge(unittest.TestCase):
+    """pair_loop.fallback_models is the first nested dict in the schema.
+
+    A shallow update() would replace it wholesale, so overriding one vendor
+    would silently drop the other and fail at lookup time — exactly when the
+    fallback matters most.
+    """
+
+    def _load_with(self, user_cfg):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(user_cfg, f)
+            with mock.patch.object(_config, "CONFIG_PATH", path):
+                return _config.load_config()
+
+    def test_partial_nested_override_keeps_other_keys(self):
+        cfg = self._load_with({"pair_loop": {"fallback_models": {"claude": "opus"}}})
+        self.assertEqual(cfg["pair_loop"]["fallback_models"]["claude"], "opus")
+        self.assertEqual(cfg["pair_loop"]["fallback_models"]["codex"], "gpt-5.6-luna",
+                         "overriding one vendor must not drop the other")
+
+    def test_sibling_keys_still_default(self):
+        cfg = self._load_with({"pair_loop": {"fallback_models": {"codex": "gpt-5.5"}}})
+        self.assertEqual(cfg["pair_loop"]["coder"], "claude")
+        self.assertEqual(cfg["pair_loop"]["max_rounds"], 3)
+
+    def test_returned_config_is_not_aliased_to_defaults(self):
+        # A shallow copy would share the nested dict with DEFAULTS, so a caller
+        # mutating its config would corrupt defaults process-wide.
+        cfg = self._load_with({})
+        cfg["pair_loop"]["fallback_models"]["claude"] = "MUTATED"
+        self.assertEqual(_config.DEFAULTS["pair_loop"]["fallback_models"]["claude"], "sonnet")
 
 if __name__ == "__main__":
     unittest.main()
