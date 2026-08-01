@@ -76,7 +76,8 @@ class LabelTest(unittest.TestCase):
 
 class ResolveDirTest(unittest.TestCase):
     def test_resolves_hyphenated_segment(self):
-        import tempfile, os
+        import tempfile
+        import os
         with tempfile.TemporaryDirectory() as root:
             # real path has a hyphen IN a segment: <root>/personal-github/100xprism
             target = os.path.join(root, "personal-github", "100xprism")

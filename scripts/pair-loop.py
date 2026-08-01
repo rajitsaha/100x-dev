@@ -25,7 +25,6 @@ import handoff  # noqa: E402
 import reviewer  # noqa: E402
 import _config  # noqa: E402
 import _budget  # noqa: E402
-import pricing  # noqa: E402
 import adapters.claude_code as claude_code  # noqa: E402
 import adapters.codex as codex  # noqa: E402
 

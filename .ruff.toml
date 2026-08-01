@@ -1,0 +1,7 @@
+# Ruff config for the 100xprism repo itself.
+
+# adapters/templates/ holds codegen templates, not runnable modules. They contain
+# placeholder tokens (e.g. __ALLOWED_HOOKS_JSON__) that the emitters substitute at
+# generation time, so static analysis reports them as undefined names. Linting the
+# rendered output is meaningful; linting the template is not.
+exclude = ["adapters/templates"]

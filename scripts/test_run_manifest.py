@@ -80,7 +80,6 @@ class TestRunManifest(unittest.TestCase):
         run_manifest.close_round(m, r1)
         m["rounds"][0]["started"] = "2026-07-09T10:00:00Z"
         m["rounds"][0]["ended"] = "2026-07-09T10:10:00Z"
-        import time as _time
         import calendar
         import _value
         in_window_mtime = calendar.timegm((2026, 7, 9, 10, 5, 0))
