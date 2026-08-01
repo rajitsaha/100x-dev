@@ -225,13 +225,15 @@ def cmd_review(args):
     require_cli = not args.reviewer_cmd
 
     result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
-                             fallback_models=fallback_models, require_cli=require_cli)
+                             fallback_models=fallback_models, require_cli=require_cli,
+                             coder=manifest["coder"])
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
         retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
         result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command,
-                                 fallback_models=fallback_models, require_cli=require_cli)
+                                 fallback_models=fallback_models, require_cli=require_cli,
+                             coder=manifest["coder"])
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:

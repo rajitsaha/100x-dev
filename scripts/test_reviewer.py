@@ -90,7 +90,7 @@ class TestReviewer(unittest.TestCase):
             calls.append(cmd)
             return "fallback review\nVERDICT: APPROVED"
 
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "review this", "/repo", run_command=fake_run,
                                      fallback_models={"claude": "sonnet"})
 
@@ -108,7 +108,7 @@ class TestReviewer(unittest.TestCase):
             calls.append(cmd)
             return "VERDICT: APPROVED"
 
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "x", "/repo", run_command=fake_run, fallback_models={})
 
         self.assertTrue(result.fallback_used)
@@ -119,7 +119,7 @@ class TestReviewer(unittest.TestCase):
         # config.json is user-editable and _config.py's contract is that
         # malformed input never raises. A scalar where a dict belongs must not
         # blow up at the exact moment the fallback is needed.
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "x", "/repo",
                                      run_command=lambda *a: "VERDICT: APPROVED",
                                      fallback_models="sonnet")
@@ -144,7 +144,7 @@ class TestReviewer(unittest.TestCase):
             with self.subTest(bad=bad):
                 calls = []
                 with mock.patch("reviewer._which",
-                                side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+                                side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
                     r = reviewer.invoke("codex", "x", "/repo",
                                         run_command=lambda cmd, *a: (calls.append(cmd), "VERDICT: APPROVED")[1],
                                         fallback_models={"claude": bad})
