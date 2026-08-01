@@ -52,7 +52,9 @@ prune_backup_root() {
     echo ""
     return 0
   fi
-  echo "$home/.100xprism/removed-artifacts/$(date +%Y%m%d-%H%M%S)"
+  # PID disambiguates two runs that start within the same second, which would
+  # otherwise share a root and let the later run overwrite the earlier backups.
+  echo "$home/.100xprism/removed-artifacts/$(date +%Y%m%d-%H%M%S)-$$"
 }
 
 # prune_deprecated_artifacts <project_path> [backup_root]
@@ -73,7 +75,11 @@ prune_deprecated_artifacts() {
   # /work/client/app and /work/internal/app share a basename, and keying by that
   # let the second backup overwrite the first while both originals were deleted —
   # silently destroying the recoverability this function exists to guarantee.
-  slot="$(printf '%s' "${real_project#/}" | tr '/' '_')"
+  #
+  # Sanitising separators alone is still lossy (/tmp/a_b/c and /tmp/a/b_c both
+  # collapse to tmp_a_b_c), so a checksum of the exact path is appended. The
+  # readable part is for humans; the checksum is what makes the slot injective.
+  slot="$(printf '%s' "${real_project#/}" | tr '/' '_')-$(printf '%s' "$real_project" | cksum | cut -d' ' -f1)"
 
   for f in "${DEPRECATED_ARTIFACTS[@]}"; do
     target="$project_path/$f"

@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Everything below installs into and reads from $HOME. Under `set -u` an unset
+# HOME aborts with an opaque "unbound variable" at the first expansion, so fail
+# with an explanation instead.
+if [ -z "${HOME:-}" ]; then
+  echo "100xprism update: HOME is not set; cannot locate ~/.claude or ~/.100xprism." >&2
+  exit 1
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
@@ -189,6 +197,10 @@ regenerate_tracked_projects() {
   if (( adapter_failures > 0 )); then
     echo -e "  ${YELLOW}→ $adapter_failures adapter run(s) failed; those projects were not regenerated${NC}"
   fi
+  # Non-zero so automation sees an incomplete regeneration instead of a silent
+  # partial success. Callers decide whether that is fatal.
+  (( adapter_failures > 0 || prune_failures > 0 )) && return 1
+  return 0
 }
 
 if [ "$LOCAL" = "$REMOTE" ]; then
@@ -201,11 +213,18 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   run_plugin_updates
   # Still reconcile projects: an earlier run may have pulled v3 and then failed
   # before pruning, and without this the migration would never be retried.
-  regenerate_tracked_projects
+  # NEVER under --check-only: that contract is notify-only, and reconciliation
+  # DELETES deprecated artifacts from the user's repositories.
+  RECONCILE_STATUS=0
+  if [ "$CHECK_ONLY" = true ]; then
+    echo -e "  ${CYAN}→ --check-only: skipping project reconciliation (it would delete deprecated files)${NC}"
+  else
+    regenerate_tracked_projects || RECONCILE_STATUS=$?
+  fi
   echo ""
   echo -e "${CYAN}Tip: Restart Claude Code to activate any plugin changes.${NC}"
   echo ""
-  exit 0
+  exit "$RECONCILE_STATUS"
 fi
 
 CHANGES=$(git log --oneline "$LOCAL..$REMOTE" 2>/dev/null)
@@ -289,7 +308,11 @@ if [[ -f "$HOME/.100xprism/update-cache" ]]; then
   echo "snoozed_until=0"   >> "$HOME/.100xprism/update-cache"
 fi
 
-regenerate_tracked_projects
+# `|| RECONCILE_STATUS=$?` keeps `set -e` from aborting: a project-level adapter
+# or prune failure must not discard the successful global update, but it must
+# still surface in this script's exit status.
+RECONCILE_STATUS=0
+regenerate_tracked_projects || RECONCILE_STATUS=$?
 
 echo ""
 NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
@@ -299,3 +322,5 @@ echo -e "${CYAN}Tip: Add this to your crontab — notify weekly, or auto-apply w
 echo "  0 9 * * 1 $REPO_DIR/update.sh --check-only   # notify only"
 echo "  0 9 * * 1 $REPO_DIR/update.sh --yes          # auto-apply (no prompt)"
 echo ""
+
+exit "$RECONCILE_STATUS"
