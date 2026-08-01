@@ -55,10 +55,23 @@ class TestRenderReviewSummary(unittest.TestCase):
         self.assertIn("sonnet", out, "the model is the only thing separating this from a self-review")
         self.assertIn("claude", out)
 
-    def test_fallback_without_recorded_model_is_still_flagged(self):
+    def test_fallback_without_a_model_is_called_a_self_review(self):
+        # Regression: the summary used to say "with a different model" even
+        # when no model was pinned — asserting something that did not happen.
+        # With no model, the coder reviewed itself on its own model, and the
+        # summary must say so rather than dress it up as a weaker second
+        # opinion.
         out = pair_loop.render_review_summary(_manifest(reviewer_fallback=True))
+        self.assertIn("This was a self-review", out)
+        self.assertNotIn("different model", out)
+        self.assertIn("no independent signal", out)
+        self.assertIn("model not pinned", out)
+
+    def test_fallback_with_a_model_is_not_called_a_self_review(self):
+        out = pair_loop.render_review_summary(_manifest(
+            reviewer_fallback=True, reviewer_fallback_model="sonnet"))
         self.assertIn("Cross-vendor review unavailable", out)
-        self.assertIn("unspecified", out)
+        self.assertNotIn("This was a self-review", out)
 
     def test_handles_a_run_with_no_rounds(self):
         out = pair_loop.render_review_summary(_manifest(

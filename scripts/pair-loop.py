@@ -219,14 +219,19 @@ def cmd_review(args):
 
     fallback_models = _config.load_config()["pair_loop"].get("fallback_models", {})
 
+    # --reviewer-cmd fully overrides dispatch: the supplied argv is run verbatim
+    # and no vendor binary is invoked, so requiring one on PATH would break the
+    # override on exactly the machines it exists for.
+    require_cli = not args.reviewer_cmd
+
     result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
-                             fallback_models=fallback_models)
+                             fallback_models=fallback_models, require_cli=require_cli)
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
         retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
         result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command,
-                                 fallback_models=fallback_models)
+                                 fallback_models=fallback_models, require_cli=require_cli)
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:
@@ -267,12 +272,13 @@ def render_review_summary(manifest):
     findings_addressed = sum(r.get("findings_addressed") or 0 for r in coder_rounds)
 
     reviewer_label = manifest["reviewer"]
+    fallback_model = None
     if manifest.get("reviewer_fallback"):
         # Name the model explicitly — it is the only thing separating this from
         # a self-review, so burying it would misrepresent the result.
         actual = "claude" if manifest["reviewer"] == "codex" else "codex"
-        model = manifest.get("reviewer_fallback_model") or "unspecified"
-        reviewer_label = f"{actual} (`{model}`)"
+        fallback_model = manifest.get("reviewer_fallback_model")
+        reviewer_label = f"{actual} (`{fallback_model}`)" if fallback_model else f"{actual} (model not pinned)"
 
     lines = [
         "## Pair-loop review",
@@ -289,13 +295,27 @@ def render_review_summary(manifest):
     ]
 
     if manifest.get("reviewer_fallback"):
-        lines += [
-            f"> ⚠️ **Cross-vendor review unavailable.** The `{manifest['reviewer']}` CLI "
-            f"was not on PATH, so the review ran on the coder's own vendor with a "
-            f"different model. This is weaker than a true cross-vendor review — treat "
-            f"the approval accordingly.",
-            "",
-        ]
+        # Two materially different situations — do not describe them the same
+        # way. With a model pinned this is a weaker-but-real second opinion;
+        # without one the coder reviewed itself on its own model, which is not
+        # a second opinion at all. Claiming "a different model" in that case
+        # would be the summary asserting something that did not happen.
+        if fallback_model:
+            warning = (
+                f"> ⚠️ **Cross-vendor review unavailable.** The `{manifest['reviewer']}` "
+                f"CLI was not on PATH, so the review ran on the coder's own vendor "
+                f"pinned to `{fallback_model}`. Weaker than a true cross-vendor "
+                f"review — treat the approval accordingly."
+            )
+        else:
+            warning = (
+                f"> 🛑 **This was a self-review.** The `{manifest['reviewer']}` CLI was "
+                f"not on PATH and no fallback model was configured for the vendor that "
+                f"ran, so the coder reviewed its own work on its own model. This "
+                f"approval carries no independent signal. Set "
+                f"`pair_loop.fallback_models` in `~/.100xprism/config.json`."
+            )
+        lines += [warning, ""]
 
     for r in reviewer_rounds:
         lines.append(

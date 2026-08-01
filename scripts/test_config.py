@@ -83,11 +83,6 @@ class TestConfig(unittest.TestCase):
         # must not raise when callers do cfg["budget"].get(...)
         self.assertIsNone(cfg["budget"].get("daily_usd"))
 
-
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestNestedMerge(unittest.TestCase):
     """pair_loop.fallback_models is the first nested dict in the schema.
 
@@ -121,3 +116,6 @@ class TestNestedMerge(unittest.TestCase):
         cfg = self._load_with({})
         cfg["pair_loop"]["fallback_models"]["claude"] = "MUTATED"
         self.assertEqual(_config.DEFAULTS["pair_loop"]["fallback_models"]["claude"], "sonnet")
+
+if __name__ == "__main__":
+    unittest.main()

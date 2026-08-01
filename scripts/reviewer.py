@@ -71,7 +71,8 @@ def _default_run_command(cmd, prompt, cwd, timeout):
     return result.stdout
 
 
-def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=None):
+def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=None,
+           require_cli=True):
     """Invoke `tool` as the reviewer.
 
     If `tool`'s CLI is missing from PATH, fall back to the other supported
@@ -89,6 +90,11 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
     Raises RuntimeError when neither CLI is on PATH: there is no reviewer to
     fall back to, and running the command anyway would surface as an opaque
     FileNotFoundError from subprocess.
+
+    `require_cli=False` skips PATH discovery entirely. Callers that fully
+    override dispatch (pair-loop's `--reviewer-cmd`) supply their own argv, so
+    gating them on a vendor binary they never invoke would fail on a machine
+    that has neither CLI — exactly the machine the override exists for.
     """
     if tool not in _SUPPORTED_TOOLS:
         raise ValueError(f"unsupported reviewer tool: {tool!r}")
@@ -104,7 +110,7 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
     model = None
     fallback_used = False
 
-    if _which(tool) is None:
+    if require_cli and _which(tool) is None:
         actual_tool = "claude" if tool == "codex" else "codex"
         if _which(actual_tool) is None:
             raise RuntimeError(
@@ -114,6 +120,12 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
             )
         fallback_used = True
         model = fallback_models.get(actual_tool)
+        # Leaf-type guard: the container was checked above, but a value like
+        # {"claude": {"name": "sonnet"}} would reach command_for() and land a
+        # dict in argv, where subprocess raises TypeError. Only a non-empty
+        # string is a usable model id.
+        if not isinstance(model, str) or not model.strip():
+            model = None
 
     cmd = command_for(actual_tool, model)
     output = run_command(cmd, prompt, cwd, timeout)

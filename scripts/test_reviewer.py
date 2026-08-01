@@ -107,6 +107,36 @@ class TestReviewer(unittest.TestCase):
         self.assertIn("codex", str(ctx.exception))
         self.assertIn("claude", str(ctx.exception))
 
+    def test_non_string_model_value_never_reaches_argv(self):
+        # {"claude": {"name": "sonnet"}} is accepted by _config's merge; a dict
+        # in argv makes subprocess raise TypeError. Only a usable string counts.
+        for bad in ({"name": "sonnet"}, 123, "", "   ", None, []):
+            with self.subTest(bad=bad):
+                calls = []
+                with mock.patch("reviewer._which",
+                                side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+                    r = reviewer.invoke("codex", "x", "/repo",
+                                        run_command=lambda cmd, *a: (calls.append(cmd), "VERDICT: APPROVED")[1],
+                                        fallback_models={"claude": bad})
+                self.assertIsNone(r.model)
+                self.assertTrue(all(isinstance(a, str) for a in calls[0]))
+
+    def test_require_cli_false_skips_path_discovery(self):
+        # pair-loop's --reviewer-cmd supplies its own argv and never invokes a
+        # vendor binary, so it must work on a machine with neither CLI.
+        with mock.patch("reviewer._which", return_value=None):
+            result = reviewer.invoke("codex", "x", "/repo",
+                                     run_command=lambda *a: "VERDICT: APPROVED",
+                                     require_cli=False)
+        self.assertFalse(result.fallback_used)
+        self.assertIsNone(result.model)
+
+    def test_require_cli_true_still_raises_with_no_cli(self):
+        with mock.patch("reviewer._which", return_value=None):
+            with self.assertRaises(RuntimeError):
+                reviewer.invoke("codex", "x", "/repo",
+                                run_command=lambda *a: "unused", require_cli=True)
+
     def test_invoke_unsupported_tool_raises_even_when_path_lookup_fails(self):
         # A genuinely unsupported tool name must raise ValueError, not silently
         # fall back to "codex" just because it isn't on PATH.
