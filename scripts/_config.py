@@ -25,7 +25,8 @@ DEFAULTS = {
     # current latest Sonnet, so it doesn't go stale on release.
     "pair_loop": {"coder": "claude", "reviewer": "codex", "max_rounds": 3,
                   "pr_final_round": False,
-                  "fallback_models": {"claude": "sonnet", "codex": "gpt-5.6-luna"}},
+                  "fallback_models": {"claude": "sonnet", "codex": "gpt-5.6-luna",
+                                      "cursor": "composer-2.5"}},
     "github": {
         "enabled": False,
         "users": [],
