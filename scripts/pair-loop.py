@@ -225,13 +225,15 @@ def cmd_review(args):
     require_cli = not args.reviewer_cmd
 
     result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
-                             fallback_models=fallback_models, require_cli=require_cli)
+                             fallback_models=fallback_models, require_cli=require_cli,
+                             coder=manifest["coder"])
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
         retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
         result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command,
-                                 fallback_models=fallback_models, require_cli=require_cli)
+                                 fallback_models=fallback_models, require_cli=require_cli,
+                             coder=manifest["coder"])
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:
@@ -239,9 +241,14 @@ def cmd_review(args):
         findings = findings or [{"n": 1, "category": "process",
                                   "location": "", "text": "reviewer produced no parseable verdict"}]
 
-    actual_tool = manifest["reviewer"]
+    # Read the tool that actually ran from the result — do not re-derive it.
+    # A hardcoded two-vendor guess here previously ran independently of
+    # reviewer.select_fallback()'s real choice, so a Codex-to-Cursor fallback
+    # was recorded as Claude everywhere: the manifest, HANDOFF.md, the round,
+    # and therefore the PR summary. `result.tool` is select_fallback()'s
+    # actual winner; there is nothing left to guess.
+    actual_tool = result.tool
     if result.fallback_used:
-        actual_tool = "claude" if manifest["reviewer"] == "codex" else "codex"
         manifest["reviewer_fallback"] = True
         # Record the model (None when unpinned) so the summary can report what
         # actually ran. It is not evidence of independence — nothing compares
@@ -252,14 +259,25 @@ def cmd_review(args):
         # the coder's vendor.
         manifest["reviewer_fallback_tool"] = actual_tool
 
-    session_id = (_guess_current_codex_session(codex_before) if actual_tool == "codex"
-                  else _guess_current_claude_session(cwd))
+    # Only guess a session for vendors we actually know how to find one for.
+    # The old `else _guess_current_claude_session(...)` treated "not codex" as
+    # "must be claude" — wrong the moment a third vendor (Cursor) could run,
+    # attaching an unrelated Claude session (and its cost) to a Cursor review.
+    # No session lookup exists for Cursor yet; None is honest, a wrong guess
+    # is not.
+    if actual_tool == "codex":
+        session_id = _guess_current_codex_session(codex_before)
+    elif actual_tool == "claude":
+        session_id = _guess_current_claude_session(cwd)
+    else:
+        session_id = None
     round_ = run_manifest.add_round(manifest, "reviewer", actual_tool, session_id=session_id)
     run_manifest.close_round(manifest, round_, findings=len(findings), verdict=verdict)
     handoff.append_reviewer_round(os.path.join(cwd, handoff.HANDOFF_FILENAME),
                                   round_["n"], actual_tool, findings, verdict)
     print(json.dumps({"verdict": verdict, "findings": findings,
                       "fallback_used": result.fallback_used,
+                      "reviewer_tool": result.tool,
                       "reviewer_model": result.model}))
 
 

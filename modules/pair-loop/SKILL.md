@@ -1,6 +1,6 @@
 ---
 name: pair-loop
-description: Coder<->reviewer handoff loop (Claude<->Codex, roles swappable) with self-instrumented per-round cost tracking. Loops locally via HANDOFF.md until approved, then opens a PR with the full transcript.
+description: Coder<->reviewer handoff loop (claude/codex/cursor, roles swappable) with self-instrumented per-round cost tracking. Loops locally via HANDOFF.md until approved, then opens a PR with the full transcript.
 category: lifecycle
 tier: core
 slash_command: /pair-loop
@@ -10,6 +10,7 @@ slash_command: /pair-loop
 
 Runs a formal review loop between a coder and a reviewer (default: you as coder,
 Codex as reviewer — swap via `~/.100xprism/config.json`'s `pair_loop` section).
+Three vendors are supported — `claude`, `codex`, `cursor` — as either role.
 Each round is recorded in `HANDOFF.md` and self-instrumented into a cost
 manifest the token dashboard reads. Do NOT ask for permission to start or to
 run rounds — only stop for the outcomes listed in "When to stop" below.
@@ -55,16 +56,25 @@ python3 ~/100xprism/scripts/pair-loop.py review --run "$RUN_ID"
 ```
 
 This shells out to the configured reviewer and returns
-`{"verdict":, "findings": [...], "fallback_used":, "reviewer_model":}`.
+`{"verdict":, "findings": [...], "fallback_used":, "reviewer_tool":, "reviewer_model":}`.
+`reviewer_tool` is the vendor that actually ran — with three vendors, do not
+assume it equals `pair_loop.reviewer`; check it, especially when
+`fallback_used` is true.
 
-If the reviewer's CLI is missing, it falls back to the coder's vendor pinned to
+If the configured reviewer's CLI is missing, it falls back to the best
+available alternative — preferring a vendor other than the coder's, and
+preferring a multi-model CLI (Cursor, which can itself run Claude/GPT/Grok/Kimi
+models) over a same-vendor fallback. Only as a last resort does it fall back to
+the coder's own vendor. Whichever vendor runs is pinned to
 `pair_loop.fallback_models` (default `sonnet` for Claude, `gpt-5.6-luna` for
-Codex) to reduce the chance of a same-model self-review. Nothing compares that
-model to the coder's, so independence is configured, not verified — pick a
-fallback model you don't code with. The
-output says `"fallback_used": true` with the model in `"reviewer_model"` —
-mention it to the user once, don't repeat it every round. If neither CLI is on
-PATH the command fails with both binaries named; that is a stop condition.
+Codex, `composer-2.5` for Cursor) to reduce the chance of a same-model
+self-review. Nothing compares that model to the coder's, so independence is
+configured, not verified — pick fallback models you don't code with. The
+output says `"fallback_used": true`, with the actual vendor in
+`"reviewer_tool"` and its pinned model (if any) in `"reviewer_model"` —
+mention this to the user once, don't repeat it every round.
+If no supported CLI is on PATH the command fails naming every supported
+vendor; that is a stop condition.
 
 - `"verdict": "APPROVED"` → go to Step 5 (PR phase).
 - `"verdict": "CHANGES_REQUESTED"` and you have rounds remaining (round count
@@ -106,4 +116,4 @@ address them before finishing.
 - Round cap hit without approval (Step 4).
 - Never auto-merge — a human merges the PR, always.
 
-**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true`, with any pinned model in `"reviewer_model"`), but do not block — this is not a stop condition. A same-vendor review is weaker than a cross-vendor one, and nothing checks the reviewer's model against the coder's, so independence is unverified either way; the PR summary states this rather than claiming otherwise.
+**Note:** If the configured reviewer's CLI was missing and a fallback ran, mention it to the user once (`"fallback_used": true`, with the vendor in `"reviewer_tool"` and any pinned model in `"reviewer_model"`), but do not block — this is not a stop condition. A fallback onto the coder's own vendor is weaker than a genuinely different one, and nothing checks the reviewer's model against the coder's, so independence is unverified either way; the PR summary states this rather than claiming otherwise.

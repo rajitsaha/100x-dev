@@ -80,24 +80,27 @@ class TestReviewer(unittest.TestCase):
         self.assertNotIn("--model", reviewer.command_for("claude"))
         self.assertNotIn("-m", reviewer.command_for("codex"))
 
-    def test_fallback_forces_a_different_model_than_the_coder(self):
-        # The whole point of the coder<->reviewer split is an independent
-        # opinion. When the cross-vendor CLI is missing we have to run on the
-        # coder's vendor, so the model MUST differ or it is a self-review.
+    def test_fallback_pins_the_configured_model(self):
+        # Renamed from "...forces_a_different_model...": that name overstated
+        # what this proves. It only shows fallback_models[vendor] gets passed
+        # through to the argv — nothing here compares it to the coder's model,
+        # and nothing in the code does either (see reviewer.py's docstring,
+        # #93). A user who configures the SAME model they code with gets a
+        # same-model review and this test would still pass.
         calls = []
 
         def fake_run(cmd, prompt, cwd, timeout):
             calls.append(cmd)
             return "fallback review\nVERDICT: APPROVED"
 
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "review this", "/repo", run_command=fake_run,
                                      fallback_models={"claude": "sonnet"})
 
         self.assertTrue(result.fallback_used)
         self.assertEqual(result.model, "sonnet")
         self.assertEqual(calls[0][0], "claude")
-        self.assertEqual(calls[0][-2:], ["--model", "sonnet"], "reviewer must be pinned off the coder's model")
+        self.assertEqual(calls[0][-2:], ["--model", "sonnet"], "configured fallback model must reach argv")
 
     def test_fallback_without_configured_model_does_not_invent_one(self):
         # No configured fallback model -> no --model flag. Better to run the
@@ -108,7 +111,7 @@ class TestReviewer(unittest.TestCase):
             calls.append(cmd)
             return "VERDICT: APPROVED"
 
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "x", "/repo", run_command=fake_run, fallback_models={})
 
         self.assertTrue(result.fallback_used)
@@ -119,7 +122,7 @@ class TestReviewer(unittest.TestCase):
         # config.json is user-editable and _config.py's contract is that
         # malformed input never raises. A scalar where a dict belongs must not
         # blow up at the exact moment the fallback is needed.
-        with mock.patch("reviewer._which", side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
             result = reviewer.invoke("codex", "x", "/repo",
                                      run_command=lambda *a: "VERDICT: APPROVED",
                                      fallback_models="sonnet")
@@ -144,7 +147,7 @@ class TestReviewer(unittest.TestCase):
             with self.subTest(bad=bad):
                 calls = []
                 with mock.patch("reviewer._which",
-                                side_effect=lambda n: None if n == "codex" else "/usr/bin/claude"):
+                                side_effect=lambda n: "/usr/bin/claude" if n == "claude" else None):
                     r = reviewer.invoke("codex", "x", "/repo",
                                         run_command=lambda cmd, *a: (calls.append(cmd), "VERDICT: APPROVED")[1],
                                         fallback_models={"claude": bad})
