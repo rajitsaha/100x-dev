@@ -80,11 +80,32 @@ class TestCursorVendor(unittest.TestCase):
 
 
 class TestInvokeUsesRotation(unittest.TestCase):
+    def test_installed_checks_cursor_agent_not_a_binary_named_cursor(self):
+        # Regression: _installed used to check _which(vendor_key), i.e.
+        # _which("cursor") — a program that does not exist; the real binary is
+        # cursor-agent. On a real machine with cursor-agent installed and no
+        # binary literally named `cursor`, this made select_fallback silently
+        # skip Cursor. Mock the exact executable names, not "anything but X",
+        # so the vendor-key/executable-name distinction is actually exercised.
+        real_binaries = {"codex", "claude", "cursor-agent"}
+        with mock.patch("reviewer._which", side_effect=lambda n: f"/usr/bin/{n}" if n in real_binaries else None):
+            self.assertTrue(reviewer._installed("cursor"),
+                            "cursor-agent is on PATH; Cursor must be considered installed")
+            got = reviewer.select_fallback("codex", coder="claude")
+        self.assertEqual(got, "cursor")
+
+    def test_installed_is_not_fooled_by_an_unrelated_binary_named_cursor(self):
+        # The converse of the bug: some other program literally named `cursor`
+        # existing on PATH must not make us think the Cursor CLI is available.
+        with mock.patch("reviewer._which", side_effect=lambda n: "/usr/bin/cursor" if n == "cursor" else None):
+            self.assertFalse(reviewer._installed("cursor"))
+
     def test_invoke_routes_to_the_rotation_winner_and_pins_its_model(self):
         calls = []
+        real_binaries = {"claude", "cursor-agent"}  # codex missing — the trigger
 
         def avail(n):
-            return None if n == "codex" else f"/usr/bin/{n}"
+            return f"/usr/bin/{n}" if n in real_binaries else None
 
         with mock.patch("reviewer._which", side_effect=avail):
             r = reviewer.invoke(
