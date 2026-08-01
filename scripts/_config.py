@@ -16,12 +16,13 @@ CONFIG_PATH = os.path.join(HOME, ".100xprism", "config.json")
 
 DEFAULTS = {
     "budget": {"daily_usd": None, "weekly_usd": None, "per_run_usd": None},
-    # fallback_models: the model the reviewer runs when the cross-vendor CLI is
-    # missing and we have to fall back to the coder's own vendor. Forcing a
-    # different model is what keeps the review independent — without it the
-    # coder reviews its own work on its own model, which is the blind spot the
-    # coder<->reviewer split exists to avoid. `sonnet` is a CLI alias that
-    # resolves to the current latest Sonnet, so it doesn't go stale on release.
+    # fallback_models: the model the reviewer runs when the configured CLI is
+    # missing and we fall back to another vendor — often the coder's own.
+    # Pinning a model here *reduces* the chance the reviewer runs the coder's
+    # own model, which would make the review a self-review. It does not
+    # guarantee it: nothing compares this value to the coder's model, so pick
+    # one you don't code with. `sonnet` is a CLI alias that resolves to the
+    # current latest Sonnet, so it doesn't go stale on release.
     "pair_loop": {"coder": "claude", "reviewer": "codex", "max_rounds": 3,
                   "pr_final_round": False,
                   "fallback_models": {"claude": "sonnet", "codex": "gpt-5.6-luna"}},

@@ -7,6 +7,7 @@ same-vendor review must not read like a cross-vendor one.
 """
 import importlib.util
 import os
+import re
 import sys
 import unittest
 
@@ -51,24 +52,42 @@ class TestRenderReviewSummary(unittest.TestCase):
     def test_fallback_run_names_the_model_and_warns(self):
         out = pair_loop.render_review_summary(_manifest(
             reviewer_fallback=True, reviewer_fallback_model="sonnet"))
-        self.assertIn("Cross-vendor review unavailable", out)
+        self.assertIn("Configured reviewer unavailable", out)
         self.assertIn("sonnet", out, "the model is the only thing separating this from a self-review")
         self.assertIn("claude", out)
 
-    def test_summary_never_asserts_models_matched_or_differed(self):
+    def test_summary_never_asserts_a_model_relationship(self):
         # Two regressions in one guard. v1 said "with a different model" when
         # nothing was pinned; v2 said the coder "reviewed its own work on its
         # own model". Both are unobservable — nothing compares the reviewer's
-        # model to the coder's. A Claude coder on Opus with an unpinned Claude
-        # CLI defaulting to Sonnet would be mislabeled by v2, and a pinned
-        # fallback can equal the coder's model, mislabeling v1.
+        # model to the coder's.
+        #
+        # Phrase blocklists are brittle (an equivalent claim in new words slips
+        # through), so this asserts the semantic contract instead: the summary
+        # may state a model was PINNED, but must never state a RELATIONSHIP
+        # between the reviewer's model and the coder's.
+        RELATIONAL = re.compile(
+            r"(different|same|identical|matching|matched|its own|the coder's own)\s+model",
+            re.I)
         for extra in ({}, {"reviewer_fallback_model": "sonnet"}):
-            with self.subTest(extra=extra):
-                out = pair_loop.render_review_summary(
-                    _manifest(reviewer_fallback=True, **extra))
-                self.assertNotIn("a different model", out)
-                self.assertNotIn("its own model", out)
-                self.assertNotIn("This was a self-review", out)
+            for coder in ("claude", "codex"):
+                with self.subTest(extra=extra, coder=coder):
+                    out = pair_loop.render_review_summary(
+                        _manifest(reviewer_fallback=True, coder=coder, **extra))
+                    hit = RELATIONAL.search(out)
+                    self.assertIsNone(
+                        hit, f"summary claims a model relationship it cannot know: {hit.group(0) if hit else ''}")
+
+    def test_summary_names_the_vendor_that_actually_ran(self):
+        # config permits coder == reviewer, and with three vendors the fallback
+        # may be a third one — so the summary must not infer "the coder's
+        # vendor". It reads the recorded tool.
+        out = pair_loop.render_review_summary(_manifest(
+            coder="codex", reviewer="codex", reviewer_fallback=True,
+            reviewer_fallback_tool="claude", reviewer_fallback_model="sonnet"))
+        self.assertIn("claude", out)
+        self.assertIn("a different vendor from the coder", out)
+        self.assertNotIn("the coder's own vendor", out)
 
     def test_fallback_without_a_model_says_independence_is_unverified(self):
         out = pair_loop.render_review_summary(_manifest(reviewer_fallback=True))
@@ -79,7 +98,7 @@ class TestRenderReviewSummary(unittest.TestCase):
     def test_fallback_with_a_model_reports_the_pin_conditionally(self):
         out = pair_loop.render_review_summary(_manifest(
             reviewer_fallback=True, reviewer_fallback_model="sonnet"))
-        self.assertIn("Cross-vendor review unavailable", out)
+        self.assertIn("Configured reviewer unavailable", out)
         self.assertIn("pinned to `sonnet`", out)
         # Conditional, not a guarantee: "if that is not the model you code with".
         self.assertIn("if it is", out)

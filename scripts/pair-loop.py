@@ -247,6 +247,10 @@ def cmd_review(args):
         # actually ran. It is not evidence of independence — nothing compares
         # it to the coder's model; see #93.
         manifest["reviewer_fallback_model"] = result.model
+        # Record which vendor actually ran. The summary must not infer it:
+        # config permits coder == reviewer, so the fallback is not necessarily
+        # the coder's vendor.
+        manifest["reviewer_fallback_tool"] = actual_tool
 
     session_id = (_guess_current_codex_session(codex_before) if actual_tool == "codex"
                   else _guess_current_claude_session(cwd))
@@ -277,9 +281,10 @@ def render_review_summary(manifest):
     reviewer_label = manifest["reviewer"]
     fallback_model = None
     if manifest.get("reviewer_fallback"):
-        # Name the model explicitly — it is the only thing separating this from
-        # a self-review, so burying it would misrepresent the result.
-        actual = "claude" if manifest["reviewer"] == "codex" else "codex"
+        # Name the model — it is the only thing distinguishing this from a
+        # self-review, so burying it would misrepresent the result.
+        actual = manifest.get("reviewer_fallback_tool") or (
+            "claude" if manifest["reviewer"] == "codex" else "codex")
         fallback_model = manifest.get("reviewer_fallback_model")
         reviewer_label = f"{actual} (`{fallback_model}`)" if fallback_model else f"{actual} (model not pinned)"
 
@@ -298,25 +303,31 @@ def render_review_summary(manifest):
     ]
 
     if manifest.get("reviewer_fallback"):
-        # State only what is known. We record the reviewer's model when we pin
-        # one, but nothing here compares it to the coder's — so claiming the
-        # models *differed* and claiming they *matched* are equally unfounded.
-        # An earlier version asserted each in turn; both were wrong. Report the
-        # facts (same vendor; model pinned or not) and let the reader judge.
+        # State only what is known. Nothing here compares the reviewer's model
+        # to the coder's, so claiming the models *differed* and claiming they
+        # *matched* are equally unfounded — earlier versions asserted each in
+        # turn, and both were wrong. Do not claim the fallback is the coder's
+        # vendor either: config permits coder == reviewer, and with three
+        # vendors the fallback may be a third one entirely. Name what ran.
+        same_vendor = actual == manifest["coder"]
+        vendor_note = ("the coder's own vendor" if same_vendor
+                       else f"`{actual}`, a different vendor from the coder")
         if fallback_model:
             warning = (
-                f"> ⚠️ **Cross-vendor review unavailable.** The `{manifest['reviewer']}` "
-                f"CLI was not on PATH, so the review ran on the coder's own vendor, "
-                f"pinned to `{fallback_model}`. If that is not the model you code "
-                f"with, this is a weaker-but-real second opinion; if it is, the "
-                f"approval carries no independent signal."
+                f"> ⚠️ **Configured reviewer unavailable.** The "
+                f"`{manifest['reviewer']}` CLI was not on PATH, so the review ran on "
+                f"{vendor_note}, pinned to `{fallback_model}`."
+                + ("" if not same_vendor else
+                   " If that is not the model you code with, this is a weaker-but-real "
+                   "second opinion; if it is, the approval carries no independent signal.")
             )
         else:
             warning = (
                 f"> 🛑 **Independence unverified.** The `{manifest['reviewer']}` CLI was "
-                f"not on PATH and no fallback model was configured, so the review ran "
-                f"on the coder's own vendor at that CLI's default model — which may or "
-                f"may not be the model the coder used. Nothing here checked. Set "
+                f"not on PATH, and no usable fallback model was configured for the "
+                f"vendor that ran (unset, or set to something that isn't a model id), "
+                f"so the review used {vendor_note} at that CLI's default model. "
+                f"Nothing here checked what that model was. Set "
                 f"`pair_loop.fallback_models` in `~/.100xprism/config.json` to pin one."
             )
         lines += [warning, ""]

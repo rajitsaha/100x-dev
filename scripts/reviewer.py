@@ -6,13 +6,15 @@ Supports codex ("codex exec --full-auto") and claude ("claude -p") as the
 reviewer tool. The whole point of the coder<->reviewer split is a second,
 *independent* opinion, so the fallback path matters as much as the happy path.
 
-When the configured reviewer's CLI isn't on PATH we must fall back to the only
-vendor present — which is the coder's own vendor. Reviewing with the coder's
-exact configuration would be a self-review, the blind spot this design exists
-to avoid, so the fallback additionally forces a DIFFERENT MODEL (see
-`fallback_models` in scripts/_config.py). `fallback_used=True` is still flagged
-so the caller can mark `reviewer_fallback: true` in the run manifest and warn
-the user — cross-vendor stats exclude the run either way.
+When the configured reviewer's CLI isn't on PATH we fall back to another vendor
+that is present — often, but not always, the coder's own. Reviewing with the
+coder's exact configuration would be a self-review, the blind spot this design
+exists to avoid, so the fallback also pins a model from `fallback_models` (see
+scripts/_config.py) when one is configured. That pin *reduces* the chance of a
+same-model review; it does not guarantee it, because nothing compares the pin
+to the coder's model. `fallback_used=True` is flagged so the caller can mark
+`reviewer_fallback: true` in the run manifest and warn the user — cross-vendor
+stats exclude the run either way.
 
 If neither CLI is on PATH there is no reviewer to be had; that raises with both
 missing binaries named, rather than letting subprocess fail with a bare
@@ -81,10 +83,11 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
     """Invoke `tool` as the reviewer.
 
     If `tool`'s CLI is missing from PATH, fall back to the other supported
-    vendor — and pin that fallback to `fallback_models[vendor]` so the reviewer
-    is never the coder's own vendor *and* model. Without the model pin this is
-    a same-vendor, same-model self-review, which is worth roughly nothing as a
-    second opinion. See the module docstring.
+    vendor, pinned to `fallback_models[vendor]` when one is configured. The pin
+    reduces the chance the reviewer runs the coder's own model; it does not
+    rule it out, since nothing compares the two. Without any pin, a same-vendor
+    fallback is a same-model self-review, worth roughly nothing as a second
+    opinion. See the module docstring.
 
     Raises ValueError immediately for an unsupported tool name, regardless of
     PATH state — without this upfront check, an unsupported name that also
