@@ -19,6 +19,36 @@ class TestReviewer(unittest.TestCase):
         self.assertEqual(cmd[0], "claude")
         self.assertIn("-p", cmd)
 
+    def test_codex_runs_read_only(self):
+        cmd = reviewer.command_for("codex")
+        self.assertEqual(cmd[cmd.index("--sandbox") + 1], "read-only")
+        self.assertNotIn("--full-auto", cmd)
+        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", cmd)
+
+    def test_claude_runs_read_only(self):
+        cmd = reviewer.command_for("claude")
+        self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "plan")
+        self.assertNotIn("bypassPermissions", cmd)
+        self.assertNotIn("acceptEdits", cmd)
+
+    def test_every_supported_vendor_declares_a_read_only_policy(self):
+        # Structural, not per-vendor: a new reviewer vendor cannot be added
+        # without saying how it is made read-only. A reviewer with write access
+        # can mutate the working tree that IS the review diff.
+        for tool in reviewer._SUPPORTED_TOOLS:
+            with self.subTest(tool=tool):
+                spec = reviewer._VENDORS[tool]
+                self.assertTrue(spec.get("read_only"),
+                                f"{tool} must declare a read_only flag")
+                for token in spec["read_only"]:
+                    self.assertIn(token, reviewer.command_for(tool))
+
+    def test_read_only_survives_a_model_pin(self):
+        # The fallback path pins a model; that must not displace the sandbox.
+        cmd = reviewer.command_for("codex", "gpt-5.6-luna")
+        self.assertEqual(cmd[cmd.index("--sandbox") + 1], "read-only")
+        self.assertEqual(cmd[cmd.index("-m") + 1], "gpt-5.6-luna")
+
     def test_command_for_unknown_tool_raises(self):
         with self.assertRaises(ValueError):
             reviewer.command_for("gemini")
