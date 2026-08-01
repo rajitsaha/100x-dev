@@ -2,9 +2,17 @@
 """
 reviewer.py — non-interactive reviewer subprocess dispatch for pair-loop.
 
-Supports codex ("codex exec --full-auto") and claude ("claude -p") as the
-reviewer tool. The whole point of the coder<->reviewer split is a second,
-*independent* opinion, so the fallback path matters as much as the happy path.
+Supports codex ("codex exec") and claude ("claude -p") as the reviewer tool.
+The whole point of the coder<->reviewer split is a second, *independent*
+opinion, so the fallback path matters as much as the happy path.
+
+Reviewers always run READ-ONLY. The review diff is `git diff <branch>` against
+a working tree the coder deliberately left uncommitted (see the pair-loop
+module, Step 3), so a reviewer with write access can mutate the very thing it
+is judging — the next round then reviews a mix of the coder's work and the
+previous reviewer's edits, with no record of which is which. Each vendor
+declares its own read-only mechanism in `_VENDORS`; there is no way to add a
+vendor without one.
 
 When the configured reviewer's CLI isn't on PATH we fall back to another vendor
 that is present — often, but not always, the coder's own. Reviewing with the
@@ -44,11 +52,27 @@ from collections import namedtuple
 # pin one (the normal cross-vendor path uses each CLI's own default).
 ReviewResult = namedtuple("ReviewResult", "output session_id fallback_used model")
 
-_SUPPORTED_TOOLS = ("codex", "claude")
+# One table per vendor so base command, read-only policy, and model flag can't
+# drift apart — and so a new vendor cannot be added without declaring how it is
+# made read-only. `read_only` is not optional: a reviewer's job is to read and
+# judge, and write access lets it mutate the very tree it is reviewing.
+#
+#   codex  --sandbox read-only     documented sandbox policy
+#   claude --permission-mode plan  read-only/planning, no edits
+_VENDORS = {
+    "codex": {
+        "base": ["codex", "exec"],
+        "read_only": ["--sandbox", "read-only"],
+        "model_flag": "-m",
+    },
+    "claude": {
+        "base": ["claude", "-p"],
+        "read_only": ["--permission-mode", "plan"],
+        "model_flag": "--model",
+    },
+}
 
-# Model-selection flag per vendor. Kept next to command_for so the two can't
-# drift: `codex exec -m <model>`, `claude -p --model <model>`.
-_MODEL_FLAG = {"codex": "-m", "claude": "--model"}
+_SUPPORTED_TOOLS = tuple(_VENDORS)
 
 
 def _which(name):
@@ -56,19 +80,17 @@ def _which(name):
 
 
 def command_for(tool, model=None):
-    """Argv for `tool`, optionally pinned to `model`.
+    """Argv for `tool`, read-only, optionally pinned to `model`.
 
-    The model flag is appended only when a model is given, so the cross-vendor
-    path keeps using each CLI's configured default.
+    Read-only is unconditional. The model flag is appended only when a model is
+    given, so the cross-vendor path keeps each CLI's configured default.
     """
-    if tool == "codex":
-        cmd = ["codex", "exec", "--full-auto"]
-    elif tool == "claude":
-        cmd = ["claude", "-p"]
-    else:
+    spec = _VENDORS.get(tool)
+    if spec is None:
         raise ValueError(f"unsupported reviewer tool: {tool!r}")
+    cmd = list(spec["base"]) + list(spec["read_only"])
     if model:
-        cmd += [_MODEL_FLAG[tool], model]
+        cmd += [spec["model_flag"], model]
     return cmd
 
 
