@@ -243,8 +243,9 @@ def cmd_review(args):
     if result.fallback_used:
         actual_tool = "claude" if manifest["reviewer"] == "codex" else "codex"
         manifest["reviewer_fallback"] = True
-        # Record the model too: "claude reviewed claude" is only acceptable
-        # because a different model ran, so the model is the evidence.
+        # Record the model (None when unpinned) so the summary can report what
+        # actually ran. It is not evidence of independence — nothing compares
+        # it to the coder's model; see #93.
         manifest["reviewer_fallback_model"] = result.model
 
     session_id = (_guess_current_codex_session(codex_before) if actual_tool == "codex"

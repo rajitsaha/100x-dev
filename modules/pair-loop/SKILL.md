@@ -106,4 +106,4 @@ address them before finishing.
 - Round cap hit without approval (Step 4).
 - Never auto-merge — a human merges the PR, always.
 
-**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true` and name the model in `"reviewer_model"`), but do not block — this is not a stop condition. A same-vendor review on a different model is weaker than a cross-vendor one; the PR summary says so explicitly.
+**Note:** If the reviewer CLI fell back to the coder's vendor, mention it to the user once (the output will say `"fallback_used": true`, with any pinned model in `"reviewer_model"`), but do not block — this is not a stop condition. A same-vendor review is weaker than a cross-vendor one, and nothing checks the reviewer's model against the coder's, so independence is unverified either way; the PR summary states this rather than claiming otherwise.
