@@ -115,6 +115,60 @@ git fetch origin main --quiet 2>/dev/null
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
 
+# ── Regenerate tracked project instruction files ────────────────────────────
+# Defined above the "already up to date" early exit so both paths run it: a v3
+# migration that was interrupted after the pull must still get another chance to
+# prune, rather than being skipped forever once HEAD matches origin.
+
+regenerate_tracked_projects() {
+  local tracked="$HOME/.100xprism/tracked-projects"
+  [[ -f "$tracked" ]] || return 0
+
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/adapters/lib/deprecated.sh"
+
+  local count=0
+  local pruned_total=0
+  local pruned_projects=0
+  local prune_failures=0
+  local backup_dir=""
+  while IFS= read -r project_path; do
+    [[ -z "$project_path" ]] && continue
+    [[ -d "$project_path" ]] || continue  # skip deleted projects
+
+    local regenerated=false
+
+    { [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; } \
+      && bash "$REPO_DIR/adapters/cursor.sh" "$project_path" && regenerated=true
+    [[ -f "$project_path/AGENTS.md" ]] \
+      && bash "$REPO_DIR/adapters/codex.sh"  "$project_path" && regenerated=true
+
+    # Prune artifacts from tools dropped in v3.0.0 (Windsurf/Copilot/Gemini/Antigravity).
+    prune_deprecated_artifacts "$project_path"
+    if (( PRUNED_COUNT > 0 )); then
+      echo -e "  ${YELLOW}→ $project_path: removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
+      pruned_total=$(( pruned_total + PRUNED_COUNT ))
+      pruned_projects=$(( pruned_projects + 1 ))
+      backup_dir="$PRUNE_BACKUP_DIR"
+    fi
+    (( PRUNE_FAILED > 0 )) && prune_failures=$(( prune_failures + PRUNE_FAILED ))
+
+    "$regenerated" && (( count++ )) || true
+  done < "$tracked"
+
+  if (( count > 0 )); then
+    echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
+  fi
+  if (( pruned_total > 0 )); then
+    echo -e "  ${GREEN}→ Pruned $pruned_total deprecated file(s) across $pruned_projects project(s) ✓${NC}"
+    echo -e "  ${CYAN}   Backups: $backup_dir${NC}"
+    echo -e "  ${CYAN}   These are usually committed — review with 'git status' and commit the deletions.${NC}"
+  fi
+  if (( prune_failures > 0 )); then
+    echo -e "  ${YELLOW}→ $prune_failures deprecated file(s) could not be removed and were left in place${NC}"
+  fi
+}
+
 if [ "$LOCAL" = "$REMOTE" ]; then
   echo -e "${GREEN}✓ Repo already up to date.${NC}"
   echo ""
@@ -123,6 +177,9 @@ if [ "$LOCAL" = "$REMOTE" ]; then
     --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
   sync_hooks
   run_plugin_updates
+  # Still reconcile projects: an earlier run may have pulled v3 and then failed
+  # before pruning, and without this the migration would never be retried.
+  regenerate_tracked_projects
   echo ""
   echo -e "${CYAN}Tip: Restart Claude Code to activate any plugin changes.${NC}"
   echo ""
@@ -199,48 +256,6 @@ sync_hooks
 # ── Update Claude plugins ─────────────────────────────────────────────────────
 run_plugin_updates
 
-# ── Regenerate tracked project instruction files ────────────────────────────
-
-regenerate_tracked_projects() {
-  local tracked="$HOME/.100xprism/tracked-projects"
-  [[ -f "$tracked" ]] || return 0
-
-  # shellcheck disable=SC1091
-  source "$REPO_DIR/adapters/lib/deprecated.sh"
-
-  local count=0
-  local pruned_total=0
-  local pruned_projects=0
-  while IFS= read -r project_path; do
-    [[ -z "$project_path" ]] && continue
-    [[ -d "$project_path" ]] || continue  # skip deleted projects
-
-    local regenerated=false
-
-    { [[ -d "$project_path/.cursor/rules" ]] || [[ -f "$project_path/.cursorrules" ]]; } \
-      && bash "$REPO_DIR/adapters/cursor.sh" "$project_path" && regenerated=true
-    [[ -f "$project_path/AGENTS.md" ]] \
-      && bash "$REPO_DIR/adapters/codex.sh"  "$project_path" && regenerated=true
-
-    # Prune artifacts from tools dropped in v3.0.0 (Windsurf/Copilot/Gemini/Antigravity).
-    prune_deprecated_artifacts "$project_path"
-    if (( PRUNED_COUNT > 0 )); then
-      echo -e "  ${YELLOW}→ $project_path: removed $PRUNED_COUNT file(s) from tools dropped in v3.0.0${NC}"
-      pruned_total=$(( pruned_total + PRUNED_COUNT ))
-      pruned_projects=$(( pruned_projects + 1 ))
-    fi
-
-    "$regenerated" && (( count++ )) || true
-  done < "$tracked"
-
-  if (( count > 0 )); then
-    echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
-  fi
-  if (( pruned_total > 0 )); then
-    echo -e "  ${GREEN}→ Pruned $pruned_total deprecated file(s) across $pruned_projects project(s) ✓${NC}"
-    echo -e "  ${CYAN}   These are usually committed — review with 'git status' and commit the deletions.${NC}"
-  fi
-}
 
 # Clear update-available flag from cache so banner stops showing
 if [[ -f "$HOME/.100xprism/update-cache" ]]; then
