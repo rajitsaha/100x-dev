@@ -25,10 +25,18 @@ const REPO = path.join(__dirname, '..')
 const GIT_ENV = {
   GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t',
   GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+  // Ignore the developer's ~/.gitconfig and any system config, so a contributor
+  // with commit.gpgSign or core.hooksPath set does not fail this suite.
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
 }
 
+// -c flags belt-and-braces alongside GIT_CONFIG_* for older git versions that
+// do not honour those environment variables.
+const GIT_ISOLATION = ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null']
+
 function git(args, cwd) {
-  execFileSync('git', args, { cwd, stdio: 'ignore', env: { ...process.env, ...GIT_ENV } })
+  execFileSync('git', [...GIT_ISOLATION, ...args], { cwd, stdio: 'ignore', env: { ...process.env, ...GIT_ENV } })
 }
 
 // A clone whose HEAD equals origin/main, carrying just enough of the repo for
@@ -38,8 +46,10 @@ function makeCurrentClone() {
   const origin = path.join(tmp, 'origin.git')
   const work = path.join(tmp, 'work')
 
-  execFileSync('git', ['init', '--bare', '-b', 'main', origin], { stdio: 'ignore' })
-  execFileSync('git', ['clone', origin, work], { stdio: 'ignore', env: { ...process.env, ...GIT_ENV } })
+  execFileSync('git', [...GIT_ISOLATION, 'init', '--bare', '-b', 'main', origin],
+    { stdio: 'ignore', env: { ...process.env, ...GIT_ENV } })
+  execFileSync('git', [...GIT_ISOLATION, 'clone', origin, work],
+    { stdio: 'ignore', env: { ...process.env, ...GIT_ENV } })
 
   fs.mkdirSync(path.join(work, 'adapters', 'lib'), { recursive: true })
   fs.mkdirSync(path.join(work, 'plugins'), { recursive: true })

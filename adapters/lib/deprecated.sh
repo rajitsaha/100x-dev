@@ -76,10 +76,11 @@ prune_deprecated_artifacts() {
   # let the second backup overwrite the first while both originals were deleted —
   # silently destroying the recoverability this function exists to guarantee.
   #
-  # Sanitising separators alone is still lossy (/tmp/a_b/c and /tmp/a/b_c both
-  # collapse to tmp_a_b_c), so a checksum of the exact path is appended. The
-  # readable part is for humans; the checksum is what makes the slot injective.
-  slot="$(printf '%s' "${real_project#/}" | tr '/' '_')-$(printf '%s' "$real_project" | cksum | cut -d' ' -f1)"
+  # Sanitising separators alone is lossy (/tmp/a_b/c and /tmp/a/b_c both collapse
+  # to tmp_a_b_c). Percent-encode '%' and '_' FIRST, so that after translating
+  # '/' to '_' every underscore can only have come from a separator. That makes
+  # the mapping injective outright — no hash, so no collision to reason about.
+  slot="$(printf '%s' "${real_project#/}" | sed 's/%/%25/g; s/_/%5F/g' | tr '/' '_')"
 
   for f in "${DEPRECATED_ARTIFACTS[@]}"; do
     target="$project_path/$f"

@@ -181,7 +181,13 @@ regenerate_tracked_projects() {
     (( PRUNE_FAILED > 0 )) && prune_failures=$(( prune_failures + PRUNE_FAILED ))
 
     "$regenerated" && (( count++ )) || true
-  done < "$tracked"
+  done < "$tracked" || {
+    # Calling this function in an OR-list suspends errexit inside it, so an
+    # unreadable tracked file (deleted or chmod'd between the -f test and this
+    # redirection) would otherwise fall through to `return 0` and report success.
+    echo -e "  ${YELLOW}→ Could not read $tracked; no projects were reconciled${NC}"
+    return 1
+  }
 
   if (( count > 0 )); then
     echo -e "  ${GREEN}→ Regenerated instruction files in $count tracked project(s) ✓${NC}"
