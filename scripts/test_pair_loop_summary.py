@@ -55,23 +55,34 @@ class TestRenderReviewSummary(unittest.TestCase):
         self.assertIn("sonnet", out, "the model is the only thing separating this from a self-review")
         self.assertIn("claude", out)
 
-    def test_fallback_without_a_model_is_called_a_self_review(self):
-        # Regression: the summary used to say "with a different model" even
-        # when no model was pinned — asserting something that did not happen.
-        # With no model, the coder reviewed itself on its own model, and the
-        # summary must say so rather than dress it up as a weaker second
-        # opinion.
+    def test_summary_never_asserts_models_matched_or_differed(self):
+        # Two regressions in one guard. v1 said "with a different model" when
+        # nothing was pinned; v2 said the coder "reviewed its own work on its
+        # own model". Both are unobservable — nothing compares the reviewer's
+        # model to the coder's. A Claude coder on Opus with an unpinned Claude
+        # CLI defaulting to Sonnet would be mislabeled by v2, and a pinned
+        # fallback can equal the coder's model, mislabeling v1.
+        for extra in ({}, {"reviewer_fallback_model": "sonnet"}):
+            with self.subTest(extra=extra):
+                out = pair_loop.render_review_summary(
+                    _manifest(reviewer_fallback=True, **extra))
+                self.assertNotIn("a different model", out)
+                self.assertNotIn("its own model", out)
+                self.assertNotIn("This was a self-review", out)
+
+    def test_fallback_without_a_model_says_independence_is_unverified(self):
         out = pair_loop.render_review_summary(_manifest(reviewer_fallback=True))
-        self.assertIn("This was a self-review", out)
-        self.assertNotIn("different model", out)
-        self.assertIn("no independent signal", out)
+        self.assertIn("Independence unverified", out)
+        self.assertIn("Nothing here checked", out)
         self.assertIn("model not pinned", out)
 
-    def test_fallback_with_a_model_is_not_called_a_self_review(self):
+    def test_fallback_with_a_model_reports_the_pin_conditionally(self):
         out = pair_loop.render_review_summary(_manifest(
             reviewer_fallback=True, reviewer_fallback_model="sonnet"))
         self.assertIn("Cross-vendor review unavailable", out)
-        self.assertNotIn("This was a self-review", out)
+        self.assertIn("pinned to `sonnet`", out)
+        # Conditional, not a guarantee: "if that is not the model you code with".
+        self.assertIn("if it is", out)
 
     def test_handles_a_run_with_no_rounds(self):
         out = pair_loop.render_review_summary(_manifest(

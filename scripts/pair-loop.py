@@ -262,8 +262,10 @@ def render_review_summary(manifest):
     """Markdown summary of the loop, for posting as a PR comment.
 
     A reviewer on GitHub otherwise sees only the final diff, with no evidence
-    that an adversarial pass happened at all. This records who reviewed, on
-    which model, how many rounds it took, and how many findings were raised
+    that an adversarial pass happened at all. This records who reviewed (and on
+    which model, when one was pinned — the normal path uses each CLI's own
+    default, which is not recorded), how many rounds it took, and how many
+    findings were raised
     and resolved.
     """
     reviewer_rounds = [r for r in manifest["rounds"] if r["role"] == "reviewer"]
@@ -295,25 +297,26 @@ def render_review_summary(manifest):
     ]
 
     if manifest.get("reviewer_fallback"):
-        # Two materially different situations — do not describe them the same
-        # way. With a model pinned this is a weaker-but-real second opinion;
-        # without one the coder reviewed itself on its own model, which is not
-        # a second opinion at all. Claiming "a different model" in that case
-        # would be the summary asserting something that did not happen.
+        # State only what is known. We record the reviewer's model when we pin
+        # one, but nothing here compares it to the coder's — so claiming the
+        # models *differed* and claiming they *matched* are equally unfounded.
+        # An earlier version asserted each in turn; both were wrong. Report the
+        # facts (same vendor; model pinned or not) and let the reader judge.
         if fallback_model:
             warning = (
                 f"> ⚠️ **Cross-vendor review unavailable.** The `{manifest['reviewer']}` "
-                f"CLI was not on PATH, so the review ran on the coder's own vendor "
-                f"pinned to `{fallback_model}`. Weaker than a true cross-vendor "
-                f"review — treat the approval accordingly."
+                f"CLI was not on PATH, so the review ran on the coder's own vendor, "
+                f"pinned to `{fallback_model}`. If that is not the model you code "
+                f"with, this is a weaker-but-real second opinion; if it is, the "
+                f"approval carries no independent signal."
             )
         else:
             warning = (
-                f"> 🛑 **This was a self-review.** The `{manifest['reviewer']}` CLI was "
-                f"not on PATH and no fallback model was configured for the vendor that "
-                f"ran, so the coder reviewed its own work on its own model. This "
-                f"approval carries no independent signal. Set "
-                f"`pair_loop.fallback_models` in `~/.100xprism/config.json`."
+                f"> 🛑 **Independence unverified.** The `{manifest['reviewer']}` CLI was "
+                f"not on PATH and no fallback model was configured, so the review ran "
+                f"on the coder's own vendor at that CLI's default model — which may or "
+                f"may not be the model the coder used. Nothing here checked. Set "
+                f"`pair_loop.fallback_models` in `~/.100xprism/config.json` to pin one."
             )
         lines += [warning, ""]
 

@@ -18,11 +18,16 @@ If neither CLI is on PATH there is no reviewer to be had; that raises with both
 missing binaries named, rather than letting subprocess fail with a bare
 FileNotFoundError from a command that was never going to run.
 
-Known limitation: the coder is the interactive session, whose model we cannot
-observe from here, so `fallback_models` is configured rather than derived. If
-you set the coder session to the same model named in `fallback_models`, the
-fallback review is a true self-review again — pick a fallback model you don't
-code with.
+Known limitation: nothing here compares the fallback model to the coder's, so
+independence is *configured, not verified*. Set the coder session to the model
+named in `fallback_models` and the fallback review is a self-review again —
+pick a fallback model you don't code with.
+
+This is a gap, not an impossibility. An earlier version of this docstring
+claimed the coder's model was unobservable; that was wrong. pair-loop records a
+`session_id` per round, and scripts/adapters/{claude_code,codex}.py already
+parse models out of session transcripts, so the comparison can be built. Doing
+it — and refusing an approval when the models match — is tracked separately.
 
 `run_command` is injectable for tests; production code never needs to pass it.
 No test in this module (or its companion scripts/test_reviewer.py) may shell

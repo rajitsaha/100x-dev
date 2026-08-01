@@ -57,9 +57,11 @@ python3 ~/100xprism/scripts/pair-loop.py review --run "$RUN_ID"
 This shells out to the configured reviewer and returns
 `{"verdict":, "findings": [...], "fallback_used":, "reviewer_model":}`.
 
-If the reviewer's CLI is missing, it falls back to the coder's vendor **on a
-different model** (`pair_loop.fallback_models`, default `sonnet` for Claude and
-`gpt-5.6-luna` for Codex) so the review isn't a same-model self-review. The
+If the reviewer's CLI is missing, it falls back to the coder's vendor pinned to
+`pair_loop.fallback_models` (default `sonnet` for Claude, `gpt-5.6-luna` for
+Codex) to reduce the chance of a same-model self-review. Nothing compares that
+model to the coder's, so independence is configured, not verified — pick a
+fallback model you don't code with. The
 output says `"fallback_used": true` with the model in `"reviewer_model"` —
 mention it to the user once, don't repeat it every round. If neither CLI is on
 PATH the command fails with both binaries named; that is a stop condition.
@@ -88,8 +90,9 @@ python3 ~/100xprism/scripts/pair-loop.py finish --run "$RUN_ID" --verdict APPROV
 ```
 
 This second call also posts a review summary to the PR — rounds, reviewer tool
-and model, findings raised/resolved, verdict, and an explicit warning when the
-fallback was used. Pass `--no-comment` to skip it. A failed post warns and
+(plus its model when one was pinned; the normal path uses each CLI's own
+default, which isn't recorded), findings raised/resolved, verdict, and an
+explicit warning when the fallback was used. Pass `--no-comment` to skip it. A failed post warns and
 returns `"summary_posted": false`; it never fails the run.
 
 If `pair_loop.pr_final_round` is `true` in the config, run one more `review`
