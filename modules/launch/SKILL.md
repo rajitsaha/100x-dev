@@ -149,7 +149,7 @@ After CI/CD passes and deployment completes, run the full verification pipeline.
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in .claude/100xprism.yml CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 ```
 
 ### Step 1 — Health checks

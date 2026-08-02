@@ -89,10 +89,10 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 IS_CLOUD_PROJECT=false
 
 # Detect project instruction file
-INSTRUCTION_FILE=$(for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(for f in .claude/100xprism.yml CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
 
 # GCP: check for gcloud config, Terraform, or project instruction file references
-if [ -n "$INSTRUCTION_FILE" ] && grep -qE "gcloud|GCP_PROJECT|GOOGLE_CLOUD_PROJECT|Cloud Run|Cloud SQL|Firebase" \
+if [ -n "$INSTRUCTION_FILE" ] && grep -qiE "gcloud|gcp_project|google_cloud_project|cloud run|cloud sql|firebase" \
   "$INSTRUCTION_FILE" "$PROJECT_ROOT/.env.example" 2>/dev/null; then
   IS_CLOUD_PROJECT=true
 fi

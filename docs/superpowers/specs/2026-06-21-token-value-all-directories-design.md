@@ -148,7 +148,7 @@ terracotta; black + acid-green; hairline broadsheet).
 │  ALL DIRECTORIES                          sort: cost ▾       │
 │  dir            tool   cost ▾   value (shipped)    AI note   │
 │  100xprism      ◆CC   $1,204   12 commits·3 PRs   "token…"  │
-│  hippokit       ◆CC   $9,880   84 commits         "MCP…"    │
+│  service-a      ◆CC   $9,880   84 commits         "MCP…"    │
 │  antigravity-x  ◇AG      —     6 commits          "—"       │
 └────────────────────────────────────────────────────────────┘
 ```

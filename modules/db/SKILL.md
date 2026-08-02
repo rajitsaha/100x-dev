@@ -8,7 +8,7 @@ slash_command: /db
 
 # DB — Universal Database Access
 
-Reads connection config from the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent) or ~/.claude/db-connections.json (global registry).
+Reads connection config from `.claude/100xprism.yml` (preferred — kept out of the always-on context), falling back to the project instruction file (CLAUDE.md, AGENTS.md, .cursorrules, or equivalent), then ~/.claude/db-connections.json (global registry).
 
 > **Scope:** `/db` executes specific SQL or migrations against named connections. For analytics in plain English, use `/query`.
 
@@ -44,7 +44,7 @@ fi
 
 ```bash
 # Detect project instruction file
-INSTRUCTION_FILE=$(ROOT=$(git rev-parse --show-toplevel 2>/dev/null); for f in CLAUDE.md AGENTS.md .cursorrules; do [ -f "$ROOT/$f" ] && echo "$ROOT/$f" && break; done)
+INSTRUCTION_FILE=$(ROOT=$(git rev-parse --show-toplevel 2>/dev/null); for f in .claude/100xprism.yml CLAUDE.md AGENTS.md .cursorrules; do [ -f "$ROOT/$f" ] && echo "$ROOT/$f" && break; done)
 DB_CONNECTIONS="$HOME/.claude/db-connections.json"
 
 if [ -n "$NAMED_CONNECTION" ]; then

@@ -2,7 +2,7 @@
 name: branch
 description: Create a feature branch from the default branch with a descriptive, conventional name.
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /branch
 ---
 

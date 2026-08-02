@@ -23,10 +23,38 @@ description: <one-line trigger guidance — used by Claude Code/Cursor for auto-
 category: <docs|code|growth|...>
 tier: <core|on-demand>
 slash_command: /<name>   # optional — only for the 27 command-style modules
+retention: <must|profile|resolver>   # optional — overrides the derived class
+profiles: <core, code, data, …>      # optional — overrides the category default
 ---
 ```
 
 A module must work across **all 3 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
+
+## Retention: what earns a permanent slot
+
+A module's **description** is re-sent on every turn once it is installed; its **body**
+is free until invoked. So installing a module has a standing cost, and retention
+decides which modules are worth it. Derived in `retention_of()`, overridable per module:
+
+| Class | Meaning | Derivation |
+|---|---|---|
+| `must` | Deterministic machinery or house policy a model won't reproduce unprompted — what `gate` runs, the order `release` runs it in, the protocol `pair-loop` speaks. | the 12 slugs in `MUST_HAVE` |
+| `profile` | Earns its place only in repos of a matching kind. | default; also **any module owning a slash command** — the user can type it, so it must resolve |
+| `resolver` | General expertise a capable model already has. Never installed; one row in the generated catalog, loaded by path on demand. | `marketing` / `design` without a slash command |
+
+Two switches control how much of that is applied, and **both default to off** —
+an emit with neither set behaves exactly as it did before retention existed:
+
+- **user scope** — `~/.100xprism/config.json` `"skills": all|profile|must` (or `PRISM_SKILLS`)
+- **per project** — `<project>/.100xprism.json` `"profiles": [...]` (or `PRISM_PROFILES`); `["all"]` opts back out
+
+`100xprism slim` writes both. Keep that default-off property when you touch the
+emitters: it is what lets the test suite assert old and new behaviour side by side.
+
+Modules routed out of the index are copied to a catalog directory *outside* whatever
+the tool indexes (`~/.100xprism/100xprism-catalog/`, `.cursor/100xprism-catalog/`) and
+listed in a generated `100x-resolver` artifact. Codex is deliberately exempt:
+`.agents/skills` is already loaded on demand, so only its `AGENTS.md` router is filtered.
 
 ## After editing a module
 
@@ -36,7 +64,16 @@ Run the Claude Code adapter as a smoke test — it surfaces frontmatter errors a
 ./adapters/claude-code.sh
 ```
 
-Expected output ends with `67 skills + 27 slash command aliases` (or whatever the current totals are). If the count drops unexpectedly, you broke a frontmatter parse.
+Expected output ends with `67 skills + 5 slash command aliases` (or whatever the current
+totals are — an alias is written only when the command name differs from the slug, e.g.
+`fix-bugs` → `/fix`; a same-name alias would double-list the module and pay its
+description twice). If the skill count drops unexpectedly, you broke a frontmatter parse.
+
+To smoke-test the routed index instead, set the mode explicitly:
+
+```bash
+HOME=$(mktemp -d) PRISM_SKILLS=profile ./adapters/claude-code.sh
+```
 
 For the full repo check, run:
 
@@ -47,6 +84,9 @@ npm run check
 ## Things that are easy to get wrong
 
 - **Don't add a `CLAUDE.md` to this repo.** This file (`AGENTS.md`) covers all tools. The `CLAUDE.md` template that ships to *consumer* projects lives under `templates/`, not at the root.
+- **The consumer `CLAUDE.md` scaffold is duplicated.** It lives in both `adapters/claude-code.sh` (`install_project`) and `lib/adapters/windows.js` (`scaffoldClaudeMd`). Change one, change the other — `test/windows-adapters.test.js` only guards the JS copy.
+- **Keep `retention_of` / `profiles_of` / `detect_profiles` in sync** between `adapters/lib/modules.py` and `lib/adapters/windows.js`. A parity test in `test/retention-profiles.test.js` compares both across every real module, so drift fails CI rather than shipping.
+- **Machine-readable project config belongs in `.claude/100xprism.yml`, not `CLAUDE.md`** — the instruction file is re-sent every turn. Modules read the yml first and fall back to the instruction file, so old repos keep working. Its keys must stay flush-left: `/db` and friends match them with an anchored `grep`.
 - **Don't bump the version manually.** Use `/release` or follow `docs/USAGE.md` — `package.json`, `VERSION`, and the git tag must move together.
 - **Don't commit `.DS_Store` or `.playwright-mcp/`** (already in `.gitignore`, but worth knowing).
 - **Marketing assets in `assets/`** are generated from the HTML files in the same dir via Playwright. If you change the HTML, regenerate the PNG.

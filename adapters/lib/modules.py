@@ -4,6 +4,7 @@
 Used by all adapters. Outputs JSON to stdout with one of these subcommands:
 
   list                       — full manifest (all modules, sorted by category/name)
+  detect-profiles <dir>      — JSON: profiles a project looks like + resulting split
   emit-cursor <project_dir>  — write .cursor/rules/<slug>.mdc per module
   emit-codex <project_dir>   — write Codex-native AGENTS.md, repo skills, hooks
   emit-claude-code           — write ~/.claude/skills/<slug>/* + ~/.claude/commands/<slug>.md
@@ -64,6 +65,70 @@ def tier_annotation(model: str) -> str:
     return f"_Suggested model tier: {info['tier_hint']}_" if info else ""
 
 
+# ── Retention classes ────────────────────────────────────────────────────────
+# Every module's description is re-sent on every turn once it is installed as a
+# real skill, so *installing* a module has a standing token cost while its body
+# is free until invoked. Retention decides which modules earn that standing cost.
+#
+#   must     — deterministic machinery or house policy a model will not
+#              reproduce unprompted (what commands `gate` runs, the order
+#              `release` runs them in, the handoff protocol `pair-loop` speaks).
+#              Installed everywhere, always.
+#   profile  — earns its place only in repos of a matching kind.
+#   resolver — general expertise a capable model already has. Never installed as
+#              a skill; appears as one row in the generated resolver catalog and
+#              is loaded by path on demand.
+#
+# A module may override the derived class with `retention:` in its frontmatter.
+RETENTION_CLASSES = ("must", "profile", "resolver")
+
+MUST_HAVE = {
+    "gate", "commit", "push", "branch", "pr", "release",
+    "test", "lint", "security", "docs", "eval", "pair-loop",
+}
+
+# Categories whose modules are advice-shaped by default. Overridden per module by
+# `retention:`, and never applied to a module that owns a slash command — the user
+# can type that command, so the skill has to exist.
+RESOLVER_CATEGORIES = {"marketing", "design"}
+
+# Which repos a module earns its standing cost in. Derived from category unless a
+# module declares `profiles:`. "core" is implicitly active in every project.
+CATEGORY_PROFILES = {
+    "lifecycle": ["core"],
+    "quality": ["core"],
+    "engineering": ["code"],
+    "docs": ["code"],
+    "data": ["data"],
+    "design": ["design"],
+    "marketing": ["growth"],
+}
+KNOWN_PROFILES = ("core", "code", "data", "design", "growth")
+
+
+def retention_of(fm: dict, slug: str, category: str, slash_command: str) -> str:
+    """Derived retention class, overridable by frontmatter `retention:`."""
+    declared = fm.get("retention", "").strip()
+    if declared in RETENTION_CLASSES:
+        return declared
+    if slug in MUST_HAVE:
+        return "must"
+    # An invocable command must resolve to a real skill, whatever its category.
+    if slash_command:
+        return "profile"
+    if category in RESOLVER_CATEGORIES:
+        return "resolver"
+    return "profile"
+
+
+def profiles_of(fm: dict, category: str) -> list[str]:
+    """Derived profile list, overridable by frontmatter `profiles: a, b`."""
+    declared = [p.strip() for p in fm.get("profiles", "").replace(",", " ").split() if p.strip()]
+    if declared:
+        return declared
+    return list(CATEGORY_PROFILES.get(category, ["core"]))
+
+
 def short_description(desc: str) -> str:
     """First sentence of a description, capped at 140 chars — for tight rule triggering."""
     d = desc.split(". ", 1)[0]
@@ -119,13 +184,18 @@ def list_modules() -> list[dict]:
     out: list[dict] = []
     for skill_md in sorted(MODULES_DIR.glob("*/SKILL.md")):
         fm, body = split_frontmatter(skill_md.read_text())
+        category = fm.get("category", "uncategorized")
+        slash_command = fm.get("slash_command", "")
+        slug = skill_md.parent.name
         out.append({
-            "slug": skill_md.parent.name,
-            "name": fm.get("name", skill_md.parent.name),
+            "slug": slug,
+            "name": fm.get("name", slug),
             "description": fm.get("description", ""),
-            "category": fm.get("category", "uncategorized"),
+            "category": category,
             "tier": fm.get("tier", "on-demand"),
-            "slash_command": fm.get("slash_command", ""),
+            "retention": retention_of(fm, slug, category, slash_command),
+            "profiles": profiles_of(fm, category),
+            "slash_command": slash_command,
             "allowed_tools": fm.get("allowed-tools", ""),
             "model": fm.get("model", ""),
             "body": body,
@@ -133,6 +203,102 @@ def list_modules() -> list[dict]:
         })
     out.sort(key=lambda m: (m["tier"] != "core", m["category"], m["slug"]))
     return out
+
+
+# ── Per-project profile resolution ───────────────────────────────────────────
+# Filtering is OFF unless a project opts in, so an emit into a bare directory
+# behaves exactly as it did before profiles existed. `100xprism init` and
+# `100xprism slim` write the config that turns it on; `profiles: ["all"]` in that
+# config turns it back off again without deleting the file.
+PROJECT_CONFIG = ".100xprism.json"
+
+# Ordered so the first match wins for reporting purposes; a repo can match several.
+PROFILE_MARKERS = {
+    "code": [
+        "package.json", "pyproject.toml", "setup.py", "requirements.txt", "go.mod",
+        "Cargo.toml", "pom.xml", "build.gradle", "Gemfile", "composer.json",
+        "tsconfig.json", "CMakeLists.txt",
+    ],
+    "data": [
+        "terraform", "dbt_project.yml", "docker-compose.yml", "docker-compose.yaml",
+        "migrations", "alembic.ini", "Dockerfile",
+    ],
+    "design": [
+        "tailwind.config.js", "tailwind.config.ts", "tailwind.config.cjs",
+        ".storybook", "components", "src/components",
+    ],
+    "growth": [
+        "content", "posts", "_posts", "blog", "marketing", "landing",
+        "next-sitemap.config.js", "public/robots.txt",
+    ],
+}
+
+
+def detect_profiles(project_dir: str | Path) -> list[str]:
+    """Best-effort repo classification. Always includes 'core'.
+
+    A repo with no recognisable marker at all gets 'growth' as well as 'core' —
+    a bare content/docs directory is the case that would otherwise silently lose
+    every module it might actually want.
+    """
+    project = Path(project_dir)
+    found = ["core"]
+    for profile in ("code", "data", "design", "growth"):
+        if any((project / marker).exists() for marker in PROFILE_MARKERS[profile]):
+            found.append(profile)
+    if found == ["core"]:
+        found.append("growth")
+    return found
+
+
+def read_project_config(project_dir: str | Path) -> dict:
+    try:
+        return json.loads((Path(project_dir) / PROJECT_CONFIG).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def active_profiles(project_dir: str | Path) -> list[str] | None:
+    """Profiles to filter by, or None to emit everything (the default).
+
+    Precedence: PRISM_PROFILES env override → project config → off. Both the env
+    var and the config accept "all" as an explicit opt-out of filtering.
+    """
+    env = os.environ.get("PRISM_PROFILES", "").strip()
+    if env:
+        vals = [p.strip() for p in env.replace(",", " ").split() if p.strip()]
+        if "all" in vals:
+            return None
+        return sorted(set(vals) | {"core"})
+
+    cfg = read_project_config(project_dir).get("profiles")
+    if not cfg:
+        return None
+    if isinstance(cfg, str):
+        cfg = [cfg]
+    if "all" in cfg:
+        return None
+    return sorted({str(p).strip() for p in cfg if str(p).strip()} | {"core"})
+
+
+def select_modules(modules: list[dict], profiles: list[str] | None) -> tuple[list[dict], list[dict]]:
+    """Split into (installed as real artifacts, resolver-only).
+
+    With no active profiles this keeps every non-resolver module, which is what
+    every pre-profiles caller got. `must` modules ignore profiles by definition.
+    """
+    keep: list[dict] = []
+    catalog: list[dict] = []
+    for m in modules:
+        if m["retention"] == "resolver":
+            catalog.append(m)
+        elif m["retention"] == "must" or profiles is None:
+            keep.append(m)
+        elif set(m["profiles"]) & set(profiles):
+            keep.append(m)
+        else:
+            catalog.append(m)
+    return keep, catalog
 
 
 CATEGORY_ORDER = [
@@ -163,6 +329,91 @@ def emit_index(modules: list[dict], indent: str = "") -> str:
             lines.append(f"{indent}- `{m['slug']}`{slash} — {d}{tier_suffix}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+# ── Resolver ─────────────────────────────────────────────────────────────────
+# One always-on artifact replacing N always-on descriptions. Its own description
+# is the only standing cost; the catalog table in its body is read on the turns
+# that actually need to route, and the module body itself on the turn after that.
+RESOLVER_SLUG = "100x-resolver"
+CATALOG_DIRNAME = "100xprism-catalog"
+
+RESOLVER_DESCRIPTION = (
+    "Catalog of specialist 100xprism workflows kept out of the always-on index — "
+    "marketing, SEO, CRO, copywriting, growth, pricing, sales, design, accessibility, "
+    "motion, and data-visualization playbooks. Read this file's table to find the right "
+    "one, then read that module's SKILL.md path before starting the work."
+)
+
+
+def user_skills_mode() -> str:
+    """How much of the catalog gets installed as real user-scope skills.
+
+    'all' (default) preserves the pre-resolver behaviour. Set by `100xprism slim`,
+    or per-run via PRISM_SKILLS. Unknown values fall back to 'all' — the safe end.
+    """
+    env = os.environ.get("PRISM_SKILLS", "").strip().lower()
+    if env in ("all", "profile", "must"):
+        return env
+    if env:
+        return "all"
+    try:
+        cfg = json.loads((Path.home() / ".100xprism" / "config.json").read_text())
+    except (OSError, ValueError):
+        return "all"
+    mode = str(cfg.get("skills", "all")).strip().lower()
+    return mode if mode in ("all", "profile", "must") else "all"
+
+
+def split_by_mode(modules: list[dict], mode: str) -> tuple[list[dict], list[dict]]:
+    """(installed, catalog) for a user-scope skills mode."""
+    if mode == "all":
+        return list(modules), []
+    if mode == "must":
+        keep = [m for m in modules if m["retention"] == "must"]
+    else:  # profile
+        keep = [m for m in modules if m["retention"] in ("must", "profile")]
+    kept = {m["slug"] for m in keep}
+    return keep, [m for m in modules if m["slug"] not in kept]
+
+
+def render_catalog_table(catalog: list[dict], path_template: str) -> str:
+    """Markdown table: one row per catalog module, grouped by category.
+
+    `path_template` is formatted with `slug` and tells the agent exactly what to
+    read — a row is only useful if it resolves to a file without further search.
+    """
+    if not catalog:
+        return "_No catalog modules — every module is installed as a skill._\n"
+    by_cat: dict[str, list[dict]] = {}
+    for m in catalog:
+        by_cat.setdefault(m["category"], []).append(m)
+    lines: list[str] = []
+    for cat in sorted(by_cat.keys(), key=category_sort_key):
+        lines.append(f"\n### {cat.title()}\n")
+        lines.append("| Module | Use it when | Read |")
+        lines.append("|---|---|---|")
+        for m in sorted(by_cat[cat], key=lambda x: x["slug"]):
+            trigger = short_description(m["description"]).replace("|", "\\|")
+            lines.append(f"| `{m['slug']}` | {trigger} | `{path_template.format(slug=m['slug'])}` |")
+    return "\n".join(lines) + "\n"
+
+
+def render_resolver(catalog: list[dict], path_template: str) -> str:
+    """The resolver artifact's SKILL.md."""
+    return (
+        "---\n"
+        f"name: {RESOLVER_SLUG}\n"
+        f"description: {RESOLVER_DESCRIPTION}\n"
+        "category: docs\n"
+        "tier: on-demand\n"
+        "---\n\n"
+        f"# 100xprism catalog ({len(catalog)} modules)\n\n"
+        "These modules are deliberately not in the always-on skill index. Find the row "
+        "that matches the task, **read the file in its `Read` column**, then follow it as "
+        "you would any skill. If nothing matches, proceed without one.\n"
+        + render_catalog_table(catalog, path_template)
+    )
 
 
 def render_codex_agents(modules: list[dict]) -> str:
@@ -208,6 +459,37 @@ def cmd_list():
     print(json.dumps(mods, indent=2))
 
 
+def cmd_detect_profiles(project_dir: str):
+    """Report the profiles a project looks like, for `100xprism slim`."""
+    profiles = detect_profiles(project_dir)
+    mods = list_modules()
+    keep, catalog = select_modules(mods, profiles)
+    print(json.dumps({
+        "profiles": profiles,
+        "installed": len(keep),
+        "catalog": len(catalog),
+    }, indent=2))
+
+
+def _write_catalog_bodies(catalog: list[dict], catalog_dir: Path) -> None:
+    """Park catalog module bodies on disk, outside anything the tool indexes.
+
+    Cleared and rewritten wholesale: everything under this directory is ours, so
+    a module that graduates back into the skill index leaves no stale copy behind.
+    """
+    if catalog_dir.exists():
+        shutil.rmtree(catalog_dir)
+    if not catalog:
+        return
+    catalog_dir.mkdir(parents=True, exist_ok=True)
+    for m in catalog:
+        target = catalog_dir / m["slug"]
+        shutil.copytree(m["dir"], target)
+        (target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism from modules/<slug>/SKILL.md. Regenerate instead of editing here.\n"
+        )
+
+
 def cmd_emit_cursor(project_dir: str):
     rules_dir = Path(project_dir) / ".cursor" / "rules"
     if rules_dir.exists():
@@ -225,26 +507,48 @@ def cmd_emit_cursor(project_dir: str):
                 pass
     rules_dir.mkdir(parents=True, exist_ok=True)
     mods = list_modules()
-    for m in mods:
-        # Map tier to Cursor rule type: core modules are always in context;
-        # on-demand modules are agent-requested via a tight first-sentence description.
-        always_apply = "true" if m["tier"] == "core" else "false"
+
+    # Filtering is opt-in: with no project config (and no PRISM_PROFILES) this
+    # resolves to None and every module gets a rule, exactly as before profiles.
+    profiles = active_profiles(project_dir)
+    keep, catalog = select_modules(mods, profiles) if profiles is not None else (mods, [])
+
+    def write_rule(slug: str, description: str, always_apply: str, model: str, body: str) -> None:
         cursor_fm = [
             "---",
-            f"description: {short_description(m['description'])}",
+            f"description: {description}",
             "globs:",
             f"alwaysApply: {always_apply}",
             "---",
             "",
-            f"<!-- generated by 100xprism from modules/{m['slug']}/SKILL.md -->",
+            f"<!-- generated by 100xprism from modules/{slug}/SKILL.md -->",
             "",
         ]
-        tier = tier_annotation(m.get("model", ""))
+        tier = tier_annotation(model)
         if tier:
             cursor_fm += [tier, ""]
-        text = "\n".join(cursor_fm) + m["body"].lstrip("\n")
-        (rules_dir / f"{m['slug']}.mdc").write_text(text)
-    print(f"wrote {len(mods)} files to {rules_dir}")
+        (rules_dir / f"{slug}.mdc").write_text("\n".join(cursor_fm) + body.lstrip("\n"))
+
+    for m in keep:
+        # Map tier to Cursor rule type: core modules are always in context;
+        # on-demand modules are agent-requested via a tight first-sentence description.
+        write_rule(
+            m["slug"], short_description(m["description"]),
+            "true" if m["tier"] == "core" else "false", m.get("model", ""), m["body"],
+        )
+
+    catalog_dir = Path(project_dir) / ".cursor" / CATALOG_DIRNAME
+    _write_catalog_bodies(catalog, catalog_dir)
+    if catalog:
+        # The resolver is itself a rule, so Cursor can request it by description —
+        # one description standing in for the descriptions of everything it lists.
+        resolver_fm, resolver_body = split_frontmatter(
+            render_resolver(catalog, f".cursor/{CATALOG_DIRNAME}/{{slug}}/SKILL.md")
+        )
+        write_rule(RESOLVER_SLUG, RESOLVER_DESCRIPTION, "false", "", resolver_body)
+
+    suffix = f" (+{len(catalog)} in {CATALOG_DIRNAME}/)" if catalog else ""
+    print(f"wrote {len(keep) + (1 if catalog else 0)} files to {rules_dir}{suffix}")
 
 
 def cmd_emit_codex(project_dir: str):
@@ -257,9 +561,14 @@ def cmd_emit_codex(project_dir: str):
     project = Path(project_dir)
     mods = list_modules()
 
+    # Only AGENTS.md is always-on for Codex; `.agents/skills` is loaded on demand,
+    # so the whole module set stays on disk there and only the router is filtered.
+    profiles = active_profiles(project_dir)
+    routed = select_modules(mods, profiles)[0] if profiles is not None else mods
+
     agents_file = project / "AGENTS.md"
     agents_file.parent.mkdir(parents=True, exist_ok=True)
-    agents_file.write_text(render_codex_agents(mods))
+    agents_file.write_text(render_codex_agents(routed))
 
     skills_dir = project / ".agents" / "skills"
     index_file = project / ".agents" / "100x-index.md"
@@ -372,18 +681,18 @@ def cmd_emit_claude_code():
     current_cmds: list[str] = []
     skill_count = 0
     cmd_count = 0
-    for module_dir in sorted(MODULES_DIR.glob("*")):
-        if not module_dir.is_dir():
-            continue
-        # A module is a dir with a SKILL.md. Shared-reference dirs (e.g. `_lib/`, which
-        # holds maintainer conventions in reference.md) have none — skip, don't emit them.
-        if not (module_dir / "SKILL.md").is_file():
-            continue
-        slug = module_dir.name
+
+    # `list_modules` already skips shared-reference dirs (e.g. `_lib/`, which holds
+    # maintainer conventions in reference.md and has no SKILL.md).
+    mode = user_skills_mode()
+    installed, catalog = split_by_mode(list_modules(), mode)
+
+    for m in installed:
+        slug = m["slug"]
         target = skills_dir / slug
         if target.exists():
             shutil.rmtree(target)
-        shutil.copytree(module_dir, target)
+        shutil.copytree(m["dir"], target)
         (target / GENERATED_MARKER).write_text(
             "Generated by 100xprism from modules/<slug>/SKILL.md. Regenerate instead of editing here.\n"
         )
@@ -394,13 +703,31 @@ def cmd_emit_claude_code():
         # (e.g. fix-bugs → /fix). Claude Code already exposes every skill in
         # ~/.claude/skills as /<slug>, so a same-name alias would double-list the
         # module in the session's skill index and pay its description twice.
-        skill_md = target / "SKILL.md"
-        fm, body = split_frontmatter(skill_md.read_text())
+        fm, body = split_frontmatter((target / "SKILL.md").read_text())
         slash = fm.get("slash_command", "").lstrip("/")
         if slash and slash != slug:
             (commands_dir / f"{slash}.md").write_text(render_command_alias(fm, slug, body))
             current_cmds.append(slash)
             cmd_count += 1
+
+    # Catalog bodies live beside ~/.claude, not inside skills/ — Claude Code indexes
+    # every SKILL.md under skills/, so parking them there would keep charging the
+    # description rent this split exists to remove.
+    catalog_dir = home / ".100xprism" / CATALOG_DIRNAME
+    _write_catalog_bodies(catalog, catalog_dir)
+    if catalog:
+        resolver_target = skills_dir / RESOLVER_SLUG
+        if resolver_target.exists():
+            shutil.rmtree(resolver_target)
+        resolver_target.mkdir(parents=True)
+        (resolver_target / "SKILL.md").write_text(
+            render_resolver(catalog, str(catalog_dir / "{slug}" / "SKILL.md"))
+        )
+        (resolver_target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism. Regenerate instead of editing here.\n"
+        )
+        current_slugs.append(RESOLVER_SLUG)
+        skill_count += 1
 
     cur_skill_set = set(current_slugs)
     cur_cmd_set = set(current_cmds)
@@ -438,7 +765,8 @@ def cmd_emit_claude_code():
     suffix = ""
     if pruned_skills or pruned_cmds:
         suffix = f" (pruned {pruned_skills} stale skill(s), {pruned_cmds} stale alias(es))"
-    print(f"wrote {skill_count} skills + {cmd_count} slash command aliases{suffix}")
+    catalog_note = f" + {len(catalog)} catalog module(s) behind {RESOLVER_SLUG}" if catalog else ""
+    print(f"wrote {skill_count} skills + {cmd_count} slash command aliases{catalog_note}{suffix}")
 
 
 HOOKS_DIR = REPO / "hooks"
@@ -559,6 +887,8 @@ def main(argv: list[str]):
     cmd = argv[1]
     if cmd == "list":
         cmd_list()
+    elif cmd == "detect-profiles":
+        cmd_detect_profiles(argv[2] if len(argv) > 2 else ".")
     elif cmd == "emit-cursor":
         cmd_emit_cursor(argv[2])
     elif cmd == "emit-codex":
