@@ -114,6 +114,40 @@ def _guess_current_codex_session(before_mtimes):
     return None
 
 
+def _dominant_model(by_model):
+    """Best-effort dominant model for a transcript's by_model breakdown: the
+    model with the most input+output tokens, excluding the 'unknown'
+    placeholder both adapters use when a line carries no model field."""
+    candidates = {m: v for m, v in (by_model or {}).items() if m and m != "unknown"}
+    if not candidates:
+        return None
+    return max(candidates, key=lambda m: candidates[m].get("input", 0) + candidates[m].get("output", 0))
+
+
+def _resolve_session_model(tool, session_id, claude_summaries, codex_summaries):
+    """Best-effort: the dominant model a given tool+session_id actually ran
+    with, from already-scanned transcript summaries (claude_code.scan() /
+    codex.scan()). None whenever the model can't be established — no adapter
+    for `tool` (cursor has none yet), no session_id recorded, or no matching
+    transcript found. Callers must treat None as 'unknown', never as 'safe to
+    assume different': see reviewer.py's independence-is-configured-not-
+    verified docstring for why a guess here would be worse than admitting the
+    gap.
+    """
+    if not session_id:
+        return None
+    if tool == "claude":
+        summaries = claude_summaries
+    elif tool == "codex":
+        summaries = codex_summaries
+    else:
+        return None
+    for s in summaries:
+        if s.get("session_id") == session_id:
+            return _dominant_model(s.get("by_model"))
+    return None
+
+
 def cmd_coder_done(args):
     manifest = run_manifest.load_manifest(args.run)
     cwd = manifest["cwd"]
@@ -271,6 +305,38 @@ def cmd_review(args):
         session_id = _guess_current_claude_session(cwd)
     else:
         session_id = None
+
+    # #93: verify independence instead of assuming it. A same-model review is
+    # worth roughly nothing as a second opinion, whether that happened via an
+    # unpinned same-vendor fallback or a plain coder==reviewer misconfig — an
+    # APPROVED verdict from one must not pass silently. Only worth the scan
+    # when the verdict is APPROVED; a CHANGES_REQUESTED round has nothing to
+    # refuse. Both models must actually resolve (see _resolve_session_model) —
+    # unknown is never treated as "safe", but it also can't be treated as a
+    # conflict.
+    same_model_conflict = None
+    if verdict == "APPROVED":
+        coder_rounds = [r for r in manifest["rounds"] if r["role"] == "coder"]
+        coder_round = coder_rounds[-1] if coder_rounds else None
+        if coder_round is not None:
+            claude_summaries = claude_code.scan(verbose=False)
+            codex_summaries = codex.scan(verbose=False)
+            coder_model = _resolve_session_model(coder_round.get("tool"), coder_round.get("session_id"),
+                                                 claude_summaries, codex_summaries)
+            reviewer_model = _resolve_session_model(actual_tool, session_id,
+                                                    claude_summaries, codex_summaries)
+            if coder_model and reviewer_model and coder_model == reviewer_model:
+                same_model_conflict = coder_model
+                manifest["reviewer_same_model_conflict"] = coder_model
+                verdict = "CHANGES_REQUESTED"
+                findings = findings + [{
+                    "n": len(findings) + 1, "category": "process", "location": "",
+                    "text": (f"Reviewer ran on the same model as the coder ({coder_model}) "
+                             "— independence could not be established, so this approval "
+                             "is refused (#93). Pick a fallback_models entry (or a "
+                             "reviewer vendor/model) that differs from the coder's."),
+                }]
+
     round_ = run_manifest.add_round(manifest, "reviewer", actual_tool, session_id=session_id)
     run_manifest.close_round(manifest, round_, findings=len(findings), verdict=verdict)
     handoff.append_reviewer_round(os.path.join(cwd, handoff.HANDOFF_FILENAME),
@@ -278,7 +344,8 @@ def cmd_review(args):
     print(json.dumps({"verdict": verdict, "findings": findings,
                       "fallback_used": result.fallback_used,
                       "reviewer_tool": result.tool,
-                      "reviewer_model": result.model}))
+                      "reviewer_model": result.model,
+                      "same_model_conflict": same_model_conflict}))
 
 
 def render_review_summary(manifest):
@@ -349,6 +416,21 @@ def render_review_summary(manifest):
                 f"`pair_loop.fallback_models` in `~/.100xprism/config.json` to pin one."
             )
         lines += [warning, ""]
+
+    if manifest.get("reviewer_same_model_conflict"):
+        # Unlike the fallback warning above, this one IS founded: cmd_review
+        # resolved both the coder's and the reviewer's session transcripts to
+        # the same model and refused the resulting approval (#93) rather than
+        # letting it pass as a second opinion.
+        lines += [
+            f"> 🛑 **Same-model review refused (#93).** A reviewer round "
+            f"resolved to the coder's own model "
+            f"(`{manifest['reviewer_same_model_conflict']}`) via session "
+            "transcripts, and its approval was overridden to "
+            "`CHANGES_REQUESTED` rather than counted as an independent "
+            "second opinion — see the round list below.",
+            "",
+        ]
 
     for r in reviewer_rounds:
         lines.append(
