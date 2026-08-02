@@ -56,7 +56,7 @@ python3 ~/100xprism/scripts/pair-loop.py review --run "$RUN_ID"
 ```
 
 This shells out to the configured reviewer and returns
-`{"verdict":, "findings": [...], "fallback_used":, "reviewer_tool":, "reviewer_model":}`.
+`{"verdict":, "findings": [...], "fallback_used":, "reviewer_tool":, "reviewer_model":, "same_model_conflict":}`.
 `reviewer_tool` is the vendor that actually ran — with three vendors, do not
 assume it equals `pair_loop.reviewer`; check it, especially when
 `fallback_used` is true.
@@ -68,13 +68,23 @@ models) over a same-vendor fallback. Only as a last resort does it fall back to
 the coder's own vendor. Whichever vendor runs is pinned to
 `pair_loop.fallback_models` (default `sonnet` for Claude, `gpt-5.6-luna` for
 Codex, `composer-2.5` for Cursor) to reduce the chance of a same-model
-self-review. Nothing compares that model to the coder's, so independence is
-configured, not verified — pick fallback models you don't code with. The
-output says `"fallback_used": true`, with the actual vendor in
+self-review. The output says `"fallback_used": true`, with the actual vendor in
 `"reviewer_tool"` and its pinned model (if any) in `"reviewer_model"` —
 mention this to the user once, don't repeat it every round.
 If no supported CLI is on PATH the command fails naming every supported
 vendor; that is a stop condition.
+
+Independence is verified, not just configured, whenever it can be: when a
+round's verdict comes back `APPROVED`, `review` resolves both the coder's and
+the reviewer's session transcripts to the model each actually ran, and if they
+match, overrides the verdict to `CHANGES_REQUESTED` and adds a `process`
+finding explaining why (#93) — `"same_model_conflict"` in the output carries
+the matched model name (`null` otherwise). Treat this exactly like any other
+`CHANGES_REQUESTED`: go back to Step 2, and mention the conflict to the user
+so they can point `fallback_models` (or the reviewer config) at a model that
+differs from the coder's. This is still best-effort, not a guarantee — a
+session_id that couldn't be resolved (no adapter for Cursor yet, or a missed
+guess) means the check silently can't run, same as before.
 
 - `"verdict": "APPROVED"` → go to Step 5 (PR phase).
 - `"verdict": "CHANGES_REQUESTED"` and you have rounds remaining (round count
@@ -116,4 +126,4 @@ address them before finishing.
 - Round cap hit without approval (Step 4).
 - Never auto-merge — a human merges the PR, always.
 
-**Note:** If the configured reviewer's CLI was missing and a fallback ran, mention it to the user once (`"fallback_used": true`, with the vendor in `"reviewer_tool"` and any pinned model in `"reviewer_model"`), but do not block — this is not a stop condition. A fallback onto the coder's own vendor is weaker than a genuinely different one, and nothing checks the reviewer's model against the coder's, so independence is unverified either way; the PR summary states this rather than claiming otherwise.
+**Note:** If the configured reviewer's CLI was missing and a fallback ran, mention it to the user once (`"fallback_used": true`, with the vendor in `"reviewer_tool"` and any pinned model in `"reviewer_model"`), but do not block — this is not a stop condition. A fallback onto the coder's own vendor is weaker than a genuinely different one; `review` checks the reviewer's resolved model against the coder's when it can (see Step 4, #93) and refuses a same-model approval, but that check can't always run (unresolved session_id), so treat any surviving `APPROVED` from a same-vendor fallback as weaker signal, not a guarantee — the PR summary states this rather than claiming otherwise.

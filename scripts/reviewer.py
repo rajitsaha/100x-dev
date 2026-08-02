@@ -28,16 +28,19 @@ If no supported CLI is on PATH there is no reviewer to be had; that raises
 naming every supported vendor, rather than letting subprocess fail with a bare
 FileNotFoundError from a command that was never going to run.
 
-Known limitation: nothing here compares the fallback model to the coder's, so
-independence is *configured, not verified*. Set the coder session to the model
-named in `fallback_models` and the fallback review is a self-review again —
-pick a fallback model you don't code with.
-
-This is a gap, not an impossibility. An earlier version of this docstring
-claimed the coder's model was unobservable; that was wrong. pair-loop records a
-`session_id` per round, and scripts/adapters/{claude_code,codex}.py already
-parse models out of session transcripts, so the comparison can be built. Doing
-it — and refusing an approval when the models match — is tracked separately.
+Known limitation, here: nothing in this module compares the fallback model to
+the coder's — invoke()/select_fallback() only pick and pin a vendor/model, they
+don't verify what actually ran. The comparison lives one layer up, in
+pair-loop.py's cmd_review(), which has what this module deliberately doesn't:
+each round's session_id and the claude_code/codex adapters that resolve a
+session_id to the model it actually ran (#93). cmd_review refuses an APPROVED
+verdict when the coder's and reviewer's resolved models match. That check is
+still best-effort — it needs both session_ids to resolve, which isn't
+guaranteed (no session lookup exists for Cursor yet, and a guessed session_id
+can miss) — so a same-model review can still slip through when the models
+can't be resolved. Set the coder session to the model named in
+`fallback_models` and, if both resolve, the fallback review is caught as a
+self-review rather than passing silently.
 
 `run_command` is injectable for tests; production code never needs to pass it.
 No test in this module (or its companion scripts/test_reviewer.py) may shell
@@ -174,9 +177,11 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
 
     A same-vendor fallback is pinned to `fallback_models[vendor]` when one is
     configured. That pin reduces the chance the reviewer runs the coder's own
-    model; it does not rule it out, since nothing compares the two (#93).
-    Without any pin, a same-vendor fallback is a same-model self-review, worth
-    roughly nothing as a second opinion. See the module docstring.
+    model; it does not rule it out — this function doesn't compare the two.
+    pair-loop.py's cmd_review() does, from session transcripts, and refuses an
+    APPROVED verdict on a match (#93). Without any pin, a same-vendor fallback
+    is a same-model self-review, worth roughly nothing as a second opinion.
+    See the module docstring.
 
     Raises ValueError immediately for an unsupported tool name, regardless of
     PATH state — without this upfront check, an unsupported name that also

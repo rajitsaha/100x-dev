@@ -430,5 +430,159 @@ class TestSessionGuessing(unittest.TestCase):
         self.assertEqual(result, "abc-123")
 
 
+class TestResolveSessionModel(unittest.TestCase):
+    """Direct unit tests for the #93 model-resolution helpers, given
+    already-scanned summaries (no filesystem/adapter involved)."""
+
+    def setUp(self):
+        self.mod = _load_pair_loop()
+
+    def test_dominant_model_picks_the_most_used(self):
+        by_model = {"model-a": {"input": 10, "output": 5},
+                    "model-b": {"input": 100, "output": 50}}
+        self.assertEqual(self.mod._dominant_model(by_model), "model-b")
+
+    def test_dominant_model_ignores_unknown(self):
+        by_model = {"unknown": {"input": 999, "output": 999},
+                    "model-a": {"input": 1, "output": 1}}
+        self.assertEqual(self.mod._dominant_model(by_model), "model-a")
+
+    def test_dominant_model_none_when_empty_or_only_unknown(self):
+        self.assertIsNone(self.mod._dominant_model({}))
+        self.assertIsNone(self.mod._dominant_model(None))
+        self.assertIsNone(self.mod._dominant_model({"unknown": {"input": 5, "output": 5}}))
+
+    def test_resolve_session_model_matches_by_session_id(self):
+        claude_summaries = [{"session_id": "s1", "by_model": {"model-a": {"input": 10, "output": 5}}}]
+        result = self.mod._resolve_session_model("claude", "s1", claude_summaries, [])
+        self.assertEqual(result, "model-a")
+
+    def test_resolve_session_model_none_for_unmatched_session(self):
+        claude_summaries = [{"session_id": "s1", "by_model": {"model-a": {"input": 10, "output": 5}}}]
+        result = self.mod._resolve_session_model("claude", "does-not-exist", claude_summaries, [])
+        self.assertIsNone(result)
+
+    def test_resolve_session_model_none_without_session_id(self):
+        result = self.mod._resolve_session_model("claude", None, [{"session_id": "s1"}], [])
+        self.assertIsNone(result)
+
+    def test_resolve_session_model_none_for_unsupported_tool(self):
+        """cursor has no session-lookup adapter yet — must return None, never
+        guess from the wrong summaries list."""
+        claude_summaries = [{"session_id": "s1", "by_model": {"model-a": {"input": 10, "output": 5}}}]
+        result = self.mod._resolve_session_model("cursor", "s1", claude_summaries, [])
+        self.assertIsNone(result)
+
+    def test_resolve_session_model_uses_codex_summaries_for_codex_tool(self):
+        codex_summaries = [{"session_id": "c1", "by_model": {"gpt-x": {"input": 1, "output": 1}}}]
+        result = self.mod._resolve_session_model("codex", "c1", [], codex_summaries)
+        self.assertEqual(result, "gpt-x")
+
+
+class TestSameModelConflict(unittest.TestCase):
+    """End-to-end: `review` must refuse an APPROVED verdict when the coder's
+    and the reviewer's resolved session models match (#93), and must leave a
+    genuinely-different-model approval alone."""
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp()
+        git(self.repo, "init", "-q")
+        with open(os.path.join(self.repo, "a.txt"), "w") as f:
+            f.write("x")
+        git(self.repo, "add", "a.txt")
+        git(self.repo, "commit", "-q", "-m", "init")
+
+        self.home = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.home, ".100xprism"), exist_ok=True)
+        with open(os.path.join(self.home, ".100xprism", "config.json"), "w") as f:
+            json.dump({"pair_loop": {"coder": "claude", "reviewer": "claude"}}, f)
+        self.env = dict(os.environ, HOME=self.home)
+
+        sys.path.insert(0, HERE)
+        import _value
+        # realpath, not abspath: on macOS the tempdir root is itself a symlink
+        # (/var -> /private/var), and pair-loop.py's own cwd resolution runs
+        # inside the child subprocess, where os.path.abspath(".") calls
+        # os.getcwd() — which the kernel already resolves through that
+        # symlink. abspath() here (no chdir, no kernel involved) would not,
+        # producing a different mangled dir name than the one the subprocess
+        # actually looks under.
+        mangled = _value.mangle_path(os.path.realpath(self.repo))
+        self.proj_dir = os.path.join(self.home, ".claude", "projects", mangled)
+        os.makedirs(self.proj_dir, exist_ok=True)
+
+    def _run(self, *args):
+        return subprocess.run([sys.executable, SCRIPT, *args], cwd=self.repo,
+                              capture_output=True, text=True, env=self.env)
+
+    _next_mtime = [1700000000]  # monotonically increasing, explicit os.utime — filesystem mtime
+                                # granularity (up to 1s on some setups) makes a bare write-order
+                                # + sleep() an unreliable way to control "newest transcript" picks
+
+    def _write_transcript(self, session_id, model):
+        path = os.path.join(self.proj_dir, f"{session_id}.jsonl")
+        line = {
+            "sessionId": session_id,
+            "message": {"role": "assistant", "content": "did work", "model": model,
+                       "usage": {"input_tokens": 100, "output_tokens": 50,
+                                "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}},
+            "timestamp": "2026-08-01T10:00:00Z",
+            "isSidechain": False,
+        }
+        with open(path, "w") as f:
+            f.write(json.dumps(line) + "\n")
+        mtime = self._next_mtime[0]
+        self._next_mtime[0] += 10
+        os.utime(path, (mtime, mtime))
+        return path
+
+    def test_same_resolved_model_overrides_approval(self):
+        self._write_transcript("coder-session", "model-x")
+        r = self._run("start", "--task", "x")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        self._write_transcript("reviewer-session", "model-x")
+
+        r2 = self._run("review", "--run", run_id, "--reviewer-cmd",
+                       json.dumps(["bash", STUB_REVIEWER, "APPROVED"]))
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+        out = json.loads(r2.stdout)
+        self.assertEqual(out["verdict"], "CHANGES_REQUESTED")
+        self.assertEqual(out["same_model_conflict"], "model-x")
+        self.assertTrue(any("model-x" in f["text"] and "93" in f["text"] for f in out["findings"]),
+                        out["findings"])
+
+    def test_different_resolved_model_keeps_approval(self):
+        self._write_transcript("coder-session", "model-x")
+        r = self._run("start", "--task", "x")
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        self._write_transcript("reviewer-session", "model-y")
+
+        r2 = self._run("review", "--run", run_id, "--reviewer-cmd",
+                       json.dumps(["bash", STUB_REVIEWER, "APPROVED"]))
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+        out = json.loads(r2.stdout)
+        self.assertEqual(out["verdict"], "APPROVED")
+        self.assertIsNone(out["same_model_conflict"])
+
+    def test_unresolvable_session_does_not_block_approval(self):
+        """No transcripts at all -> both models resolve to None -> the check
+        can't run, and (as before #93) the approval is not second-guessed."""
+        r = self._run("start", "--task", "x")
+        run_id = json.loads(r.stdout)["run_id"]
+        self._run("coder-done", "--run", run_id, "--summary", "done")
+
+        r2 = self._run("review", "--run", run_id, "--reviewer-cmd",
+                       json.dumps(["bash", STUB_REVIEWER, "APPROVED"]))
+        self.assertEqual(r2.returncode, 0, r2.stderr)
+        out = json.loads(r2.stdout)
+        self.assertEqual(out["verdict"], "APPROVED")
+        self.assertIsNone(out["same_model_conflict"])
+
+
 if __name__ == "__main__":
     unittest.main()
