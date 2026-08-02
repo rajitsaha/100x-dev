@@ -2,7 +2,7 @@
 name: release
 description: You are a release engineer. Execute each phase in order. Each must fully complete before advancing. Do NOT ask for permission. Do NOT skip phases.
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /release
 ---
 

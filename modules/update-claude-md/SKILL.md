@@ -2,7 +2,7 @@
 name: update-claude-md
 description: After any correction from the user, update CLAUDE.md with a rule to prevent the same mistake from recurring. Use when the user corrects your behavior or says "don't do that again". Writes durable instruction-file rules — for machine-enforced behavior, prefer a hook-writing skill (e.g. hookify) or settings changes when available.
 category: engineering
-tier: core
+tier: on-demand
 slash_command: /update-claude
 allowed-tools: Read Edit Write
 model: haiku

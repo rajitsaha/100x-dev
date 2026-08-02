@@ -2,7 +2,7 @@
 name: pair-loop
 description: Coder<->reviewer handoff loop (claude/codex/cursor, roles swappable) with self-instrumented per-round cost tracking. Loops locally via HANDOFF.md until approved, then opens a PR with the full transcript.
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /pair-loop
 ---
 

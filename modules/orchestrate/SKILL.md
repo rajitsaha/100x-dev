@@ -2,7 +2,7 @@
 name: orchestrate
 description: Apply the Workflow Orchestration methodology for complex, multi-step tasks — plan-first approach, subagent strategy, self-improvement loop, verification before done, elegant solutions, and autonomous bug fixing. Use for any non-trivial task with 3+ steps or architectural decisions.
 category: engineering
-tier: core
+tier: on-demand
 slash_command: /orchestrate
 allowed-tools: Bash Read Edit Write Grep Glob Agent Task Workflow
 ---
