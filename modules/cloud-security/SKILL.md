@@ -19,7 +19,7 @@ Covers GCP infrastructure hardening, data privacy (PII/GDPR/CCPA), API security,
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 INSTRUCTION_FILE=$(for f in .claude/100xprism.yml CLAUDE.md AGENTS.md .cursorrules; do [ -f "$PROJECT_ROOT/$f" ] && echo "$PROJECT_ROOT/$f" && break; done)
-GCP_PROJECTS=$(grep -rh "GCP_PROJECT\|GOOGLE_CLOUD_PROJECT\|gcloud.*--project" ${INSTRUCTION_FILE:-/dev/null} .env.example terraform/ 2>/dev/null | grep -oE '[a-z][a-z0-9-]{4,28}' | sort -u | grep -v "^--" || true)
+GCP_PROJECTS=$(grep -rhi "GCP_PROJECT\|GOOGLE_CLOUD_PROJECT\|gcloud.*--project" ${INSTRUCTION_FILE:-/dev/null} .env.example terraform/ 2>/dev/null | grep -oE '[a-z][a-z0-9-]{4,28}' | sort -u | grep -v "^--" || true)
 HAS_DOCKER=$(ls Dockerfile docker-compose.yml 2>/dev/null | head -1 || true)
 HAS_TERRAFORM=$(ls terraform/*.tf infra/*.tf 2>/dev/null | head -1 || true)
 ```

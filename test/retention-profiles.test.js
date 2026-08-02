@@ -154,6 +154,19 @@ test('PRISM_PROFILES overrides the project config', () => {
   assert.equal(countRules(p), sourceCount, 'env "all" wins over a narrow config')
 })
 
+test('an empty profiles array is treated as unset, not as "filter to nothing"', () => {
+  // "profiles": [] must behave like no config at all in both languages — a bare
+  // falsy check (`if (!cfg)`) is not enough in JS, since an empty array is truthy.
+  const p = tmp()
+  fs.writeFileSync(path.join(p, '.100xprism.json'), JSON.stringify({ profiles: [] }))
+  assert.equal(win.activeProfiles(p), null, 'JS: empty array ⇒ unfiltered')
+
+  py(['emit-cursor', p])
+  const sourceCount = fs.readdirSync(path.join(REPO, 'modules'))
+    .filter(n => fs.existsSync(path.join(REPO, 'modules', n, 'SKILL.md'))).length
+  assert.equal(countRules(p), sourceCount, 'python: empty array ⇒ unfiltered')
+})
+
 // ── resolver ─────────────────────────────────────────────────────────────────
 
 test('every resolver row points at a file that exists', () => {
