@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-02
+
 ### Added
 
 - **Retention classes and per-repo profiles — the always-on skill index is no longer all-or-nothing.** An installed module's *description* is re-sent on every turn while its *body* is free until invoked, so installing a module carries a standing token cost. Modules now derive a retention class (`must` / `profile` / `resolver`, overridable per module via frontmatter) and a profile list, letting an install keep the 12 must-have workflows resident and route the specialist catalog behind a generated `100x-resolver` artifact that lists each module with an exact path to read. Measured on this repo: the Claude Code index drops **4,900 → 1,732 tokens per turn** (`profile`) or **554** (`must`); a slimmed Cursor project drops **7,249 → 2,189**.
@@ -28,6 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **The Windows emitter wrote a slash-command alias for every command, diverging from the Python path**, which skips aliases whose name matches the slug. Claude Code already exposes every skill as `/<slug>`, so a same-name alias double-listed the module and paid its description twice. The two paths now agree, and a parity test compares them across every real module.
 - `meta-check` conflated "modules declaring a slash command" (27) with "alias files actually emitted" (5), so the documented count in `AGENTS.md` could never be correct. It now computes and validates both, and rejects an unknown `retention:` value.
 - Corrected a stale GitHub URL in `.env.example` and `templates/.env.example`, an out-of-date auto-trigger skill count and category table in `README.md`, and a real project name used as illustrative sample data in a design spec.
+- **The Windows/Python profile resolvers diverged on an empty `"profiles": []`.** Python's `if not cfg` treats an empty array as unset (unfiltered); the JS port's `if (!cfg)` doesn't, since an empty array is truthy — silently activating filtering on the Windows path. Fixed, with a parity test covering the case directly.
+- **GCP cloud-project detection (`gate`, `cloud-security`) was case-sensitive**, missing the lowercase `gcp_project:` key the new `.claude/100xprism.yml` scaffold documents and writes. Both greps are now case-insensitive.
 
 ---
 
