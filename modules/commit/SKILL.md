@@ -95,7 +95,7 @@ git commit -m "$(cat <<'EOF'
 - <Key change 1 and why>
 - <Key change 2 and why>
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```

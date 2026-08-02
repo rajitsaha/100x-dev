@@ -48,7 +48,7 @@ installable artifact — not just advice:
   never auto-approved.
 - **Tier 2 (optional):** set `HOOK_ROUTER_MODEL=claude-haiku-4-5` (needs the `claude`
   CLI) to route ambiguous commands to a cheap model; only a confident "safe" verdict
-  grants permission, so escalation to a deeper model (e.g. Opus 4.8) or a human is the
+  grants permission, so escalation to a deeper model (e.g. Opus 5) or a human is the
   default for anything uncertain. The router **never blocks** — it only grants.
 - **Enable it:** re-run the installer and turn on the *permission-router* hook (it ships
   off by default), or run `python3 ~/100xprism/adapters/lib/modules.py emit-hooks` with

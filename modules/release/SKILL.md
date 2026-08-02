@@ -181,7 +181,7 @@ git add -u
 git commit -m "$(cat <<EOF
 chore(release): bump version to $NEW_VERSION
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"

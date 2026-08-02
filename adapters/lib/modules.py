@@ -53,8 +53,8 @@ REMOVED_MODULES = {"systems-architect", "conversion-copy"}
 # slash-command / documentation work; the emitters in this pass use `tier_hint`.
 MODEL_ALIASES = {
     "haiku":  {"id": "claude-haiku-4-5",  "label": "Claude Haiku 4.5",  "tier_hint": "fast / low-cost (mechanical task)"},
-    "sonnet": {"id": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6", "tier_hint": "balanced (moderate reasoning)"},
-    "opus":   {"id": "claude-opus-4-8",   "label": "Claude Opus 4.8",   "tier_hint": "most capable (deep reasoning)"},
+    "sonnet": {"id": "claude-sonnet-5",   "label": "Claude Sonnet 5",   "tier_hint": "balanced (moderate reasoning)"},
+    "opus":   {"id": "claude-opus-5",     "label": "Claude Opus 5",     "tier_hint": "most capable (deep reasoning)"},
 }
 
 

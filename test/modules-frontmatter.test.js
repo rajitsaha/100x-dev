@@ -29,9 +29,9 @@ const EXPECTED_MODELS = {
 }
 // Concrete Claude model IDs must never leak into non-Claude adapter output. We canary
 // on the IDs (not friendly labels) because module *prose* may legitimately mention a
-// model name (e.g. commit's `Co-Authored-By: Claude Sonnet 4.6` trailer); the IDs are
+// model name (e.g. commit's `Co-Authored-By: Claude Sonnet 5` trailer); the IDs are
 // only ever produced by MODEL_ALIASES, so their presence proves an emitter leak.
-const CLAUDE_MODEL_IDS = ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-opus-4-8']
+const CLAUDE_MODEL_IDS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5']
 
 function py(...args) {
   return execFileSync('python3', [MODULES_PY, ...args], { cwd: REPO, encoding: 'utf8' })
