@@ -9,6 +9,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [3.0.1] — 2026-08-01
+
+### Fixed
+
+- **CI never ran on PRs stacked against a non-main base.** `.github/workflows/meta.yml`'s `pull_request` trigger was scoped to `branches: [main, master]`, which filters on the PR's *base*, not its source — so a PR opened against another feature branch got zero CI until manually retargeted. The filter is dropped; it now fires regardless of base branch.
+- **pair-loop: a same-model reviewer approval could pass silently (#93).** Independence was configured (a fallback model pin, vendor rotation) but never verified — a same-vendor fallback left unpinned, or a plain `coder == reviewer` misconfiguration, could approve a change on the exact model that wrote it. `review` now resolves the coder's and the reviewer's session transcripts to the model each actually ran and refuses an `APPROVED` verdict when they match, adding a `process` finding and surfacing it in the PR summary. Still best-effort — it needs both session_ids to resolve, which isn't guaranteed (no session lookup for Cursor yet).
+
+### Changed
+
+- **Cursor's always-on context footprint cut 61% (~52K → ~20K chars).** Re-tiered 9 modules — `release`, `pair-loop`, `pr`, `fix-bugs`, `lint`, `orchestrate`, `spec`, `grill-me`, `update-claude-md` — from `core` to `on-demand`. `tier` only drives Cursor's `alwaysApply` mapping; this has no effect on Claude Code, Codex, or slash-command availability, and no content changed. Kept `core`: `commit`, `push`, `gate` (the enforcement trio), and `branch`.
+- Refreshed stale Claude model version strings (Sonnet 4.6 → Sonnet 5, Opus 4.8 → Opus 5) across `adapters/lib/modules.py`'s `MODEL_ALIASES`, the `commit`/`release` skill Co-Authored-By trailers, and docs.
+
+---
+
 ## [3.0.0] — 2026-07-31
 
 ### Removed
