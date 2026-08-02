@@ -149,6 +149,6 @@ test('cursor .mdc maps tier to alwaysApply', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), '100x-cursor-tier-'))
   py('emit-cursor', tmp)
   const mdc = (slug) => fs.readFileSync(path.join(tmp, '.cursor', 'rules', `${slug}.mdc`), 'utf8')
-  assert.match(mdc('lint'), /^alwaysApply: true$/m, 'core module should always apply')
+  assert.match(mdc('gate'), /^alwaysApply: true$/m, 'core module should always apply')
   assert.match(mdc('connect'), /^alwaysApply: false$/m, 'on-demand module should not always apply')
 })

@@ -2,7 +2,7 @@
 name: fix-bugs
 description: Autonomously fix bugs from any source — Slack threads, failing CI tests, docker logs, or a plain description. Use when you have a bug report or failing test and want Claude to investigate and fix without step-by-step guidance.
 category: engineering
-tier: core
+tier: on-demand
 slash_command: /fix
 allowed-tools: Bash Read Grep Glob Edit Write
 ---

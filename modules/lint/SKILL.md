@@ -2,7 +2,7 @@
 name: lint
 description: You are a code quality engineer. Auto-detect the linting stack, run it, fix all errors. Zero errors before done.
 category: quality
-tier: core
+tier: on-demand
 slash_command: /lint
 model: haiku
 ---

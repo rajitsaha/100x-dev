@@ -2,7 +2,7 @@
 name: spec
 description: Write a precise, implementation-ready spec before any code is written. Use when a feature request is vague, ambiguous, or complex — turn fuzzy requirements into an unambiguous spec with acceptance criteria, edge cases, API contracts, and data shapes. Run before /orchestrate or /commit. Produces a written spec document — downstream of any brainstorming/planning skill, not a replacement for one.
 category: engineering
-tier: core
+tier: on-demand
 slash_command: /spec
 allowed-tools: Read Grep Glob Bash(git:*)
 ---

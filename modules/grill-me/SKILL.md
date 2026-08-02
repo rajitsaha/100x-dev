@@ -2,7 +2,7 @@
 name: grill-me
 description: Adversarial code review before a PR — Claude asks hard questions until you pass the test. Also supports elegant rewrites ("scrap this and implement the elegant solution") and spec-driven development. Use before opening any pull request. For mechanically finding bugs in a diff, prefer a platform-native code-review skill; this is the human-gate interrogation.
 category: engineering
-tier: core
+tier: on-demand
 slash_command: /grill
 allowed-tools: Bash(git:*) Read Grep Glob
 ---

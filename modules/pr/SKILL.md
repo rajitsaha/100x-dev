@@ -2,7 +2,7 @@
 name: pr
 description: Create a GitHub Pull Request with full AI review. Human approves and merges.
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /pr
 ---
 
