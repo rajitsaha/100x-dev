@@ -92,13 +92,84 @@ wholesale on update, so removed modules simply stop appearing. 100xprism does no
 generate `CLAUDE.md` — it scaffolds an editable project file once and leaves it
 to you.
 
+## The routed index (v3.1)
+
+The audit above shrank *what was installed*. This pass changes *what installation
+costs*, by separating the two things a module charges you for:
+
+- its **description** — re-sent on every turn, forever, once installed
+- its **body** — free until the module is actually invoked
+
+Measured on this repo: 67 descriptions = **~4,744 tokens per turn**, of which
+**marketing alone is 2,701 (57%)** across 32 modules, none of which owns a slash
+command. In a Terraform/Cloud Run repo that is rent paid for `cold-email` and
+`programmatic-seo`.
+
+### Retention classes
+
+Every module derives one (see `retention_of` in `adapters/lib/modules.py`; a module
+can override it with `retention:` in frontmatter):
+
+| Class | Kept because | Count |
+|---|---|---|
+| `must` | Deterministic machinery or house policy a model won't reproduce unprompted — the commands `gate` runs, the order `release` runs them in, the protocol `pair-loop` speaks. | 12 |
+| `profile` | Earns its slot in repos of a matching kind. Also **anything owning a slash command**: the user can type it, so it has to resolve. | 17 |
+| `resolver` | General expertise a capable model already has. One catalog row, read by path on demand. | 38 |
+
+Routed modules are copied to a catalog directory *outside* whatever the tool indexes
+and listed in a generated `100x-resolver` artifact whose rows carry an exact path.
+One description now stands in for 38.
+
+### What it costs, measured
+
+| Surface | Before | After | Notes |
+|---|---|---|---|
+| Claude Code user scope | 4,900 | **1,732** (`profile`) · **554** (`must`) | 67 → 30 → 13 skills |
+| Cursor, any repo | 7,249 | **3,584** | from the re-tier alone — no opt-in needed |
+| Cursor, slimmed repo | 7,249 | **2,189** | 67 → 29 rules + 39 catalog |
+| Codex `AGENTS.md` | 1,003 | 955 | already compact; `.agents/skills` is on-demand and untouched |
+| Consumer `CLAUDE.md` scaffold | ~350 | ~180 | commented TODOs → router table; config to `.claude/100xprism.yml` |
+
+`commit`, `push` and `branch` moved from `tier: core` to `on-demand`, which is where
+most of the unconditional Cursor win comes from: Cursor loads the full **body** of an
+`alwaysApply: true` rule. All three are explicitly invoked, and the `gate-on-commit`
+PreToolUse hook already blocks `git commit`/`git push` deterministically — the
+always-resident copies were redundant with machine enforcement. `gate` stays resident.
+
+### Both switches default to off
+
+An emit with no config behaves exactly as it did before any of this existed; the test
+suite asserts old and new behaviour side by side.
+
+| Scope | File | Values |
+|---|---|---|
+| user | `~/.100xprism/config.json` → `skills` | `all` (default) · `profile` · `must` |
+| project | `<project>/.100xprism.json` → `profiles` | detected list, or `["all"]` to opt out |
+
+`100xprism slim` writes both (`--dry-run`, `--all-projects`, `--skills=`). The first
+`100xprism update` after this version switches user scope to `profile` once, announces
+it, and records the choice so no later update overrides a preference you set.
+`100xprism update --no-slim` skips it.
+
+### Does a smarter model make this unnecessary?
+
+Partly, and the split above is drawn on exactly that line. What a capable model
+already knows — "act as a Senior X, here is a framework" — is what became `resolver`
+class. What it cannot know is the other two classes: which commands *this* repo's gate
+runs, and that `user_id` is TEXT-not-UUID here, or that the Stripe webhook must
+register `express.raw()` before `express.json()`. Model capability retires
+**procedure**. It does not retire **project facts** or **determinism**, which is why
+`CLAUDE.md` got restructured rather than deleted.
+
 ## Further recommendations (not yet applied)
 
 1. Move rarely-used **user-scoped plugins to project scope** (`understand-anything`,
    `vercel`) so they don't load for every project.
 2. Disable the `google-drive-write` MCP server if unused.
 3. Pick **one reviewer** and **one planner** path to reduce ambiguity + description weight.
-4. Operational habits: `/context` to see the live window, `/clear` between unrelated
+4. Compress the remaining descriptions: ~1,024 tokens are quoted trigger-phrase lists
+   and ~599 are `"For X, see Y."` cross-references that would serve better in bodies.
+5. Operational habits: `/context` to see the live window, `/clear` between unrelated
    tasks, and push big exploration into subagents to keep the main context lean.
 
 ## Local monitoring

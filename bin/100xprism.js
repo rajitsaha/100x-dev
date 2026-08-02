@@ -9,6 +9,7 @@ Commands:
   init       Per-project setup — run from your project root
   update     Pull latest workflows and regenerate tracked projects
   check      Check for a newer version without applying
+  slim       Shrink the always-on context: keep must-have skills, route the rest
   tokens     Start/open the AI economics dashboard
   dashboard  Alias for tokens
   value      Print value report for a directory
@@ -18,6 +19,10 @@ Examples:
   npm install -g 100xprism && 100xprism install
   cd my-project && 100xprism init
   100xprism update
+  100xprism slim                  # slim this repo + user scope (reversible)
+  100xprism slim --dry-run        # show what it would change
+  100xprism slim --all-projects   # every project 100xprism has touched
+  100xprism slim --skills=must    # most aggressive; --skills=all reverts
   100xprism install --dashboard  # optionally start dashboard after install
   100xprism tokens               # start and open dashboard
   100xprism tokens --no-open      # serve without opening browser
@@ -32,6 +37,7 @@ switch (cmd) {
   case 'init':    require('../lib/init').run(args);    break
   case 'update':  require('../lib/update').run(args);  break
   case 'check':   require('../lib/update').run(['--check-only']); break
+  case 'slim':    require('../lib/slim').run(args);    break
   case 'tokens':
   case 'dashboard': require('../lib/tokens').runDashboard(args); break
   case 'value': require('../lib/tokens').runValue(args); break

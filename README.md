@@ -44,6 +44,8 @@ cd your-project && 100xprism init
 ```bash
 100xprism update                    # pull latest, then add/update/remove skills + plugins
 100xprism update --plugins-only     # refresh plugins only (repo already current)
+100xprism update --no-slim          # skip the one-time always-on index slim
+100xprism slim --dry-run            # preview what slimming would change
 100xprism uninstall                 # stop dashboard + remove legacy shell-startup entries/symlinks
 npm install -g 100xprism@latest     # (optional) upgrade the launcher itself
 ```
@@ -101,7 +103,84 @@ This is a first, deliberately humble attempt to **make the measurement chain vis
 - **`100x-value`** — the dashboard joins exact local token counters to observable delivery evidence. It shows **every directory that consumed tokens** plus agentic projects discovered machine-wide via marker files. Git supplies commits, deduplicated merged PRs, releases, files, insertions, and deletions; non-repos use an explicitly labeled filesystem-mtime estimate. Directories from unsupported tools show `—` cost, never a misleading $0. Delivery unit costs use attributed spend only, show attribution coverage, and are never presented as business ROI.
 - **Budgets, provenance, recommendations & GitHub PR insights** — optional daily/weekly limits drive dashboard and shell alerts. A provenance strip shows pricing coverage, outcome-join coverage, source counts, and date range. Recommendations are ranked by estimated opportunity and pair the observed evidence with an action that preserves AI-native autonomy. Optional GitHub CLI integration can fetch PR metadata for locally checked-out remotes plus configured users/repos.
 
+### Paying only for the skills a repo uses
+
+An installed module's **description** is re-sent on every turn; its **body** is free
+until invoked. So the always-on cost is the index, not the content. `100xprism slim`
+keeps the must-have workflows resident and routes the specialist catalog behind a
+generated `100x-resolver` the agent reads on demand.
+
+```bash
+100xprism slim                 # slim user scope + this repo (reversible)
+100xprism slim --all-projects  # every project 100xprism has touched
+100xprism slim --skills=all    # undo
+```
+
+Measured on this repo: Claude Code's always-on index drops from ~4,900 to ~1,730
+tokens per turn (~550 in `--skills=must`), and a slimmed Cursor project from ~7,250
+to ~2,190. Nothing is deleted — routed modules keep their bodies on disk and appear
+as catalog rows with an exact path. Codex is left alone: `.agents/skills` already
+loads on demand.
+
 Full guide: [docs/token-optimization.md](docs/token-optimization.md).
+
+---
+
+## What it actually changed
+
+Two open-source products built with this toolkit. Everything in the **Measured**
+column is read straight from git history and reproducible with
+`100xprism value` — nothing is modelled.
+
+| Measured from git | [100xprism](https://github.com/rajitsaha/100xprism) | [agentbreeder](https://github.com/agentbreeder/agentbreeder) |
+|:---|---:|---:|
+| First commit → first public release | **6 days** | **32 days** |
+| Releases shipped | 26 | 17 |
+| Median gap between releases | **1 day** | **2 days** |
+| Merged PRs | 70 | 171 |
+| Commits | 204 | 772 |
+| Lines added | 78,447 | 541,370 |
+| Peak commits in a single day | 39 | 61 |
+| Active engineering days | 29 | 53 |
+
+Combined: **43 releases · 255 merged PRs · 650K lines · 94 active engineering days.**
+
+The same toolkit drove two further products that are not open source — a
+draft-content generation SaaS and an AI-native real-estate deal-analysis SaaS —
+adding **2,219 commits · 970 merged PRs · 1.13M lines** over **171 active days**.
+
+Across all five: **3,282 commits · 1,225 merged PRs · 1.78M lines added ·
+5,846 files**, by one person.
+
+### The comparison, stated as an estimate
+
+There is no counterfactual — nobody built these twice. So this is arithmetic on a
+stated assumption, not a measurement, and you should substitute your own numbers:
+
+> **Assume** a conventional team merges ~2 feature-sized PRs per engineer-week.
+> 1,225 merged PRs ÷ 2 ≈ **612 engineer-weeks ≈ 11.8 engineer-years**, delivered
+> in 265 active days. At a $85/hr contract rate that block of work prices at
+> roughly **$2.1M**.
+
+Three honest caveats. PR size varies enormously, so PR count is a coarse unit. A
+solo builder skips coordination overhead a team pays, but also carries no review
+redundancy. And the figure moves a long way if you assume 1 or 4 PRs per
+engineer-week — which is exactly why the assumption is written down rather than
+buried in a headline number.
+
+What is *not* claimed: that any of this is business value. Revenue, retention, and
+customer outcomes are unmeasured here, and the dashboard deliberately refuses to
+invent a score for them.
+
+### Where the speed comes from
+
+| Lever | Effect |
+|:---|:---|
+| `/spec` → `/orchestrate` → `/fix` | A vague request becomes an implementation-ready spec before any code is written |
+| `/gate` + the `gate-on-commit` hook | Broken work cannot reach `main` — enforcement is a hook, not a reminder |
+| `/issue` | An observation becomes a root-caused, actionable GitHub issue in one step |
+| `/release` | 26 releases at a 1-day median cadence, because shipping is one command |
+| 40 auto-trigger skills | Marketing, SEO, pricing, and CRO work happens in-repo instead of waiting on a contractor |
 
 ---
 
@@ -160,7 +239,7 @@ The following 27 slash commands are available. Run them inside Claude Code. In C
 | `/architect` | Architectural Q&A and decision matrices |
 | `/enterprise-design` | Full technical blueprint — IA, API, data model, stack |
 
-### Auto-trigger skills (39)
+### Auto-trigger skills (40)
 
 These modules activate automatically when you describe a relevant task — no slash command needed.
 
@@ -171,8 +250,10 @@ These modules activate automatically when you describe a relevant task — no sl
 | **CRO & conversion** | page-cro, signup-flow-cro, onboarding-cro, form-cro, popup-cro, paywall-upgrade-cro |
 | **Growth & strategy** | content-strategy, marketing-ideas, marketing-psychology, launch-strategy, referral-program, churn-prevention, free-tool-strategy, ab-test-setup, analytics-tracking, pricing-strategy |
 | **Sales** | sales-enablement, competitor-alternatives, paid-ads, revops, product-marketing-context |
-| **Design** | enterprise-design, visual-system-architect, interaction-engineer, figma-translator |
+| **Design & UX** | visual-system-architect, interaction-engineer, figma-translator, motion-designer, data-viz, a11y-auditor |
 | **Engineering** | subagents, terminal-setup |
+
+After `100xprism slim`, most of these load through the generated `100x-resolver` catalog instead of sitting in your always-on context — same capability, a fraction of the standing token cost.
 
 ---
 
@@ -184,13 +265,39 @@ These modules activate automatically when you describe a relevant task — no sl
 | **Cursor** | `.cursor/rules/<slug>.mdc` (one file per module) | Yes — per description |
 | **Codex** | `AGENTS.md` + `.agents/skills/<slug>/` + `.codex/hooks.json` | Yes — repo skills |
 
-Every supported tool loads module bodies on demand rather than inlining them, so the always-on context stays small. `tier: core` marks the modules Cursor keeps resident (`alwaysApply: true`); everything else is fetched when its description matches. Claude Code plugins remain Claude-specific; use Codex `/plugins` for Codex-native plugins.
+Every supported tool loads module bodies on demand rather than inlining them, so the always-on context stays small. `tier: core` marks the modules Cursor keeps resident (`alwaysApply: true`) — since v3.1 that is **`gate` alone**, because `gate` is the only one that must fire unprompted; `commit`, `push`, and `branch` are explicitly invoked and their gate enforcement is guaranteed by the `gate-on-commit` hook, not by prompt residency. Everything else is fetched when its description matches. Claude Code plugins remain Claude-specific; use Codex `/plugins` for Codex-native plugins.
 
 > **Removed in v3.0.0:** Windsurf, Copilot, Gemini, and Antigravity. Those adapters emitted a single concatenated file (~60K chars) that sat in context on every turn — the opposite of progressive disclosure.
 >
 > **This deletes files in your projects.** `100xprism update` removes the `.windsurfrules`, `GEMINI.md`, `ANTIGRAVITY.md`, and `.github/copilot-instructions.md` it previously generated from every project in `~/.100xprism/tracked-projects`; `100xprism init` does the same for the project it runs in.
 >
 > Only files carrying the `Generated by 100xprism` header are touched, so a hand-written file of the same name is left alone. **If you edited a generated file, it is still removed** — but every removal is copied to `~/.100xprism/removed-artifacts/<timestamp>/` first, and is only removed once that copy succeeds. These files are also normally committed, so deletions show up in `git status` for you to review.
+
+---
+
+## Deprecations & removals
+
+What recent releases took away, and what to do about it. Full detail in the
+[changelog](CHANGELOG.md).
+
+| Version | Removed / changed | Migration |
+|:---|:---|:---|
+| **3.1** | `commit`, `push`, `branch` dropped from `tier: core` — they no longer sit resident in Cursor's context | None. They are still slash commands; gate enforcement now comes from the `gate-on-commit` hook rather than prompt residency |
+| **3.1** | Specialist modules leave the always-on skill index on your first `update` | Automatic and announced once. Undo with `100xprism slim --skills=all`; skip with `100xprism update --no-slim` |
+| **3.1** | Project config moves out of `CLAUDE.md` into `.claude/100xprism.yml` | None required — modules read the new file first and **fall back to `CLAUDE.md`**, so existing repos keep working |
+| **3.1** | New `CLAUDE.md` scaffolds use a router table instead of commented config blocks | Applies to newly scaffolded projects only; existing files are never rewritten |
+| **3.0.1** | Nine modules re-tiered `core` → `on-demand` (Cursor context down 61%) | None. No content changed, no effect on Claude Code, Codex, or slash commands |
+| **3.0.0** | **Windsurf, Copilot, Gemini, Antigravity adapters deleted** | Automatic. Generated files are backed up to `~/.100xprism/removed-artifacts/<timestamp>/` before removal. Use Claude Code, Cursor, or Codex |
+| **3.0.0** | `emit-concat` subcommand, `render_concat`, `render_index_only` | Internal API — use `emit-cursor` / `emit-codex` / `emit-claude-code` |
+| **3.0.0** | Instruction-file discovery narrowed to `CLAUDE.md AGENTS.md .cursorrules` | Move any config out of `.windsurfrules` / `GEMINI.md` / `copilot-instructions.md` |
+| **2.4.9** | 11 orphaned module reference files | None — they were unreachable from any `SKILL.md` |
+| **2.4.9** | Dashboard and update-check no longer auto-start from shell startup | Start explicitly: `100xprism tokens`, or `100xprism install --dashboard` |
+| **2.4.x** | `systems-architect` → merged into `enterprise-design`; `conversion-copy` → merged into `copywriting` | Use the surviving module; `update` prunes the old skill and its alias |
+
+**Nothing is removed without a backup.** Every deletion inside your repositories is
+copied to `~/.100xprism/removed-artifacts/<timestamp>/<full-project-path>/` first and
+removed only if that copy succeeded — and only if the file carries the
+`Generated by 100xprism` header in its first 10 lines.
 
 ---
 
@@ -211,7 +318,7 @@ Every supported tool loads module bodies on demand rather than inlining them, so
 
 <div align="center">
 
-Built by [Rajit Saha](https://www.linkedin.com/in/rajsaha/) · 23 years in enterprise data at Udemy, Experian, LendingClub, VMware, Yahoo
+Built by [Rajit Saha](https://www.linkedin.com/in/rajsaha/) · 23 years building data and platform systems at scale
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/rajsaha/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?style=for-the-badge&logo=github)](https://github.com/rajitsaha)
