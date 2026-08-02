@@ -1,7 +1,7 @@
 # 100x-dev — Power-Up Roadmap
 
 > Modernizing 68 modules · 7 adapters · 12 plugins for the mid-2026 frontier-model era
-> (Opus 4.8 @ 1M context · Sonnet 4.6 · Haiku 4.5 · Workflow tool · native hooks · MCP).
+> (Opus 5 @ 1M context · Sonnet 5 · Haiku 4.5 · Workflow tool · native hooks · MCP).
 >
 > **Source of truth:** [`docs/superpowers/specs/2026-05-31-100x-powerup-review-design.md`](docs/superpowers/specs/2026-05-31-100x-powerup-review-design.md)
 > Generated from a 9-reviewer audit (105 findings, 33 net-new ideas) + adversarial verification.
