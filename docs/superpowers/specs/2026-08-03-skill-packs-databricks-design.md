@@ -133,8 +133,23 @@ command exists at implementation time, add it then.
 3. If a platform has no usable path at all — no CLI binary and no per-platform block —
    report that platform as `unavailable` and print `install.cli.hint`.
 
-State records *how* each platform was installed (`installed` | `cli` | `manual`),
-so removal knows what it is entitled to reverse.
+State records *how* each platform was installed (`installed` | `cli` | `manual` |
+`unavailable`), so removal knows what it is entitled to reverse.
+
+**Ownership is tracked per entry, not per platform.** Recording a platform as
+`installed` is not sufficient: if the user already had the plugin listed (enabled or
+explicitly disabled), 100xprism did not add it and must not remove it. State
+therefore records the exact `enabledPlugins` keys and the marketplace name that this
+install actually inserted. Removal reverses only those, and only when nothing else
+still references them. This mirrors the managed-set rule in `sync_plugins.py`.
+
+State also copies each platform's declared `uninstall` commands at install time, so
+a pack dropped from the registry is still reversible.
+
+The opt-in model means there is no first-run seeding step. `sync_plugins.py` seeds a
+managed set because its plugins install unconditionally and predate the state file;
+a pack only ever enters state because the user ran `/pack add`, so an absent entry
+unambiguously means "not installed by us."
 
 ## Detection
 
@@ -147,7 +162,11 @@ every install and update, so it must stay cheap in large repositories.
 
 Surfaced in exactly two places:
 
-- One suggestion line at the end of `install.sh` / `update.sh`.
+- One suggestion line at the end of `install.sh` / `update.sh`. It must sit in each
+  script's final section, **not** inside `install_plugins` — that function runs only
+  when the user selects both Claude Code and the optional plugins component, so
+  Cursor-only, Codex-only, and modules-without-plugins installs would otherwise never
+  see a suggestion.
 - On demand, via bare `/pack`.
 
 Detection never installs anything.
@@ -213,15 +232,26 @@ disk and says so plainly. This is preferred over a destructive delete on a direc
 Precedents: `test/sync-plugins.test.js`, `test/update-plugins.test.js`,
 `test/uninstall.test.js`, `test/meta-check.test.js`.
 
-`test/packs.test.js` covers:
+Coverage is split by concern across `test/packs-schema.test.js`,
+`packs-detect.test.js`, `packs-claude.test.js`, `packs-install-paths.test.js`,
+`packs-module.test.js`, and `packs-lifecycle.test.js`:
 
-- Schema parsing and rejection of malformed packs.
-- Detection true/false against fixture project directories under `scripts/fixtures/`.
+- Schema parsing and rejection of malformed packs, against a **temporary** registry.
+  Tests must never mutate the tracked `packs/packs.json` — `node --test` runs files
+  concurrently, so an intentionally-malformed intermediate state would race with the
+  suites that read the real registry.
+- Detection true/false against fixture project directories created in temp dirs at
+  test time. Fixtures must **not** live inside this repository: `project_root()`
+  resolves the git toplevel, so a fixture committed under `scripts/fixtures/` would
+  resolve to the 100xprism root and never match.
+- Detection from a subdirectory of a git repo resolves to that repo's toplevel.
 - `add` / `remove` reconciliation against a temporary `HOME`.
 - Idempotency — a second `add` is a no-op.
-- Prune-on-drop — a pack removed from `packs.json` is removed from settings.
-- First-run state seeding, mirroring `sync_plugins.py`'s rule that the managed set is
-  seeded from the current intersection and nothing is removed on the first run.
+- Ownership — a plugin the user already had is neither flipped on `add` nor deleted
+  on `remove`.
+- Prune-on-drop — a pack removed from `packs.json` is removed from settings, and
+  `remove` still works after the pack leaves the registry.
+- Malformed `settings.json` is preserved, never overwritten.
 
 Shell execution goes through an injected runner, so `databricks aitools install` is
 stubbed. No test touches the network.

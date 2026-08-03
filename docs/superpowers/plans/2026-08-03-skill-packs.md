@@ -4,7 +4,7 @@
 
 **Goal:** Ship an opt-in mechanism for installing third-party skill packs, with `databricks` as the only shipped pack.
 
-**Architecture:** A declarative registry (`packs/packs.json`) is read by a deterministic Python helper (`adapters/lib/packs.py`) that detects matching projects, installs packs by orchestrating each upstream's own installer, and tracks what it installed in a sidecar state file. A thin `/pack` slash-command module shells out to the helper; it makes no decisions. Nothing installs automatically.
+**Architecture:** A declarative registry (`packs/packs.json`) is read by a deterministic Python helper (`adapters/lib/packs.py`) that detects matching projects, installs packs by orchestrating each upstream's own installer, and records exactly which config entries it inserted in a sidecar state file. A thin `/pack` slash-command module shells out to the helper; it makes no decisions. Nothing installs automatically.
 
 **Tech Stack:** Python 3 (stdlib only, matching `adapters/lib/*.py`), Node's built-in `node:test` runner, bash adapters.
 
@@ -13,13 +13,44 @@
 ## Global Constraints
 
 - Python helpers use the **standard library only** — no new dependencies. `package.json` has zero runtime deps and must keep zero.
-- `packs.py` **never** deletes files under `~/.claude/skills/` or any third-party skill directory. It reverses only `settings.json` entries it wrote.
-- Detection is **read-only** and matches **only exact paths at the project root** — no recursive globs, no directory walking.
-- Detection **never** triggers an install.
+- `packs.py` **never** deletes files under `~/.claude/skills/` or any third-party skill directory. It reverses only `settings.json` entries it recorded inserting.
+- **Ownership is per entry, not per platform.** A plugin key that already existed in `enabledPlugins` — enabled *or* explicitly disabled — was not added by us and must never be removed by us. Same for a pre-existing marketplace.
+- **Never overwrite unreadable config.** If `settings.json` exists but does not parse, abort with a message. Do not replace it with `{}`.
+- There is **no first-run seeding**. A pack enters state only because the user ran `/pack add`, so an absent entry unambiguously means "not installed by us." (`sync_plugins.py` seeds because its plugins install unconditionally; packs do not.)
+- Detection is **read-only**, matches **only exact paths at the project root**, and **never** triggers an install.
 - Supported platform keys are exactly `claude-code`, `codex`, `cursor`.
-- State-file semantics mirror `adapters/lib/sync_plugins.py`: never flip a value the user set; on first run, seed and remove nothing.
-- Tests must not touch the network. Shell execution is stubbed via the `PRISM_PACKS_RUNNER_LOG` and `PRISM_PACKS_WHICH` environment variables defined in Task 4.
-- `python3 scripts/meta-check.py` and `node --test` must both pass before every commit. The repo has a gate-on-commit hook; run `/gate` then `python3 ~/100xprism/hooks/gate-pass.py` in its own shell call before committing.
+- **Tests must never mutate tracked repo files.** `node --test` runs 4 files concurrently; a test that rewrites `packs/packs.json` in place races with every suite that reads it. Use temp registries and temp fixture dirs.
+- **Test fixtures must live outside this git repository.** `project_root()` resolves the git toplevel, so a fixture committed under `scripts/fixtures/` resolves to the 100xprism root and never matches.
+- Tests must not touch the network. Shell execution is stubbed via `PRISM_PACKS_RUNNER_LOG` and `PRISM_PACKS_WHICH` (Task 4).
+- `python3 scripts/meta-check.py` and `node --test` must both pass before every commit. The repo has a gate-on-commit hook; run `/gate`, then `python3 ~/100xprism/hooks/gate-pass.py` in its own shell call, before committing.
+
+## State file shape
+
+`~/.claude/.100xprism-packs.json` — the single source of truth for what may be reversed.
+
+```json
+{
+  "schema": 1,
+  "packs": {
+    "databricks": {
+      "platforms": {
+        "claude-code": "installed",
+        "codex": "installed",
+        "cursor": "manual"
+      },
+      "owned": {
+        "plugins": ["databricks@databricks-agent-skills"],
+        "marketplace": "databricks-agent-skills"
+      },
+      "uninstall": { "codex": [] }
+    }
+  }
+}
+```
+
+- `platforms[p]` ∈ `installed` (we did it, we can reverse it) | `cli` (the pack's own CLI did it) | `manual` (the user must run it) | `unavailable` (no usable path).
+- `owned.plugins` lists **only** keys this install actually inserted. `owned.marketplace` is the marketplace name only if we inserted it, else `null`.
+- `uninstall` copies each platform's declared inverse commands at install time, so a pack dropped from the registry stays reversible.
 
 ---
 
@@ -29,13 +60,15 @@ Creates the declarative registry and the CI check that keeps it honest. No behav
 
 **Files:**
 - Create: `packs/packs.json`
-- Modify: `scripts/meta-check.py` (add `check_packs()`, call it from `main()`)
+- Modify: `scripts/meta-check.py` (add `check_packs()`, a `--packs` override, and the `main()` call)
 - Modify: `package.json` (add `"packs/"` to `files`)
 - Test: `test/packs-schema.test.js`
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `packs/packs.json` with top-level keys `schema` (int, must be `1`) and `packs` (object keyed by slug). `scripts/meta-check.py` gains `check_packs() -> int` returning the pack count.
+- Produces:
+  - `packs/packs.json` with top-level `schema` (int, must be `1`) and `packs` (object keyed by slug).
+  - `scripts/meta-check.py` gains `check_packs(path: Path) -> int` returning the pack count, plus a `--packs PATH` CLI flag so tests can validate a temporary registry **without touching the tracked one**.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -44,31 +77,35 @@ Create `test/packs-schema.test.js`:
 ```javascript
 'use strict'
 
-// Verifies packs/packs.json parses and that scripts/meta-check.py rejects
-// malformed pack declarations (unknown platform keys, missing required fields,
-// nested detect paths, uncompilable regexes).
+// Verifies packs/packs.json parses and that scripts/meta-check.py rejects malformed
+// pack declarations. Every negative case runs against a TEMPORARY registry passed via
+// --packs: node --test runs files concurrently, so mutating the tracked packs.json in
+// place would race with the suites that read it.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { spawnSync } = require('node:child_process')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 
 const REPO = path.resolve(__dirname, '..')
 const PACKS = path.join(REPO, 'packs', 'packs.json')
+const META = path.join(REPO, 'scripts', 'meta-check.py')
 
-function metaCheck() {
-  return spawnSync('python3', [path.join(REPO, 'scripts', 'meta-check.py')], {
-    cwd: REPO, encoding: 'utf8',
-  })
+function metaCheck(registryPath) {
+  const argv = registryPath ? [META, '--packs', registryPath] : [META]
+  return spawnSync('python3', argv, { cwd: REPO, encoding: 'utf8' })
 }
 
-function withPacks(mutate, fn) {
-  const original = fs.readFileSync(PACKS, 'utf8')
-  const data = JSON.parse(original)
+// Writes a mutated copy to a temp file and validates THAT — never the tracked file.
+function withTempRegistry(mutate) {
+  const data = JSON.parse(fs.readFileSync(PACKS, 'utf8'))
   mutate(data)
-  fs.writeFileSync(PACKS, JSON.stringify(data, null, 2) + '\n')
-  try { return fn() } finally { fs.writeFileSync(PACKS, original) }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pks-'))
+  const file = path.join(dir, 'packs.json')
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n')
+  return metaCheck(file)
 }
 
 test('the shipped registry is valid', () => {
@@ -79,36 +116,31 @@ test('the shipped registry is valid', () => {
 })
 
 test('rejects an unknown install platform key', () => {
-  const r = withPacks(
-    (d) => { d.packs.databricks.install.antigravity = { manual: ['x'] } },
-    metaCheck,
-  )
+  const r = withTempRegistry((d) => { d.packs.databricks.install.antigravity = { manual: ['x'] } })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /unknown install key 'antigravity'/)
 })
 
 test('rejects a missing required field', () => {
-  const r = withPacks((d) => { delete d.packs.databricks.source }, metaCheck)
+  const r = withTempRegistry((d) => { delete d.packs.databricks.source })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /missing required key `source`/)
 })
 
 test('rejects a nested detect path', () => {
-  const r = withPacks(
-    (d) => { d.packs.databricks.detect.files.push('conf/databricks.yml') },
-    metaCheck,
-  )
+  const r = withTempRegistry((d) => { d.packs.databricks.detect.files.push('conf/databricks.yml') })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /detect path .* must be a bare filename/)
 })
 
 test('rejects an uncompilable detect pattern', () => {
-  const r = withPacks(
-    (d) => { d.packs.databricks.detect.contains[0].pattern = '([' },
-    metaCheck,
-  )
+  const r = withTempRegistry((d) => { d.packs.databricks.detect.contains[0].pattern = '([' })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /pattern invalid/)
+})
+
+test('the tracked registry is left untouched by the negative cases', () => {
+  assert.equal(metaCheck().status, 0, 'real registry still valid after temp-file tests')
 })
 ```
 
@@ -165,17 +197,19 @@ Create `packs/packs.json`. Identifiers below are taken verbatim from the upstrea
 }
 ```
 
+There is intentionally no `uninstall` array on any platform: the upstream README documents no uninstall command, and inventing one is worse than printing guidance. The schema supports it (Task 4) for when a verified command exists.
+
 - [ ] **Step 4: Add the validator to meta-check**
 
-In `scripts/meta-check.py`, add this function after `check_plugins()`:
+In `scripts/meta-check.py`, add after `check_plugins()`:
 
 ```python
 PACK_PLATFORMS = {"claude-code", "codex", "cursor"}
 
 
-def check_packs() -> int:
-    """Validate packs/packs.json — schema version, required keys, platform names."""
-    data = json.loads((REPO / "packs" / "packs.json").read_text())
+def check_packs(path: Path) -> int:
+    """Validate a pack registry — schema version, required keys, platform names."""
+    data = json.loads(path.read_text())
     if data.get("schema") != 1:
         fail(f"packs.json: unsupported `schema` {data.get('schema')!r} (expected 1)")
 
@@ -226,10 +260,18 @@ def check_packs() -> int:
     return len(packs)
 ```
 
-In `main()`, add the call directly after `counts["plugins"] = check_plugins()`:
+In `main()`, add the `--packs` flag beside the existing `--tag` argument:
 
 ```python
-    check_packs()
+    ap.add_argument("--packs", default="",
+                    help="pack registry to validate (default: packs/packs.json). "
+                         "Tests pass a temp copy so the tracked registry is never mutated.")
+```
+
+and call it directly after `counts["plugins"] = check_plugins()`:
+
+```python
+    check_packs(Path(args.packs) if args.packs else REPO / "packs" / "packs.json")
 ```
 
 - [ ] **Step 5: Add `packs/` to the npm payload**
@@ -239,7 +281,7 @@ In `package.json`, inside `files`, add `"packs/",` immediately after `"modules/"
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `node --test test/packs-schema.test.js && python3 scripts/meta-check.py`
-Expected: 5 tests PASS; meta-check prints `packs[] entries: 1` and `all checks passed ✓`.
+Expected: 6 tests PASS; meta-check prints `packs[] entries: 1` and `all checks passed ✓`.
 
 - [ ] **Step 7: Commit**
 
@@ -254,20 +296,21 @@ git commit -m "feat(packs): add pack registry and schema validation"
 
 **Files:**
 - Create: `adapters/lib/packs.py`
-- Create: `scripts/fixtures/packs/databricks-yml/databricks.yml` (empty file)
-- Create: `scripts/fixtures/packs/requirements/requirements.txt`
-- Create: `scripts/fixtures/packs/plain/README.md`
 - Test: `test/packs-detect.test.js`
 
 **Interfaces:**
 - Consumes: `packs/packs.json` from Task 1.
 - Produces:
   - `load_registry(path: Path) -> dict`
-  - `project_root(start: Path) -> Path`
+  - `project_root(start: Path) -> Path` — git toplevel, else `start`
   - `pack_matches(pack: dict, root: Path, env: Mapping[str, str]) -> bool`
-  - CLI: `packs.py detect [--project DIR] [--packs FILE] [--json]`
-  - CLI: `packs.py status [--project DIR] [--packs FILE] [--settings FILE] [--state FILE] [--json]`
-  - `--json` emits `{"packs": [{"slug", "title", "detected", "platforms"}]}`. `platforms` is `{}` until Task 3.
+  - `load_state(path: Path) -> dict` — sidecar only; tolerant, returns `{}` on any failure
+  - `load_settings(path: Path) -> dict` — **strict**; aborts rather than overwrite unreadable config
+  - `state_path(args) -> Path`
+  - CLI: `packs.py {detect,status} [--project DIR] [--packs FILE] [--settings FILE] [--state FILE] [--json]`
+  - `--json` emits `{"packs": [{"slug", "title", "description", "source", "detected", "platforms"}]}`. `platforms` is `{}` until Task 3.
+
+Fixtures are built in temp directories inside the test, **not** committed under `scripts/fixtures/` — anything inside this repo resolves to the 100xprism git root and would never match.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -276,8 +319,9 @@ Create `test/packs-detect.test.js`:
 ```javascript
 'use strict'
 
-// Verifies adapters/lib/packs.py detection: file, env, and content predicates
-// match at the project root only, and never below it.
+// Verifies adapters/lib/packs.py detection: file, env, and content predicates match
+// at the project root only. Fixtures are built in temp dirs — a fixture committed
+// inside this repo would resolve to the 100xprism git toplevel and never match.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -288,51 +332,64 @@ const path = require('node:path')
 
 const REPO = path.resolve(__dirname, '..')
 const SCRIPT = path.join(REPO, 'adapters', 'lib', 'packs.py')
-const FIXTURES = path.join(REPO, 'scripts', 'fixtures', 'packs')
 
-function detect(projectDir, env = {}) {
+function fixture(files = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkd-'))
+  for (const [name, body] of Object.entries(files)) {
+    const target = path.join(dir, name)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, body)
+  }
+  return dir
+}
+
+function detectedSlugs(projectDir, env = {}) {
   const r = spawnSync('python3', [SCRIPT, 'detect', '--project', projectDir, '--json'], {
     encoding: 'utf8',
     env: { ...process.env, DATABRICKS_HOST: '', ...env },
   })
   assert.equal(r.status, 0, r.stderr)
-  return JSON.parse(r.stdout).packs
-}
-
-function detectedSlugs(projectDir, env) {
-  return detect(projectDir, env).filter((p) => p.detected).map((p) => p.slug)
+  return JSON.parse(r.stdout).packs.filter((p) => p.detected).map((p) => p.slug)
 }
 
 test('matches on a root marker file', () => {
-  assert.deepEqual(detectedSlugs(path.join(FIXTURES, 'databricks-yml')), ['databricks'])
+  assert.deepEqual(detectedSlugs(fixture({ 'databricks.yml': '' })), ['databricks'])
 })
 
 test('matches on file content', () => {
-  assert.deepEqual(detectedSlugs(path.join(FIXTURES, 'requirements')), ['databricks'])
+  assert.deepEqual(
+    detectedSlugs(fixture({ 'requirements.txt': 'databricks-sql-connector==3.0.0\n' })),
+    ['databricks'],
+  )
 })
 
 test('matches on an environment variable', () => {
   assert.deepEqual(
-    detectedSlugs(path.join(FIXTURES, 'plain'), { DATABRICKS_HOST: 'https://x.databricks.com' }),
+    detectedSlugs(fixture({ 'README.md': '# plain' }), { DATABRICKS_HOST: 'https://x.databricks.com' }),
     ['databricks'],
   )
 })
 
 test('does not match an unrelated project', () => {
-  assert.deepEqual(detectedSlugs(path.join(FIXTURES, 'plain')), [])
+  assert.deepEqual(detectedSlugs(fixture({ 'README.md': '# plain' })), [])
 })
 
 test('does not match a marker file nested below the root', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pk-'))
-  fs.mkdirSync(path.join(dir, 'conf'))
-  fs.writeFileSync(path.join(dir, 'conf', 'databricks.yml'), '')
-  assert.deepEqual(detectedSlugs(dir), [], 'nested marker must not match')
+  assert.deepEqual(detectedSlugs(fixture({ 'conf/databricks.yml': '' })), [], 'nested must not match')
+})
+
+test('resolves the git toplevel when run from a subdirectory', () => {
+  const dir = fixture({ 'databricks.yml': '', 'src/main.py': '' })
+  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' })
+  git('init', '-q')
+  // Detection from src/ must find the marker at the repo root, not miss it.
+  assert.deepEqual(detectedSlugs(path.join(dir, 'src')), ['databricks'])
 })
 
 test('status lists every declared pack, detected or not', () => {
   const r = spawnSync(
     'python3',
-    [SCRIPT, 'status', '--project', path.join(FIXTURES, 'plain'), '--json'],
+    [SCRIPT, 'status', '--project', fixture({ 'README.md': '# plain' }), '--json'],
     { encoding: 'utf8', env: { ...process.env, DATABRICKS_HOST: '' } },
   )
   assert.equal(r.status, 0, r.stderr)
@@ -343,21 +400,12 @@ test('status lists every declared pack, detected or not', () => {
 })
 ```
 
-- [ ] **Step 2: Create the fixtures**
-
-```bash
-mkdir -p scripts/fixtures/packs/databricks-yml scripts/fixtures/packs/requirements scripts/fixtures/packs/plain
-touch scripts/fixtures/packs/databricks-yml/databricks.yml
-printf 'databricks-sql-connector==3.0.0\n' > scripts/fixtures/packs/requirements/requirements.txt
-printf '# plain project fixture — matches no pack\n' > scripts/fixtures/packs/plain/README.md
-```
-
-- [ ] **Step 3: Run test to verify it fails**
+- [ ] **Step 2: Run test to verify it fails**
 
 Run: `node --test test/packs-detect.test.js`
 Expected: FAIL — `can't open file .../adapters/lib/packs.py`.
 
-- [ ] **Step 4: Write the helper**
+- [ ] **Step 3: Write the helper**
 
 Create `adapters/lib/packs.py`:
 
@@ -369,12 +417,16 @@ Packs are opt-in. Nothing here installs anything unless the user explicitly runs
 `add`, and detection is strictly read-only: it reports which declared packs look
 relevant to the current project and stops there.
 
+Ownership is tracked per config entry, not per platform — see the state file shape
+in docs/superpowers/plans/2026-08-03-skill-packs.md. If the user already had a
+plugin listed, we did not add it and will never remove it.
+
 Subcommands:
   detect  — which declared packs match the current project (read-only)
   status  — every declared pack, its detection result, and its install state
-  add     — install a pack (Task 3/4)
-  remove  — reverse what we installed (Task 3/4)
-  sync    — re-apply opted-in packs; drop packs no longer declared (Task 3)
+  add     — install a pack
+  remove  — reverse what we recorded inserting
+  sync    — re-apply opted-in packs; drop packs no longer declared
 """
 from __future__ import annotations
 
@@ -397,6 +449,33 @@ def load_registry(path: Path) -> dict:
     if data.get("schema") != 1:
         raise SystemExit(f"packs.py: unsupported registry schema {data.get('schema')!r}")
     return data.get("packs", {})
+
+
+def load_state(path: Path) -> dict:
+    """Our own sidecar. Tolerant: an unreadable sidecar just means 'nothing installed'."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_settings(path: Path) -> dict:
+    """The user's settings.json. Strict: never replace config we could not read.
+
+    load_state's tolerance is wrong here — collapsing a malformed settings.json to {}
+    and writing it back would destroy the user's whole configuration.
+    """
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise SystemExit(
+            f"packs.py: refusing to rewrite {path} — it exists but could not be read ({exc}). "
+            "Fix or move the file, then retry."
+        )
+    return data if isinstance(data, dict) else {}
 
 
 def project_root(start: Path) -> Path:
@@ -435,6 +514,16 @@ def pack_matches(pack: dict, root: Path, env: Mapping[str, str]) -> bool:
     return False
 
 
+def settings_path(args) -> Path:
+    return Path(args.settings) if args.settings else Path.home() / ".claude" / "settings.json"
+
+
+def state_path(args) -> Path:
+    if args.state:
+        return Path(args.state)
+    return settings_path(args).parent / ".100xprism-packs.json"
+
+
 def describe(packs: dict, root: Path, env: Mapping[str, str], state: dict) -> list[dict]:
     installed = state.get("packs", {})
     return [
@@ -450,31 +539,16 @@ def describe(packs: dict, root: Path, env: Mapping[str, str], state: dict) -> li
     ]
 
 
-def load_state(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
-
-
-def state_path(args) -> Path:
-    if args.state:
-        return Path(args.state)
-    settings = Path(args.settings) if args.settings else Path.home() / ".claude" / "settings.json"
-    return settings.parent / ".100xprism-packs.json"
-
-
 def render(rows: list[dict]) -> str:
     lines = []
     for row in rows:
-        marks = []
         if row["platforms"]:
-            marks.append("installed: " + ", ".join(f"{k}={v}" for k, v in sorted(row["platforms"].items())))
+            note = "installed: " + ", ".join(f"{k}={v}" for k, v in sorted(row["platforms"].items()))
         elif row["detected"]:
-            marks.append(f"detected — run `/pack add {row['slug']}` to install")
+            note = f"detected here — run `/pack add {row['slug']}` to install"
         else:
-            marks.append("not installed")
-        lines.append(f"  {row['slug']:<14} {row['title']}\n    {'; '.join(marks)}")
+            note = "not installed"
+        lines.append(f"  {row['slug']:<14} {row['title']}\n    {note}")
     return "\n".join(lines) if lines else "  (no packs declared)"
 
 
@@ -493,13 +567,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     packs = load_registry(Path(args.packs))
-    root = project_root(Path(args.project).resolve())
     state = load_state(state_path(args))
-    rows = describe(packs, root, os.environ, state)
 
-    if args.command == "detect":
-        rows = [r for r in rows if r["detected"]]
     if args.command in ("detect", "status"):
+        root = project_root(Path(args.project).resolve())
+        rows = describe(packs, root, os.environ, state)
+        if args.command == "detect":
+            rows = [r for r in rows if r["detected"]]
         print(json.dumps({"packs": rows}, indent=2) if args.json else render(rows))
         return 0
 
@@ -510,15 +584,15 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test test/packs-detect.test.js`
-Expected: 6 tests PASS.
+Expected: 7 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add adapters/lib/packs.py scripts/fixtures/packs test/packs-detect.test.js
+git add adapters/lib/packs.py test/packs-detect.test.js
 git commit -m "feat(packs): add detection engine and read-only detect/status"
 ```
 
@@ -526,18 +600,20 @@ git commit -m "feat(packs): add detection engine and read-only detect/status"
 
 ### Task 3: Claude Code install, removal, and state reconciliation
 
+Implements ownership-tracked reconciliation for the `claude-code` platform. The non-Claude platforms arrive in Task 4; this task's `install_pack` handles Claude only, so a reviewer can judge the ownership model in isolation.
+
 **Files:**
-- Modify: `adapters/lib/packs.py` (add install/remove/sync for the `claude-code` platform)
+- Modify: `adapters/lib/packs.py`
 - Test: `test/packs-claude.test.js`
 
 **Interfaces:**
-- Consumes: `load_registry`, `pack_matches`, `state_path`, `load_state` from Task 2.
+- Consumes: `load_registry`, `load_state`, `load_settings`, `state_path`, `settings_path` from Task 2.
 - Produces:
-  - `claude_install(pack: dict, settings: dict) -> bool`
-  - `claude_remove(pack: dict, settings: dict) -> list[str]`
+  - `claude_install(pack: dict, settings: dict) -> dict | None` — returns `{"plugins": [...], "marketplace": str | None}` listing **only what it inserted**, or `None` if the pack has no `claude-code` block.
+  - `claude_remove(owned: dict, settings: dict) -> list[str]` — takes the recorded ownership record, not the registry entry.
+  - `merge_owned(a: dict, b: dict) -> dict` — union, preserving a non-null marketplace.
   - `write_json(path: Path, data: dict) -> None`
-  - State file shape: `{"schema": 1, "packs": {"<slug>": {"platforms": {"<platform>": "installed"|"cli"|"manual"|"unavailable"}}}}`
-- Task 4 extends `add`/`remove` with the CLI and non-Claude paths; this task wires the Claude Code path only, so `add` records `claude-code` and nothing else.
+  - `install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]` — returns `(platforms, owned)`. Task 4 replaces the body; the signature is final.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -547,8 +623,8 @@ Create `test/packs-claude.test.js`:
 'use strict'
 
 // Verifies adapters/lib/packs.py reconciles settings.json for the claude-code
-// platform: adds marketplace + plugins on `add`, is idempotent, never flips a
-// value the user set, reverses only what it wrote on `remove`, and prunes on sync.
+// platform with per-entry ownership: it removes only what it inserted, survives a
+// pack being dropped from the registry, and refuses to overwrite unreadable config.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -561,64 +637,86 @@ const REPO = path.resolve(__dirname, '..')
 const SCRIPT = path.join(REPO, 'adapters', 'lib', 'packs.py')
 const REGISTRY = path.join(REPO, 'packs', 'packs.json')
 const PLUGIN = 'databricks@databricks-agent-skills'
+const MARKET = 'databricks-agent-skills'
 
 function setup(settings = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkc-'))
   const settingsFile = path.join(dir, 'settings.json')
-  fs.writeFileSync(settingsFile, JSON.stringify(settings))
+  fs.writeFileSync(settingsFile, typeof settings === 'string' ? settings : JSON.stringify(settings))
   return { dir, settingsFile, project: dir }
 }
 
 function run(ctx, argv, opts = {}) {
-  const registry = opts.registry || REGISTRY
   const r = spawnSync('python3', [
     SCRIPT, ...argv,
     '--settings', ctx.settingsFile,
     '--project', ctx.project,
-    '--packs', registry,
+    '--packs', opts.registry || REGISTRY,
   ], {
     encoding: 'utf8',
     // Force the per-platform path; Task 4 covers the CLI path.
     env: { ...process.env, PRISM_PACKS_WHICH: '{"databricks": false}' },
   })
-  assert.equal(r.status, 0, r.stderr)
+  if (!opts.allowFailure) assert.equal(r.status, 0, r.stderr)
   return r
 }
 
 const settingsOf = (ctx) => JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8'))
-const stateOf = (ctx) => JSON.parse(fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8'))
+const stateFile = (ctx) => path.join(ctx.dir, '.100xprism-packs.json')
+const stateOf = (ctx) => JSON.parse(fs.readFileSync(stateFile(ctx), 'utf8'))
 
-test('add wires the marketplace and enables the plugin', () => {
+test('add wires the marketplace, enables the plugin, and records ownership', () => {
   const ctx = setup()
   run(ctx, ['add', 'databricks'])
   const s = settingsOf(ctx)
   assert.equal(s.enabledPlugins[PLUGIN], true)
-  assert.ok(s.extraKnownMarketplaces['databricks-agent-skills'])
-  assert.equal(stateOf(ctx).packs.databricks.platforms['claude-code'], 'installed')
+  assert.ok(s.extraKnownMarketplaces[MARKET])
+
+  const entry = stateOf(ctx).packs.databricks
+  assert.equal(entry.platforms['claude-code'], 'installed')
+  assert.deepEqual(entry.owned.plugins, [PLUGIN])
+  assert.equal(entry.owned.marketplace, MARKET)
 })
 
-test('add is idempotent', () => {
+test('add is idempotent and does not lose the ownership record', () => {
   const ctx = setup()
   run(ctx, ['add', 'databricks'])
   const first = settingsOf(ctx)
   run(ctx, ['add', 'databricks'])
   assert.deepEqual(settingsOf(ctx), first)
+  // Second add inserts nothing; the record from the first must survive.
+  assert.deepEqual(stateOf(ctx).packs.databricks.owned.plugins, [PLUGIN])
 })
 
-test('add never flips a plugin the user explicitly disabled', () => {
+test('a plugin the user already disabled is neither flipped nor owned nor removed', () => {
   const ctx = setup({ enabledPlugins: { [PLUGIN]: false } })
   run(ctx, ['add', 'databricks'])
-  assert.equal(settingsOf(ctx).enabledPlugins[PLUGIN], false)
+  assert.equal(settingsOf(ctx).enabledPlugins[PLUGIN], false, 'not flipped')
+  assert.deepEqual(stateOf(ctx).packs.databricks.owned.plugins, [], 'not claimed')
+
+  run(ctx, ['remove', 'databricks'])
+  assert.equal(settingsOf(ctx).enabledPlugins[PLUGIN], false, 'user entry survives removal')
 })
 
-test('remove reverses only what we wrote', () => {
+test('a marketplace the user already had is not claimed and not removed', () => {
+  const ctx = setup({ extraKnownMarketplaces: { [MARKET]: { source: { source: 'github', repo: 'u/x' } } } })
+  run(ctx, ['add', 'databricks'])
+  assert.equal(stateOf(ctx).packs.databricks.owned.marketplace, null, 'not claimed')
+  assert.deepEqual(
+    settingsOf(ctx).extraKnownMarketplaces[MARKET].source.repo, 'u/x', 'not overwritten')
+
+  run(ctx, ['remove', 'databricks'])
+  assert.ok(settingsOf(ctx).extraKnownMarketplaces[MARKET], 'user marketplace survives')
+})
+
+test('remove reverses only what we inserted', () => {
   const ctx = setup({ enabledPlugins: { 'user-only@m': true } })
   run(ctx, ['add', 'databricks'])
   run(ctx, ['remove', 'databricks'])
   const s = settingsOf(ctx)
   assert.equal(PLUGIN in s.enabledPlugins, false, 'our plugin removed')
   assert.equal(s.enabledPlugins['user-only@m'], true, 'user plugin preserved')
-  assert.equal('databricks-agent-skills' in (s.extraKnownMarketplaces || {}), false)
+  assert.equal(MARKET in (s.extraKnownMarketplaces || {}), false)
   assert.equal('databricks' in stateOf(ctx).packs, false)
 })
 
@@ -626,33 +724,47 @@ test('remove keeps a marketplace another enabled plugin still needs', () => {
   const ctx = setup({ enabledPlugins: { 'other@databricks-agent-skills': true } })
   run(ctx, ['add', 'databricks'])
   run(ctx, ['remove', 'databricks'])
-  const s = settingsOf(ctx)
-  assert.ok(s.extraKnownMarketplaces['databricks-agent-skills'], 'marketplace still in use')
+  assert.ok(settingsOf(ctx).extraKnownMarketplaces[MARKET], 'marketplace still in use')
+})
+
+test('remove still works after the pack is dropped from the registry', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'])
+  const empty = path.join(ctx.dir, 'empty-packs.json')
+  fs.writeFileSync(empty, JSON.stringify({ schema: 1, packs: {} }))
+
+  run(ctx, ['remove', 'databricks'], { registry: empty })
+  assert.equal(PLUGIN in settingsOf(ctx).enabledPlugins, false, 'reversed from the state record')
+  assert.equal('databricks' in stateOf(ctx).packs, false)
 })
 
 test('sync re-applies an opted-in pack and prunes one no longer declared', () => {
   const ctx = setup()
   run(ctx, ['add', 'databricks'])
 
-  // Re-applies after the user hand-deletes the entry.
   const s = settingsOf(ctx)
   delete s.enabledPlugins[PLUGIN]
   fs.writeFileSync(ctx.settingsFile, JSON.stringify(s))
   run(ctx, ['sync'])
   assert.equal(settingsOf(ctx).enabledPlugins[PLUGIN], true, 're-applied')
 
-  // Pack dropped from the registry is pruned.
   const empty = path.join(ctx.dir, 'empty-packs.json')
   fs.writeFileSync(empty, JSON.stringify({ schema: 1, packs: {} }))
   run(ctx, ['sync'], { registry: empty })
   assert.equal(PLUGIN in settingsOf(ctx).enabledPlugins, false, 'pruned')
 })
 
+test('refuses to overwrite an unreadable settings.json', () => {
+  const ctx = setup('{ this is not json')
+  const r = run(ctx, ['add', 'databricks'], { allowFailure: true })
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /refusing to rewrite/)
+  assert.equal(fs.readFileSync(ctx.settingsFile, 'utf8'), '{ this is not json', 'file untouched')
+})
+
 test('add rejects an unknown slug', () => {
   const ctx = setup()
-  const r = spawnSync('python3', [
-    SCRIPT, 'add', 'nope', '--settings', ctx.settingsFile, '--project', ctx.project,
-  ], { encoding: 'utf8' })
+  const r = run(ctx, ['add', 'nope'], { allowFailure: true })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /unknown pack 'nope'/)
 })
@@ -663,9 +775,9 @@ test('add rejects an unknown slug', () => {
 Run: `node --test test/packs-claude.test.js`
 Expected: FAIL — `packs.py: 'add' not implemented yet`.
 
-- [ ] **Step 3: Implement the Claude Code path**
+- [ ] **Step 3: Implement ownership-tracked reconciliation**
 
-In `adapters/lib/packs.py`, add these functions after `load_state`:
+In `adapters/lib/packs.py`, add these functions after `load_settings`:
 
 ```python
 def write_json(path: Path, data: dict) -> None:
@@ -673,50 +785,75 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n")
 
 
-def claude_install(pack: dict, settings: dict) -> bool:
-    """Add the pack's marketplace + plugins to settings.json. Idempotent.
+EMPTY_OWNED = {"plugins": [], "marketplace": None}
 
-    Uses setdefault so a plugin the user explicitly disabled is never flipped back
-    on — the same rule sync_plugins.py follows.
+
+def merge_owned(a: dict, b: dict) -> dict:
+    """Union two ownership records; a non-null marketplace wins over null."""
+    plugins = list(dict.fromkeys(list(a.get("plugins", [])) + list(b.get("plugins", []))))
+    return {"plugins": plugins, "marketplace": a.get("marketplace") or b.get("marketplace")}
+
+
+def claude_install(pack: dict, settings: dict) -> dict | None:
+    """Add the pack's marketplace + plugins. Returns ONLY what this call inserted.
+
+    An entry that already exists — an enabled plugin, an explicitly disabled one, or a
+    marketplace the user configured — is left exactly as-is and is NOT claimed. That
+    record is what makes removal safe.
     """
     block = pack.get("install", {}).get("claude-code")
     if not block:
-        return False
+        return None
+
+    owned = {"plugins": [], "marketplace": None}
+
     marketplace = block.get("marketplace")
     if marketplace:
-        settings.setdefault("extraKnownMarketplaces", {})[marketplace["name"]] = {
-            "source": marketplace["source"]
-        }
+        marketplaces = settings.setdefault("extraKnownMarketplaces", {})
+        if marketplace["name"] not in marketplaces:
+            marketplaces[marketplace["name"]] = {"source": marketplace["source"]}
+            owned["marketplace"] = marketplace["name"]
+
     enabled = settings.setdefault("enabledPlugins", {})
     for plugin in block.get("plugins", []):
-        enabled.setdefault(plugin, True)
-    return True
+        if plugin not in enabled:
+            enabled[plugin] = True
+            owned["plugins"].append(plugin)
+
+    return owned
 
 
-def claude_remove(pack: dict, settings: dict) -> list[str]:
-    """Drop the pack's plugins, and its marketplace if nothing else references it."""
-    block = pack.get("install", {}).get("claude-code") or {}
+def claude_remove(owned: dict, settings: dict) -> list[str]:
+    """Reverse an ownership record. Never consults the registry — a pack dropped from
+    packs.json must still be removable."""
     enabled = settings.setdefault("enabledPlugins", {})
-    removed = [p for p in block.get("plugins", []) if enabled.pop(p, None) is not None]
+    removed = [p for p in owned.get("plugins", []) if enabled.pop(p, None) is not None]
 
-    marketplace = block.get("marketplace")
-    if marketplace:
-        name = marketplace["name"]
-        still_used = any(p.rsplit("@", 1)[-1] == name for p in enabled)
-        if not still_used:
-            settings.get("extraKnownMarketplaces", {}).pop(name, None)
+    name = owned.get("marketplace")
+    if name and not any(p.rsplit("@", 1)[-1] == name for p in enabled):
+        settings.get("extraKnownMarketplaces", {}).pop(name, None)
     return removed
+
+
+def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]:
+    """Install a pack. Returns ({platform: status}, ownership record).
+
+    Task 4 replaces this body with the full CLI-preferred resolution order; the
+    signature is final.
+    """
+    owned = claude_install(pack, settings)
+    if owned is None:
+        return {}, dict(EMPTY_OWNED)
+    return {"claude-code": "installed"}, owned
 ```
 
-- [ ] **Step 4: Wire the subcommands**
+- [ ] **Step 4: Wire the mutating subcommands**
 
-Replace the `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")` line in `main()` with:
+Replace `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")` in `main()` with:
 
 ```python
-    settings_file = Path(args.settings) if args.settings else Path.home() / ".claude" / "settings.json"
-    settings = load_state(settings_file)
-    if not isinstance(settings, dict):
-        settings = {}
+    settings_file = settings_path(args)
+    settings = load_settings(settings_file)
     state.setdefault("schema", 1)
     installed = state.setdefault("packs", {})
     messages: list[str] = []
@@ -725,34 +862,39 @@ Replace the `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")
         if args.slug not in packs:
             print(f"packs.py: unknown pack '{args.slug}'", file=sys.stderr)
             return 1
-        platforms = install_pack(packs[args.slug], settings, messages)
-        installed[args.slug] = {"platforms": platforms}
+        platforms, owned = install_pack(packs[args.slug], settings, messages)
+        previous = installed.get(args.slug, {})
+        installed[args.slug] = {
+            "platforms": platforms,
+            # Union with any prior record so a second `add` — which inserts nothing —
+            # cannot erase what the first one claimed.
+            "owned": merge_owned(previous.get("owned", EMPTY_OWNED), owned),
+            # Copied from the registry so removal survives the pack being dropped.
+            "uninstall": {
+                p: list((packs[args.slug].get("install", {}).get(p) or {}).get("uninstall", []))
+                for p in PLATFORMS
+            },
+        }
 
     elif args.command == "remove":
-        if args.slug not in installed:
+        entry = installed.get(args.slug)
+        if entry is None:
             print(f"packs.py: pack '{args.slug}' is not installed", file=sys.stderr)
             return 1
-        platforms = installed[args.slug].get("platforms", {})
-        if packs.get(args.slug) and platforms.get("claude-code") == "installed":
-            claude_remove(packs[args.slug], settings)
-        for platform, how in sorted(platforms.items()):
-            if how in ("cli", "manual"):
-                messages.append(
-                    f"{platform}: installed outside 100xprism ({how}) — remove it with the "
-                    f"upstream tooling. Skill files on disk were left untouched."
-                )
+        remove_pack(entry, settings, messages)
         installed.pop(args.slug, None)
 
     elif args.command == "sync":
         for slug in sorted(installed):
-            platforms = installed[slug].get("platforms", {})
+            entry = installed[slug]
             if slug not in packs:
-                if platforms.get("claude-code") == "installed":
-                    claude_remove(installed_pack_cache.get(slug, {}), settings)
+                claude_remove(entry.get("owned", EMPTY_OWNED), settings)
                 installed.pop(slug, None)
                 messages.append(f"{slug}: no longer declared — removed")
-            elif platforms.get("claude-code") == "installed":
-                claude_install(packs[slug], settings)
+            elif entry.get("platforms", {}).get("claude-code") == "installed":
+                owned = claude_install(packs[slug], settings)
+                if owned:
+                    entry["owned"] = merge_owned(entry.get("owned", EMPTY_OWNED), owned)
 
     write_json(settings_file, settings)
     write_json(state_path(args), state)
@@ -765,49 +907,34 @@ Replace the `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")
     return 0
 ```
 
-Pruning a pack that is no longer in the registry still needs its old `claude-code` block. Record it in state at `add` time so `sync` can reverse it without the registry. Extend `install_pack`'s state entry and read it back — add this near the top of `main()`, right after `state = load_state(state_path(args))`:
+- [ ] **Step 5: Add the removal dispatcher**
+
+Task 4 extends this with the shell-command platforms. Add above `main()`:
 
 ```python
-    # A pack dropped from the registry must still be reversible, so `add` records the
-    # claude-code block verbatim alongside the platform statuses.
-    installed_pack_cache = {
-        slug: {"install": {"claude-code": entry.get("claude_code_block", {})}}
-        for slug, entry in state.get("packs", {}).items()
-    }
-```
-
-And in the `add` branch, store the block:
-
-```python
-        installed[args.slug] = {
-            "platforms": platforms,
-            "claude_code_block": packs[args.slug].get("install", {}).get("claude-code", {}),
-        }
-```
-
-- [ ] **Step 5: Add the install dispatcher stub**
-
-Task 4 fills this in. For now, add above `main()`:
-
-```python
-def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, str]:
-    """Install a pack. Returns {platform: 'installed'|'cli'|'manual'|'unavailable'}."""
-    platforms: dict[str, str] = {}
-    if claude_install(pack, settings):
-        platforms["claude-code"] = "installed"
-    return platforms
+def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
+    """Reverse a pack from its recorded state. Registry-independent by design."""
+    platforms = entry.get("platforms", {})
+    if platforms.get("claude-code") == "installed":
+        claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+    for platform, how in sorted(platforms.items()):
+        if how in ("cli", "manual"):
+            messages.append(
+                f"{platform}: installed outside 100xprism ({how}) — remove it with the "
+                "upstream tooling. Skill files on disk were left untouched."
+            )
 ```
 
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `node --test test/packs-claude.test.js`
-Expected: 7 tests PASS.
+Expected: 10 tests PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add adapters/lib/packs.py test/packs-claude.test.js
-git commit -m "feat(packs): install, remove, and sync the claude-code platform"
+git commit -m "feat(packs): ownership-tracked install, remove, and sync for claude-code"
 ```
 
 ---
@@ -815,15 +942,16 @@ git commit -m "feat(packs): install, remove, and sync the claude-code platform"
 ### Task 4: CLI-preferred install and the non-Claude platforms
 
 **Files:**
-- Modify: `adapters/lib/packs.py` (replace the `install_pack` stub; add `which`, `run_command`)
+- Modify: `adapters/lib/packs.py` (replace `install_pack`; extend `remove_pack`; add `which`, `run_command`)
 - Test: `test/packs-install-paths.test.js`
 
 **Interfaces:**
-- Consumes: `claude_install` from Task 3.
+- Consumes: `claude_install`, `claude_remove`, `EMPTY_OWNED` from Task 3.
 - Produces:
   - `which(binary: str) -> bool` — honours the `PRISM_PACKS_WHICH` JSON override
   - `run_command(command: str) -> tuple[int, str]` — honours `PRISM_PACKS_RUNNER_LOG`
-  - `install_pack(pack, settings, messages) -> dict[str, str]` — full resolution order
+  - `install_pack(pack, settings, messages) -> tuple[dict[str, str], dict]` — full resolution order
+  - `remove_pack(entry, settings, messages) -> None` — now also runs recorded `uninstall` commands for shell-installed platforms
 - Test hooks (production code, used by tests):
   - `PRISM_PACKS_WHICH` — JSON object mapping binary name to boolean, overriding `shutil.which`.
   - `PRISM_PACKS_RUNNER_LOG` — path; commands are appended one per line and **not** executed, returning exit 0.
@@ -835,9 +963,9 @@ Create `test/packs-install-paths.test.js`:
 ```javascript
 'use strict'
 
-// Verifies the install resolution order in adapters/lib/packs.py:
-// prefer the pack CLI when its binary exists; otherwise per-platform blocks
-// (claude-code direct, codex shelled out, cursor printed for the user).
+// Verifies the install resolution order in adapters/lib/packs.py — prefer the pack's
+// own multi-agent CLI, else per-platform blocks — and that every recorded platform
+// status has a defined removal transition.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -852,15 +980,15 @@ const REGISTRY = path.join(REPO, 'packs', 'packs.json')
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pki-'))
-  const settingsFile = path.join(dir, 'settings.json')
-  fs.writeFileSync(settingsFile, '{}')
-  return { dir, settingsFile, log: path.join(dir, 'commands.log') }
+  fs.writeFileSync(path.join(dir, 'settings.json'), '{}')
+  return { dir, settingsFile: path.join(dir, 'settings.json'), log: path.join(dir, 'commands.log') }
 }
 
-function add(ctx, whichMap) {
+function run(ctx, argv, whichMap, registry) {
   const r = spawnSync('python3', [
-    SCRIPT, 'add', 'databricks',
-    '--settings', ctx.settingsFile, '--project', ctx.dir, '--packs', REGISTRY, '--json',
+    SCRIPT, ...argv,
+    '--settings', ctx.settingsFile, '--project', ctx.dir,
+    '--packs', registry || REGISTRY, '--json',
   ], {
     encoding: 'utf8',
     env: { ...process.env, PRISM_PACKS_WHICH: JSON.stringify(whichMap), PRISM_PACKS_RUNNER_LOG: ctx.log },
@@ -875,14 +1003,14 @@ const platforms = (ctx) =>
 
 test('prefers the pack CLI when its binary is present', () => {
   const ctx = setup()
-  add(ctx, { databricks: true })
+  run(ctx, ['add', 'databricks'], { databricks: true })
   assert.deepEqual(commands(ctx), ['databricks aitools install'])
   assert.deepEqual(platforms(ctx), { 'claude-code': 'cli', cursor: 'cli', codex: 'cli' })
 })
 
 test('falls back to per-platform blocks when the CLI binary is missing', () => {
   const ctx = setup()
-  const out = add(ctx, { databricks: false, codex: true })
+  const out = run(ctx, ['add', 'databricks'], { databricks: false, codex: true })
   assert.deepEqual(commands(ctx), [
     'codex plugin marketplace add databricks/databricks-agent-skills',
     'codex plugin add databricks',
@@ -896,9 +1024,32 @@ test('falls back to per-platform blocks when the CLI binary is missing', () => {
 
 test('reports a platform as unavailable when its binary is missing', () => {
   const ctx = setup()
-  const out = add(ctx, { databricks: false, codex: false })
+  const out = run(ctx, ['add', 'databricks'], { databricks: false, codex: false })
   assert.equal(platforms(ctx).codex, 'unavailable')
   assert.ok(out.messages.some((m) => m.includes('docs.databricks.com')), 'prints the hint')
+})
+
+test('removing a shell-installed platform prints guidance when no inverse is declared', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'], { databricks: false, codex: true })
+  const out = run(ctx, ['remove', 'databricks'], { databricks: false, codex: true })
+  assert.ok(
+    out.messages.some((m) => m.startsWith('codex:') && /no uninstall command/i.test(m)),
+    'codex installed-state is not silently forgotten',
+  )
+})
+
+test('removing a shell-installed platform runs a declared inverse command', () => {
+  const ctx = setup()
+  const registry = path.join(ctx.dir, 'with-uninstall.json')
+  const data = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'))
+  data.packs.databricks.install.codex.uninstall = ['codex plugin remove databricks']
+  fs.writeFileSync(registry, JSON.stringify(data))
+
+  run(ctx, ['add', 'databricks'], { databricks: false, codex: true }, registry)
+  fs.writeFileSync(ctx.log, '')
+  run(ctx, ['remove', 'databricks'], { databricks: false, codex: true }, registry)
+  assert.deepEqual(commands(ctx), ['codex plugin remove databricks'])
 })
 ```
 
@@ -909,7 +1060,7 @@ Expected: FAIL — the CLI path is not taken; `commands()` is empty.
 
 - [ ] **Step 3: Implement the resolution order**
 
-In `adapters/lib/packs.py`, add `import shlex` and `import shutil` to the imports, then add these functions above `install_pack`:
+In `adapters/lib/packs.py`, add `import shlex` and `import shutil` to the imports, then add above `install_pack`:
 
 ```python
 def which(binary: str) -> bool:
@@ -924,7 +1075,7 @@ def which(binary: str) -> bool:
 
 
 def run_command(command: str) -> tuple[int, str]:
-    """Run a declared install command.
+    """Run a declared install/uninstall command.
 
     When PRISM_PACKS_RUNNER_LOG is set the command is recorded and NOT executed —
     this is how tests exercise install paths without touching the network.
@@ -938,13 +1089,13 @@ def run_command(command: str) -> tuple[int, str]:
     return proc.returncode, (proc.stderr or proc.stdout).strip()
 ```
 
-Replace the `install_pack` stub from Task 3 with:
+Replace the Task 3 `install_pack` with:
 
 ```python
-def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, str]:
+def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]:
     """Install a pack, preferring the upstream's own multi-agent CLI.
 
-    Returns {platform: status}, where status is one of:
+    Returns ({platform: status}, ownership record), where status is one of:
       installed   — 100xprism performed it and can reverse it
       cli         — the pack's own CLI did it; not ours to reverse
       manual      — the user must run a command themselves
@@ -952,6 +1103,7 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, s
     """
     install = pack.get("install", {})
     platforms: dict[str, str] = {}
+    owned = dict(EMPTY_OWNED)
     cli = install.get("cli")
 
     # 1. The upstream CLI, when present, covers every platform in one command.
@@ -961,7 +1113,7 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, s
             for platform in cli.get("covers", []):
                 platforms[platform] = "cli"
             messages.append(f"ran `{cli['command']}` — covers {', '.join(cli.get('covers', []))}")
-            return platforms
+            return platforms, owned
         messages.append(f"`{cli['command']}` failed ({err or f'exit {code}'}); falling back per platform")
 
     # 2. Per-platform blocks.
@@ -970,9 +1122,16 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, s
         if not block:
             platforms[platform] = "unavailable"
             continue
+
         if platform == "claude-code":
-            platforms[platform] = "installed" if claude_install(pack, settings) else "unavailable"
+            claimed = claude_install(pack, settings)
+            if claimed is None:
+                platforms[platform] = "unavailable"
+            else:
+                platforms[platform] = "installed"
+                owned = merge_owned(owned, claimed)
             continue
+
         if block.get("commands"):
             binary = block["commands"][0].split()[0]
             if not which(binary):
@@ -987,23 +1146,61 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> dict[str, s
                     break
             platforms[platform] = "unavailable" if failed else "installed"
             continue
+
         if block.get("manual"):
             platforms[platform] = "manual"
-            steps = ", ".join(block["manual"])
-            messages.append(f"{platform}: run this in your agent yourself — {steps}")
+            messages.append(f"{platform}: run this in your agent yourself — {', '.join(block['manual'])}")
 
     # 3. Nothing worked for some platform: surface the pack's own hint.
     if cli and cli.get("hint") and any(v == "unavailable" for v in platforms.values()):
         messages.append(cli["hint"])
-    return platforms
+    return platforms, owned
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Extend removal to shell-installed platforms**
+
+Replace the Task 3 `remove_pack` with:
+
+```python
+def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
+    """Reverse a pack from its recorded state. Registry-independent by design.
+
+    Every recorded status has a transition here — a shell-installed platform is never
+    silently forgotten, even when the pack declares no inverse command.
+    """
+    platforms = entry.get("platforms", {})
+    declared = entry.get("uninstall", {})
+
+    for platform, how in sorted(platforms.items()):
+        if how == "installed" and platform == "claude-code":
+            claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+        elif how == "installed":
+            commands = declared.get(platform) or []
+            if not commands:
+                messages.append(
+                    f"{platform}: 100xprism ran the upstream installer, but this pack declares "
+                    "no uninstall command — remove it with the upstream tooling. Skill files on "
+                    "disk were left untouched."
+                )
+                continue
+            for command in commands:
+                code, err = run_command(command)
+                if code != 0:
+                    messages.append(f"{platform}: `{command}` failed ({err or f'exit {code}'})")
+        elif how in ("cli", "manual"):
+            messages.append(
+                f"{platform}: installed outside 100xprism ({how}) — remove it with the "
+                "upstream tooling. Skill files on disk were left untouched."
+            )
+        # `unavailable` needs no transition: nothing was installed.
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
 
 Run: `node --test test/packs-install-paths.test.js test/packs-claude.test.js`
-Expected: all tests PASS. The Task 3 suite still passes because it pins `PRISM_PACKS_WHICH` to `{"databricks": false}`.
+Expected: all tests PASS. The Task 3 suite still passes because it pins `PRISM_PACKS_WHICH` to `{"databricks": false}`, forcing the per-platform path.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add adapters/lib/packs.py test/packs-install-paths.test.js
@@ -1018,7 +1215,7 @@ git commit -m "feat(packs): prefer upstream CLI, fall back to per-platform insta
 - Create: `modules/pack/SKILL.md`
 - Modify: `README.md` (module count 67 → 68; slash-command count 27 → 28)
 - Modify: `package.json` (`description`: "67 cross-tool modules" → "68 cross-tool modules")
-- Modify: `AGENTS.md`, `docs/USAGE.md`, `install.sh` — only if they carry a stale count; `scripts/meta-check.py` names them, so let it tell you
+- Modify: `AGENTS.md`, `docs/USAGE.md`, `install.sh` — only where they carry a stale count; `scripts/meta-check.py` names each offending file
 - Test: `test/packs-module.test.js`
 
 **Interfaces:**
@@ -1032,8 +1229,9 @@ Create `test/packs-module.test.js`:
 ```javascript
 'use strict'
 
-// Verifies modules/pack/SKILL.md is a well-formed on-demand slash-command module
-// that delegates to adapters/lib/packs.py and does not overlap /connect's triggers.
+// Verifies modules/pack/SKILL.md is a well-formed on-demand slash-command module that
+// delegates to adapters/lib/packs.py, routes arguments through a validated case
+// statement, and quotes them.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -1043,28 +1241,40 @@ const path = require('node:path')
 
 const REPO = path.resolve(__dirname, '..')
 const SKILL = path.join(REPO, 'modules', 'pack', 'SKILL.md')
+const read = () => fs.readFileSync(SKILL, 'utf8')
 
 test('frontmatter declares the expected routing', () => {
-  const text = fs.readFileSync(SKILL, 'utf8')
+  const text = read()
   assert.match(text, /^---\n/)
-  assert.match(text, /\nname: pack\n/)
-  assert.match(text, /\ntier: on-demand\n/)
-  assert.match(text, /\nmodel: haiku\n/)
-  assert.match(text, /\nslash_command: \/pack\n/)
+  for (const line of ['name: pack', 'tier: on-demand', 'model: haiku', 'slash_command: /pack']) {
+    assert.ok(text.includes(`\n${line}\n`), `frontmatter has "${line}"`)
+  }
 })
 
 test('delegates to the helper rather than reimplementing install logic', () => {
-  const text = fs.readFileSync(SKILL, 'utf8')
+  const text = read()
   assert.match(text, /adapters\/lib\/packs\.py/)
-  for (const sub of ['status', 'detect', 'add', 'remove']) {
-    assert.ok(text.includes(`packs.py" ${sub}`) || text.includes(`$SUB`), `mentions ${sub}`)
-  }
   assert.ok(!/enabledPlugins/.test(text), 'must not touch settings.json directly')
 })
 
+test('routes every subcommand through an explicit case statement', () => {
+  const text = read()
+  // Each supported invocation must appear as a case arm that assigns SUB.
+  for (const [arm, sub] of [['""', 'status'], ['detect', 'detect'], ['add', 'add'], ['remove', 'remove']]) {
+    const pattern = new RegExp(`${arm}\\)[^\\n]*SUB=["']?${sub}`)
+    assert.match(text, pattern, `case arm ${arm} assigns SUB=${sub}`)
+  }
+  assert.match(text, /\*\)/, 'has a default arm that rejects unknown input')
+})
+
+test('quotes the slug when invoking the helper', () => {
+  const text = read()
+  assert.ok(!/\$SLUG(?!")/.test(text.replace(/"\$SLUG"/g, '')), 'SLUG is always quoted')
+  assert.match(text, /"\$SLUG"/)
+})
+
 test('resolves the helper for npm-global installs too', () => {
-  const text = fs.readFileSync(SKILL, 'utf8')
-  assert.match(text, /npm root -g/)
+  assert.match(read(), /npm root -g/)
 })
 
 test('trigger-overlap check still passes in strict mode', () => {
@@ -1127,19 +1337,43 @@ if [ -z "$PACKS" ]; then
 fi
 ```
 
-## Step 2 — Run the requested subcommand
+## Step 2 — Route the argument
 
-Map the user's argument to a subcommand: no argument → `status`; `detect`,
-`add <slug>`, `remove <slug>` pass through unchanged.
+Pass the user's words through this case statement verbatim. Do not invent a
+subcommand: anything unrecognised is a usage error, not a guess.
 
 ```bash
-python3 "$PACKS" "$SUB" $SLUG --settings "$HOME/.claude/settings.json"
+ARG1="${1:-}"
+SLUG="${2:-}"
+case "$ARG1" in
+  "")       SUB="status" ;;
+  detect)   SUB="detect" ;;
+  add)      SUB="add" ;;
+  remove)   SUB="remove" ;;
+  *)        echo "Usage: /pack [detect | add <slug> | remove <slug>]"; exit 1 ;;
+esac
+
+if [ "$SUB" = "add" ] || [ "$SUB" = "remove" ]; then
+  if [ -z "$SLUG" ]; then
+    echo "Usage: /pack $SUB <slug>   (run /pack to list available slugs)"
+    exit 1
+  fi
+fi
 ```
 
-## Step 3 — Report
+## Step 3 — Run it
 
-Print the helper's output verbatim. It already says which platforms were handled
-and which need a manual step.
+`"$SLUG"` stays quoted so a slug can never split into extra arguments or inject a
+flag into the helper.
+
+```bash
+python3 "$PACKS" "$SUB" "$SLUG" --settings "$HOME/.claude/settings.json"
+```
+
+## Step 4 — Report
+
+Print the helper's output verbatim. It already says which platforms were handled and
+which need a manual step.
 
 If any pack was added or removed, finish with: **restart your agent to pick up the
 change.**
@@ -1148,8 +1382,8 @@ Two things to pass along honestly rather than paper over:
 
 - A platform marked `manual` was **not** installed. Give the user the exact command
   the helper printed.
-- `/pack remove` reverses only what 100xprism wrote. A pack installed by an
-  upstream CLI leaves its skill files on disk — say so; do not delete them.
+- `/pack remove` reverses only what 100xprism wrote. A pack installed by an upstream
+  CLI leaves its skill files on disk — say so; do not delete them.
 ````
 
 - [ ] **Step 4: Update the counts**
@@ -1159,12 +1393,9 @@ Run `python3 scripts/meta-check.py`. It fails and names every file with a stale 
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `node --test test/packs-module.test.js && python3 scripts/meta-check.py`
-Expected: 4 tests PASS; meta-check reports `modules parsed: 68 (28 slash commands, 40 auto-trigger skills)` and `all checks passed ✓`.
+Expected: 6 tests PASS; meta-check reports `modules parsed: 68 (28 slash commands, 40 auto-trigger skills)` and `all checks passed ✓`.
 
-If the trigger-overlap test fails on a `pack` ↔ `connect` pair, sharpen the two
-descriptions so they no longer share trigger vocabulary. Add to
-`scripts/trigger-overlap-allow.txt` only if the overlap is genuinely intentional —
-here it is not, so fix the descriptions.
+If the trigger-overlap test fails on a `pack` ↔ `connect` pair, sharpen the two descriptions so they no longer share trigger vocabulary. Add to `scripts/trigger-overlap-allow.txt` only if the overlap is genuinely intentional — here it is not, so fix the descriptions.
 
 - [ ] **Step 6: Commit**
 
@@ -1179,14 +1410,17 @@ git commit -m "feat(packs): add the /pack module"
 ### Task 6: Lifecycle wiring — install, update, uninstall
 
 **Files:**
-- Modify: `adapters/claude-code.sh` (in `install_plugins`, after the `sync_plugins.py` call at ~L145)
-- Modify: `update.sh` (~L216 and ~L294, beside each `sync_plugins.py` call)
-- Modify: `lib/uninstall.js` (add `cleanManagedPacks`, call it from `run` and `preinstallCleanup`, export it)
+- Modify: `adapters/claude-code.sh` (`packs.py sync` inside `install_plugins`, after the `sync_plugins.py` call at ~L145)
+- Modify: `install.sh` (detection suggestion in the **final section**, after the component dispatch at ~L205)
+- Modify: `update.sh` (`sync` beside each `sync_plugins.py` call at ~L216 and ~L294; detection once at the end)
+- Modify: `lib/uninstall.js` (add `cleanManagedPacks`, call it from `run()` **only**, export it)
 - Test: `test/packs-lifecycle.test.js`
 
 **Interfaces:**
-- Consumes: `packs.py sync` and the state file from Task 3.
+- Consumes: `packs.py sync`/`detect` and the state file from Tasks 2–4.
 - Produces: `cleanManagedPacks(home = os.homedir()) -> { file, removed }` exported from `lib/uninstall.js`.
+
+**Do NOT call `cleanManagedPacks` from `preinstallCleanup()`.** `install.sh:111` runs preinstall cleanup *before* `do_install_plugins` at `install.sh:202`, so wiring it there would delete every opted-in pack's state on each install and leave the later `sync` with nothing to restore. Uninstall only.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1195,8 +1429,8 @@ Create `test/packs-lifecycle.test.js`:
 ```javascript
 'use strict'
 
-// Verifies uninstall reverses 100xprism-managed packs from settings.json,
-// leaves user plugins alone, and never deletes third-party skill files.
+// Verifies uninstall reverses only 100xprism-managed pack entries, counts real
+// removals, preserves unreadable settings, and never deletes third-party skill files.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -1204,28 +1438,33 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-const { cleanManagedPacks } = require('../lib/uninstall.js')
+const uninstall = require('../lib/uninstall.js')
+const { cleanManagedPacks, preinstallCleanup } = uninstall
 const PLUGIN = 'databricks@databricks-agent-skills'
+const MARKET = 'databricks-agent-skills'
 
 function fakeHome(state, settings) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkl-'))
   const claude = path.join(home, '.claude')
-  fs.mkdirSync(claude, { recursive: true })
-  fs.writeFileSync(path.join(claude, 'settings.json'), JSON.stringify(settings))
-  fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), JSON.stringify(state))
   fs.mkdirSync(path.join(claude, 'skills', 'databricks-core'), { recursive: true })
   fs.writeFileSync(path.join(claude, 'skills', 'databricks-core', 'SKILL.md'), '# upstream')
+  fs.writeFileSync(
+    path.join(claude, 'settings.json'),
+    typeof settings === 'string' ? settings : JSON.stringify(settings),
+  )
+  if (state) fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), JSON.stringify(state))
   return { home, claude }
 }
 
-test('removes managed pack plugins and the state file', () => {
+const managedState = (owned) => ({
+  schema: 1,
+  packs: { databricks: { platforms: { 'claude-code': 'installed' }, owned, uninstall: {} } },
+})
+
+test('removes owned plugins and the state file', () => {
   const { home, claude } = fakeHome(
-    { schema: 1, packs: { databricks: { platforms: { 'claude-code': 'installed' },
-      claude_code_block: { marketplace: { name: 'databricks-agent-skills',
-        source: { source: 'github', repo: 'databricks/databricks-agent-skills' } },
-        plugins: [PLUGIN] } } } },
-    { enabledPlugins: { [PLUGIN]: true, 'user-only@m': true },
-      extraKnownMarketplaces: { 'databricks-agent-skills': {} } },
+    managedState({ plugins: [PLUGIN], marketplace: MARKET }),
+    { enabledPlugins: { [PLUGIN]: true, 'user-only@m': true }, extraKnownMarketplaces: { [MARKET]: {} } },
   )
   const result = cleanManagedPacks(home)
   const settings = JSON.parse(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'))
@@ -1233,12 +1472,38 @@ test('removes managed pack plugins and the state file', () => {
   assert.equal(result.removed, 1)
   assert.equal(PLUGIN in settings.enabledPlugins, false)
   assert.equal(settings.enabledPlugins['user-only@m'], true, 'user plugin preserved')
+  assert.equal(MARKET in settings.extraKnownMarketplaces, false)
   assert.equal(fs.existsSync(path.join(claude, '.100xprism-packs.json')), false)
+})
+
+test('counts only plugins that were actually present', () => {
+  // The owned record names a plugin that is no longer in settings — a bare `delete`
+  // returns true for absent keys, so a naive counter would over-report here.
+  const { home } = fakeHome(managedState({ plugins: [PLUGIN], marketplace: null }), { enabledPlugins: {} })
+  assert.equal(cleanManagedPacks(home).removed, 0)
+})
+
+test('does not touch a plugin we never claimed', () => {
+  const { home, claude } = fakeHome(
+    managedState({ plugins: [], marketplace: null }),
+    { enabledPlugins: { [PLUGIN]: false } },
+  )
+  cleanManagedPacks(home)
+  const settings = JSON.parse(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'))
+  assert.equal(settings.enabledPlugins[PLUGIN], false, 'user-disabled entry survives')
+})
+
+test('preserves an unreadable settings.json and keeps the state file for recovery', () => {
+  const { home, claude } = fakeHome(managedState({ plugins: [PLUGIN], marketplace: MARKET }), '{ broken')
+  const result = cleanManagedPacks(home)
+  assert.equal(result.removed, 0)
+  assert.equal(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'), '{ broken', 'untouched')
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept for recovery')
 })
 
 test('never deletes third-party skill files', () => {
   const { home, claude } = fakeHome(
-    { schema: 1, packs: { databricks: { platforms: { 'claude-code': 'cli' } } } },
+    { schema: 1, packs: { databricks: { platforms: { 'claude-code': 'cli' }, owned: {}, uninstall: {} } } },
     { enabledPlugins: {} },
   )
   cleanManagedPacks(home)
@@ -1250,7 +1515,13 @@ test('never deletes third-party skill files', () => {
 
 test('is a no-op when no packs were ever installed', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkl-'))
-  assert.deepEqual(cleanManagedPacks(home).removed, 0)
+  assert.equal(cleanManagedPacks(home).removed, 0)
+})
+
+test('preinstallCleanup does not clear pack state', () => {
+  // install.sh runs preinstall cleanup BEFORE installing plugins; clearing pack state
+  // there would uninstall every opted-in pack on each install.
+  assert.ok(!/cleanManagedPacks/.test(preinstallCleanup.toString()), 'not wired into preinstall')
 })
 ```
 
@@ -1264,9 +1535,9 @@ Expected: FAIL — `cleanManagedPacks is not a function`.
 In `lib/uninstall.js`, add after `cleanClaudeSessionHooks`:
 
 ```javascript
-// Reverse packs 100xprism installed via the managed claude-code path. Packs
-// installed by an upstream CLI are left alone — we did not write those files and
-// do not know what else that CLI put there.
+// Reverse pack entries 100xprism recorded inserting. Packs installed by an upstream
+// CLI are left alone — we did not write those files and do not know what else that
+// CLI put there. Ownership comes from the state record, never from the registry.
 function cleanManagedPacks(home = os.homedir()) {
   const claudeDir = path.join(home, '.claude')
   const stateFile = path.join(claudeDir, '.100xprism-packs.json')
@@ -1276,28 +1547,40 @@ function cleanManagedPacks(home = os.homedir()) {
   try {
     state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
   } catch (err) {
-    if (err && err.code === 'ENOENT') return { file: settingsFile, removed: 0 }
-    console.warn(`Warning: could not read ${stateFile}: ${err.message}`)
+    if (!err || err.code !== 'ENOENT') {
+      console.warn(`Warning: could not read ${stateFile}: ${err.message}`)
+    }
     return { file: settingsFile, removed: 0 }
   }
 
   let settings
   try {
     settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
-  } catch {
-    settings = {}
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      fs.rmSync(stateFile, { force: true })
+      return { file: settingsFile, removed: 0 }
+    }
+    // Malformed settings: leave BOTH files alone so the user can recover.
+    console.warn(`Warning: ${settingsFile} could not be parsed — leaving pack entries in place.`)
+    return { file: settingsFile, removed: 0 }
   }
+
   const enabled = settings.enabledPlugins || {}
   const marketplaces = settings.extraKnownMarketplaces || {}
-
   let removed = 0
+
   for (const entry of Object.values(state.packs || {})) {
     if ((entry.platforms || {})['claude-code'] !== 'installed') continue
-    const block = entry.claude_code_block || {}
-    for (const plugin of block.plugins || []) {
-      if (delete enabled[plugin]) removed += 1
+    const owned = entry.owned || {}
+    for (const plugin of owned.plugins || []) {
+      // `delete` returns true even for absent keys, so check ownership explicitly.
+      if (Object.prototype.hasOwnProperty.call(enabled, plugin)) {
+        delete enabled[plugin]
+        removed += 1
+      }
     }
-    const name = block.marketplace && block.marketplace.name
+    const name = owned.marketplace
     if (name && !Object.keys(enabled).some((p) => p.split('@').pop() === name)) {
       delete marketplaces[name]
     }
@@ -1313,7 +1596,7 @@ function cleanManagedPacks(home = os.homedir()) {
 }
 ```
 
-Call it from `run()`, right after `const hookCleanup = cleanSessionHooksOnly()`:
+Call it from `run()` only, right after `const hookCleanup = cleanSessionHooksOnly()`:
 
 ```javascript
   const packCleanup = cleanManagedPacks()
@@ -1323,37 +1606,57 @@ Call it from `run()`, right after `const hookCleanup = cleanSessionHooksOnly()`:
   }
 ```
 
-Update the "nothing found" guard on the next line to include `&& !packCleanup.removed`, and add `cleanManagedPacks` to `module.exports`.
+Add `&& !packCleanup.removed` to the "nothing found" guard on the following line, and add `cleanManagedPacks` to `module.exports`. Leave `preinstallCleanup()` unchanged.
 
-- [ ] **Step 4: Wire sync + detection into install and update**
+- [ ] **Step 4: Wire sync into install and update**
 
 In `adapters/claude-code.sh`, inside `install_plugins`, after the `sync_plugins.py` invocation and before the `Plugins merged` echo:
 
 ```bash
-  # Re-apply opted-in packs and prune any dropped from packs.json. Detection is
-  # read-only and only prints a suggestion — it never installs.
-  python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || true
-  python3 "$REPO_DIR/adapters/lib/packs.py" detect --settings "$SETTINGS_FILE" 2>/dev/null | head -4 || true
+  # Re-apply opted-in packs and prune any dropped from packs.json.
+  python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+    echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
 ```
 
-In `update.sh`, add the same two lines after **each** of the two `sync_plugins.py` invocations (~L216 and ~L294), using that file's existing `$SETTINGS_FILE` variable.
+In `update.sh`, add the same block after **each** of the two `sync_plugins.py` invocations (~L216 and ~L294), using that file's existing `$SETTINGS_FILE`.
 
-- [ ] **Step 5: Run the full suite**
+- [ ] **Step 5: Wire detection where every install sees it**
+
+`install_plugins` runs only when the user selects both Claude Code and the plugins component (`install.sh:202`), so detection must not live there. Add it to `install.sh`'s final section, after the component dispatch (~L205) and before the `✓ Done!` banner:
+
+```bash
+# Read-only: reports packs relevant to this project. Never installs.
+SUGGESTIONS=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
+  --settings "$HOME/.claude/settings.json" 2>/dev/null || true)
+if [ -n "$SUGGESTIONS" ]; then
+  echo ""
+  echo -e "${CYAN}Optional skill packs for this project:${NC}"
+  echo "$SUGGESTIONS"
+  echo -e "${CYAN}Install with: /pack add <slug>${NC}"
+fi
+```
+
+Add the same block at the end of `update.sh`.
+
+- [ ] **Step 6: Run the full suite**
 
 Run: `node --test && python3 scripts/meta-check.py`
-Expected: every test PASSES (104 existing + the new suites); meta-check clean.
+Expected: every test PASSES (104 existing + the six new suites); meta-check clean.
 
-- [ ] **Step 6: Verify the install path end-to-end in a throwaway HOME**
+- [ ] **Step 7: Verify the install path end-to-end in a throwaway HOME**
+
+`./adapters/claude-code.sh` with no arguments dispatches to `install_global`, which never reaches `install_plugins`. Use the `--plugins` entry point:
 
 ```bash
-HOME=$(mktemp -d) ./adapters/claude-code.sh
+HOME=$(mktemp -d) ./adapters/claude-code.sh --plugins
 ```
-Expected: exit 0, no traceback, and the pack lines print without installing anything (`packs.json` declares `databricks`, which will not be detected in a temp dir).
 
-- [ ] **Step 7: Commit**
+Expected: exit 0, no traceback, and a `Pack sync` line that installs nothing (no pack is in state, so `sync` is a no-op).
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add adapters/claude-code.sh update.sh lib/uninstall.js test/packs-lifecycle.test.js
+git add adapters/claude-code.sh install.sh update.sh lib/uninstall.js test/packs-lifecycle.test.js
 git commit -m "feat(packs): wire pack sync and detection into install, update, uninstall"
 ```
 
@@ -1361,6 +1664,26 @@ git commit -m "feat(packs): wire pack sync and detection into install, update, u
 
 ## Self-review notes
 
-- **Spec coverage.** Registry → Task 1. Detection (root-only, git-toplevel fallback) → Task 2. Claude Code install/remove/sync and state semantics → Task 3. CLI-preferred resolution, `installed`/`cli`/`manual`/`unavailable` statuses, Cursor manual path → Task 4. `/pack` module, frontmatter, trigger-overlap risk, count updates → Task 5. Lifecycle wiring and non-destructive removal → Task 6.
-- **Deferred from the spec, deliberately:** the optional per-platform `uninstall` array. The spec leaves it unset for `databricks` because upstream documents no uninstall command, so no task implements it; `remove` prints guidance instead. Add it when a verified command exists.
-- **Naming consistency:** `install_pack`, `claude_install`, `claude_remove`, `which`, `run_command`, `write_json`, `state_path`, `load_state`, `pack_matches`, `project_root`, `load_registry`, `describe`, `render` are each defined once and referenced with the same signature throughout.
+- **Spec coverage.** Registry → Task 1. Detection (root-only, git-toplevel resolution) → Task 2. Ownership-tracked Claude Code install/remove/sync and strict settings handling → Task 3. CLI-preferred resolution, all four platform statuses, Codex removal transition → Task 4. `/pack` module, argument routing, count updates → Task 5. Lifecycle wiring, non-destructive removal, detection reach → Task 6.
+- **Deferred deliberately:** the per-platform `uninstall` array is implemented (Task 4) but left unset for `databricks`, because upstream documents no uninstall command. Task 4's last test proves the mechanism against a temp registry that declares one.
+- **State-machine coverage.** Every `platforms[p]` value has a defined removal transition: `installed`+`claude-code` → `claude_remove` from the ownership record; `installed`+shell platform → declared inverse commands, else explicit guidance; `cli`/`manual` → guidance; `unavailable` → no-op (nothing was installed).
+- **Naming consistency:** `load_registry`, `load_state`, `load_settings`, `project_root`, `pack_matches`, `settings_path`, `state_path`, `describe`, `render`, `write_json`, `merge_owned`, `claude_install`, `claude_remove`, `install_pack`, `remove_pack`, `which`, `run_command` are each defined once and used with the same signature throughout. `install_pack` returns `(platforms, owned)` in both Task 3 and Task 4.
+
+## Review history
+
+Reviewed by Codex (`--sandbox read-only`) and Cursor (`composer-2.5`, ask mode) against the repo. Twelve findings, all verified against the actual code and all fixed in this revision:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| 1 | Critical | Fixtures under `scripts/fixtures/` resolve to the repo root via `git rev-parse`, so detection tests could never pass | Fixtures built in temp dirs at test time; added a git-toplevel test |
+| 2 | Critical | Wiring `cleanManagedPacks` into `preinstallCleanup` would wipe opted-in packs on every install | Uninstall-only, with a test asserting it is not wired into preinstall |
+| 3 | Critical | Platform-level ownership let `remove` delete plugins and marketplaces the user owned | Per-entry ownership record; `claude_install` returns only what it inserted |
+| 4 | High | `if (delete enabled[plugin])` over-counts — JS `delete` returns `true` for absent keys | Explicit `hasOwnProperty` check before deleting |
+| 5 | High | Malformed `settings.json` collapsed to `{}` and written back, destroying user config | `load_settings` aborts; `cleanManagedPacks` preserves both files |
+| 6 | High | `remove` consulted the registry, so a dropped pack became unremovable | `remove_pack` works from the state record only |
+| 7 | High | Codex `installed` had no removal transition | `remove_pack` runs declared inverse commands, else prints guidance |
+| 8 | High | First-run seeding promised in constraints but neither applicable nor implemented | Removed from spec and plan — opt-in packs have nothing to seed |
+| 9 | Medium | `/pack` used undefined, unquoted `$SUB`/`$SLUG` | Explicit case statement, usage errors, quoted `"$SLUG"`, tests assert routing |
+| 10 | Medium | Schema tests mutated the tracked registry; `node --test` runs 4 files concurrently | `--packs` override validates a temp copy |
+| 11 | Medium | Detection lived in `install_plugins`, invisible to Cursor-only/Codex-only installs | Moved to the final section of `install.sh` and `update.sh` |
+| 12 | Medium | `./adapters/claude-code.sh` dispatches to `install_global`, so the E2E step tested nothing | Uses the `--plugins` entry point |
