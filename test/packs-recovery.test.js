@@ -166,6 +166,42 @@ test('uninstall persists a marketplace-only removal', () => {
     'marketplace removal written to disk, not just in memory')
 })
 
+// --- uninstall must apply the same shape guard as packs.py -------------------------
+
+for (const shape of ['[]', 'null', '"a string"', '42']) {
+  test(`uninstall refuses to act on settings.json containing ${shape}`, () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkr-'))
+    const claude = path.join(home, '.claude')
+    fs.mkdirSync(claude, { recursive: true })
+    fs.writeFileSync(path.join(claude, 'settings.json'), shape)
+    fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), JSON.stringify({
+      schema: 1,
+      packs: {
+        databricks: {
+          platforms: { 'claude-code': 'installed' },
+          owned: { plugins: [PLUGIN], marketplace: MARKET },
+          uninstall: {},
+        },
+      },
+    }))
+
+    // Must not throw, must not rewrite, must not discard the ownership record.
+    const result = cleanManagedPacks(home)
+    assert.equal(result.removed, 0)
+    assert.equal(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'), shape, 'untouched')
+    assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept for recovery')
+  })
+}
+
+test('uninstall ignores a pack state file of the wrong shape', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pkr-'))
+  const claude = path.join(home, '.claude')
+  fs.mkdirSync(claude, { recursive: true })
+  fs.writeFileSync(path.join(claude, 'settings.json'), JSON.stringify({ enabledPlugins: {} }))
+  fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), '[]')
+  assert.equal(cleanManagedPacks(home).removed, 0, 'no crash')
+})
+
 // --- Detection really is read-only ------------------------------------------------
 
 test('detect writes nothing at all', () => {

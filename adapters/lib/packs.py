@@ -105,6 +105,22 @@ def merge_owned(a: dict, b: dict) -> dict:
     return {"plugins": plugins, "marketplace": a.get("marketplace") or b.get("marketplace")}
 
 
+# How much removal obligation a status carries. A re-add may raise a platform's status
+# but must never lower it: the weaker value would describe a system state that is no
+# longer true and would drop the transition that reverses the earlier mutation.
+STATUS_RANK = {"unavailable": 0, "manual": 1, "cli": 2, "installed": 3}
+
+
+def merge_platforms(previous: dict, current: dict) -> dict:
+    """Per-platform max by obligation. Retries can only ever add obligation."""
+    merged = dict(previous)
+    for platform, status in current.items():
+        keep = merged.get(platform)
+        if keep is None or STATUS_RANK.get(status, 0) >= STATUS_RANK.get(keep, 0):
+            merged[platform] = status
+    return merged
+
+
 def claude_install(pack: dict, settings: dict) -> dict | None:
     """Add the pack's marketplace + plugins. Returns ONLY what this call inserted.
 
@@ -266,14 +282,25 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
     state entry: the installation is still there, and discarding the record would leave
     it with nothing able to remove it.
     """
-    platforms = entry.get("platforms", {})
+    platforms = dict(entry.get("platforms", {}))
     declared = entry.get("uninstall", {})
     ok = True
 
+    # Reverse our own config first, driven by the OWNERSHIP RECORD rather than by the
+    # platform label. `owned` is the truth of what we inserted; a status can legitimately
+    # change across re-adds (a later CLI install marks claude-code `cli`), and keying off
+    # the label would skip the reversal and orphan entries we put there.
+    owned = entry.get("owned", EMPTY_OWNED)
+    if owned.get("plugins") or owned.get("marketplace"):
+        claude_remove(owned, settings)
+        # Checkpoint immediately: if a later platform fails and the user retries, we must
+        # not "reverse" these a second time — by then the user may have re-added them.
+        entry["owned"] = dict(EMPTY_OWNED)
+    platforms.pop("claude-code", None)
+    entry["platforms"] = platforms
+
     for platform, how in sorted(platforms.items()):
-        if how == "installed" and platform == "claude-code":
-            claude_remove(entry.get("owned", EMPTY_OWNED), settings)
-        elif how == "installed":
+        if how == "installed":
             commands = declared.get(platform) or []
             if not commands:
                 messages.append(
@@ -281,7 +308,9 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
                     "no uninstall command — remove it with the upstream tooling. Skill files on "
                     "disk were left untouched."
                 )
+                platforms.pop(platform, None)
                 continue
+            failed = False
             for command in commands:
                 code, err = run_command(command)
                 if code != 0:
@@ -289,13 +318,22 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
                         f"{platform}: `{command}` failed ({err or f'exit {code}'}) — keeping the "
                         "pack record so you can retry."
                     )
+                    failed = True
                     ok = False
+                    break
+            if not failed:
+                platforms.pop(platform, None)
         elif how in ("cli", "manual"):
             messages.append(
                 f"{platform}: installed outside 100xprism ({how}) — remove it with the "
                 "upstream tooling. Skill files on disk were left untouched."
             )
-        # `unavailable` needs no transition: nothing was installed.
+            platforms.pop(platform, None)
+        else:
+            # `unavailable` needs no transition: nothing was installed.
+            platforms.pop(platform, None)
+
+    entry["platforms"] = platforms
     return ok
 
 
@@ -364,7 +402,11 @@ def render(rows: list[dict]) -> str:
     lines = []
     for row in rows:
         if row["platforms"]:
-            note = "installed: " + ", ".join(f"{k}={v}" for k, v in sorted(row["platforms"].items()))
+            # Don't label the row "installed" wholesale — some platforms may be `manual`
+            # (the user still has to act) or `unavailable` (nothing happened there).
+            note = "per platform: " + ", ".join(
+                f"{k}={v}" for k, v in sorted(row["platforms"].items())
+            )
         elif row["detected"]:
             note = f"detected here — run `/pack add {row['slug']}` to install"
         else:
@@ -422,11 +464,29 @@ def main() -> int:
             return 1
         platforms, owned = install_pack(packs[args.slug], settings, messages)
         previous = installed.get(args.slug, {})
+        merged_platforms = merge_platforms(previous.get("platforms", {}), platforms)
+        merged_owned = merge_owned(previous.get("owned", EMPTY_OWNED), owned)
+
+        # Nothing installed, nothing owed, nothing owned — recording state here would
+        # claim an install that never happened and leave `/pack` reporting it as present.
+        nothing_happened = (
+            not merged_owned.get("plugins")
+            and not merged_owned.get("marketplace")
+            and all(v == "unavailable" for v in merged_platforms.values())
+        )
+        if nothing_happened:
+            for line in messages:
+                print(f"  {line}", file=sys.stderr)
+            print(f"packs.py: '{args.slug}' could not be installed on any platform", file=sys.stderr)
+            return 1
+
         installed[args.slug] = {
-            "platforms": platforms,
+            # Per-platform max by obligation: a retry can raise a status but never lower
+            # it, so a mutation recorded by an earlier attempt keeps its removal path.
+            "platforms": merged_platforms,
             # Union with any prior record so a second `add` — which inserts nothing —
             # cannot erase what the first one claimed.
-            "owned": merge_owned(previous.get("owned", EMPTY_OWNED), owned),
+            "owned": merged_owned,
             # Copied from the registry so removal survives the pack being dropped.
             "uninstall": {
                 p: list((packs[args.slug].get("install", {}).get(p) or {}).get("uninstall", []))

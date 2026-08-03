@@ -209,6 +209,22 @@ regenerate_tracked_projects() {
   return 0
 }
 
+# Read-only: reports packs relevant to this project. Never installs. Defined as a
+# function because update.sh has two exit paths — the already-up-to-date branch below
+# returns before the tail of the script, so an inline block there would only ever run
+# on the far rarer "there was an update" path.
+suggest_packs() {
+  local suggestions
+  suggestions=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
+    --settings "$SETTINGS_FILE" 2>/dev/null || true)
+  if [ -n "$suggestions" ]; then
+    echo ""
+    echo -e "${CYAN}Optional skill packs for this project:${NC}"
+    echo "$suggestions"
+    echo -e "${CYAN}Install with: /pack add <slug>${NC}"
+  fi
+}
+
 if [ "$LOCAL" = "$REMOTE" ]; then
   echo -e "${GREEN}✓ Repo already up to date.${NC}"
   echo ""
@@ -229,6 +245,7 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   else
     regenerate_tracked_projects || RECONCILE_STATUS=$?
   fi
+  suggest_packs
   echo ""
   echo -e "${CYAN}Tip: Restart Claude Code to activate any plugin changes.${NC}"
   echo ""
@@ -324,15 +341,7 @@ fi
 RECONCILE_STATUS=0
 regenerate_tracked_projects || RECONCILE_STATUS=$?
 
-# Read-only: reports packs relevant to this project. Never installs.
-SUGGESTIONS=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
-  --settings "$SETTINGS_FILE" 2>/dev/null || true)
-if [ -n "$SUGGESTIONS" ]; then
-  echo ""
-  echo -e "${CYAN}Optional skill packs for this project:${NC}"
-  echo "$SUGGESTIONS"
-  echo -e "${CYAN}Install with: /pack add <slug>${NC}"
-fi
+suggest_packs
 
 echo ""
 NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
