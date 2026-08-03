@@ -22,6 +22,8 @@ import argparse
 import json
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -121,29 +123,128 @@ def claude_remove(owned: dict, settings: dict) -> list[str]:
     return removed
 
 
-def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]:
-    """Install a pack. Returns ({platform: status}, ownership record).
+def which(binary: str) -> bool:
+    """Is `binary` on PATH? PRISM_PACKS_WHICH overrides the answer, for tests."""
+    override = os.environ.get("PRISM_PACKS_WHICH")
+    if override:
+        try:
+            return bool(json.loads(override).get(binary, False))
+        except ValueError:
+            pass
+    return shutil.which(binary) is not None
 
-    Task 4 replaces this body with the full CLI-preferred resolution order; the
-    signature is final.
+
+def run_command(command: str) -> tuple[int, str]:
+    """Run a declared install/uninstall command.
+
+    When PRISM_PACKS_RUNNER_LOG is set the command is recorded and NOT executed —
+    this is how tests exercise install paths without touching the network.
     """
-    owned = claude_install(pack, settings)
-    if owned is None:
-        return {}, dict(EMPTY_OWNED)
-    return {"claude-code": "installed"}, owned
+    log = os.environ.get("PRISM_PACKS_RUNNER_LOG")
+    if log:
+        with open(log, "a", encoding="utf-8") as fh:
+            fh.write(command + "\n")
+        return 0, ""
+    proc = subprocess.run(shlex.split(command), capture_output=True, text=True, check=False)
+    return proc.returncode, (proc.stderr or proc.stdout).strip()
+
+
+def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]:
+    """Install a pack, preferring the upstream's own multi-agent CLI.
+
+    Returns ({platform: status}, ownership record), where status is one of:
+      installed   — 100xprism performed it and can reverse it
+      cli         — the pack's own CLI did it; not ours to reverse
+      manual      — the user must run a command themselves
+      unavailable — no usable path for that platform
+    """
+    install = pack.get("install", {})
+    platforms: dict[str, str] = {}
+    owned = dict(EMPTY_OWNED)
+    cli = install.get("cli")
+
+    # 1. The upstream CLI, when present, covers every platform in one command.
+    if install.get("preferred") == "cli" and cli and which(cli["requires"]):
+        code, err = run_command(cli["command"])
+        if code == 0:
+            for platform in cli.get("covers", []):
+                platforms[platform] = "cli"
+            messages.append(f"ran `{cli['command']}` — covers {', '.join(cli.get('covers', []))}")
+            return platforms, owned
+        messages.append(f"`{cli['command']}` failed ({err or f'exit {code}'}); falling back per platform")
+
+    # 2. Per-platform blocks.
+    for platform in PLATFORMS:
+        block = install.get(platform)
+        if not block:
+            platforms[platform] = "unavailable"
+            continue
+
+        if platform == "claude-code":
+            claimed = claude_install(pack, settings)
+            if claimed is None:
+                platforms[platform] = "unavailable"
+            else:
+                platforms[platform] = "installed"
+                owned = merge_owned(owned, claimed)
+            continue
+
+        if block.get("commands"):
+            binary = block["commands"][0].split()[0]
+            if not which(binary):
+                platforms[platform] = "unavailable"
+                continue
+            failed = False
+            for command in block["commands"]:
+                code, err = run_command(command)
+                if code != 0:
+                    messages.append(f"{platform}: `{command}` failed ({err or f'exit {code}'})")
+                    failed = True
+                    break
+            platforms[platform] = "unavailable" if failed else "installed"
+            continue
+
+        if block.get("manual"):
+            platforms[platform] = "manual"
+            messages.append(f"{platform}: run this in your agent yourself — {', '.join(block['manual'])}")
+
+    # 3. Nothing worked for some platform: surface the pack's own hint.
+    if cli and cli.get("hint") and any(v == "unavailable" for v in platforms.values()):
+        messages.append(cli["hint"])
+    return platforms, owned
 
 
 def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
-    """Reverse a pack from its recorded state. Registry-independent by design."""
+    """Reverse a pack from its recorded state. Registry-independent by design.
+
+    Every recorded status has a transition here — a shell-installed platform is never
+    silently forgotten, even when the pack declares no inverse command.
+    """
     platforms = entry.get("platforms", {})
-    if platforms.get("claude-code") == "installed":
-        claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+    declared = entry.get("uninstall", {})
+
     for platform, how in sorted(platforms.items()):
-        if how in ("cli", "manual"):
+        if how == "installed" and platform == "claude-code":
+            claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+        elif how == "installed":
+            commands = declared.get(platform) or []
+            if not commands:
+                messages.append(
+                    f"{platform}: 100xprism ran the upstream installer, but this pack declares "
+                    "no uninstall command — remove it with the upstream tooling. Skill files on "
+                    "disk were left untouched."
+                )
+                continue
+            for command in commands:
+                code, err = run_command(command)
+                if code != 0:
+                    messages.append(f"{platform}: `{command}` failed ({err or f'exit {code}'})")
+        elif how in ("cli", "manual"):
             messages.append(
                 f"{platform}: installed outside 100xprism ({how}) — remove it with the "
                 "upstream tooling. Skill files on disk were left untouched."
             )
+        # `unavailable` needs no transition: nothing was installed.
 
 
 def project_root(start: Path) -> Path:
