@@ -172,6 +172,51 @@ test('uninstall refuses a pack entry whose owned.marketplace is not a string', (
   assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
 })
 
+// --- The Python path needs the SAME nested-shape guard as lib/uninstall.js --------
+
+function withState(state, settings) {
+  const ctx = setup()
+  fs.writeFileSync(path.join(ctx.dir, '.100xprism-packs.json'), JSON.stringify(state))
+  fs.writeFileSync(ctx.settingsFile, JSON.stringify(settings))
+  return ctx
+}
+
+test('remove refuses a state whose owned.plugins is not an array', () => {
+  // Iterating a string yields characters, which would pop single-letter plugin keys.
+  const ctx = withState(
+    { schema: 1, packs: { databricks: {
+      platforms: { 'claude-code': ['installed'] },
+      owned: { plugins: 'abc', marketplace: MARKET }, uninstall: {},
+    } } },
+    { enabledPlugins: { a: true, b: true }, extraKnownMarketplaces: { [MARKET]: {} } },
+  )
+  const r = run(ctx, ['remove', 'databricks'], { allowFailure: true })
+  assert.notEqual(r.status, 0, 'refuses rather than acting on a record it cannot trust')
+  const settings = JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8'))
+  assert.equal(settings.enabledPlugins.a, true, 'unrelated keys survive')
+  assert.equal(settings.enabledPlugins.b, true)
+})
+
+test('add refuses a state with a non-object pack record', () => {
+  const ctx = withState({ schema: 1, packs: { databricks: 'nope' } }, {})
+  const r = run(ctx, ['add', 'databricks'], { allowFailure: true })
+  assert.notEqual(r.status, 0)
+  assert.match(
+    JSON.parse(fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8')).packs.databricks,
+    /nope/, 'the unreadable record is preserved, not overwritten',
+  )
+})
+
+test('sync refuses a state whose packs is not an object', () => {
+  const ctx = withState({ schema: 1, packs: [] }, {})
+  const r = run(ctx, ['sync'], { allowFailure: true })
+  assert.notEqual(r.status, 0)
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8')).packs, [],
+    'left intact for the user to fix',
+  )
+})
+
 // --- Re-add must not resurrect uninstall commands that already succeeded ----------
 
 test('re-add does not restore checkpointed uninstall commands for an untouched platform', () => {

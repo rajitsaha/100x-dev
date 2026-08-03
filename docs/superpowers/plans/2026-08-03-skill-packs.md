@@ -54,7 +54,7 @@
 }
 ```
 
-- `platforms[p]` ∈ `installed` (we did it, we can reverse it) | `cli` (the pack's own CLI did it) | `manual` (the user must run it) | `unavailable` (no usable path).
+- `platforms[p]` ∈ `installed` (we did it, we can reverse it) | `cli` (the pack's own CLI did it) | `manual` (the user must run it) | `unavailable` (no usable path). **Superseded:** the shipped code stores a *list* of these obligations per platform, since they accumulate independently, and drops `unavailable` entirely — it is represented by the platform carrying no obligation.
 - `owned.plugins` lists **only** keys this install actually inserted. `owned.marketplace` is the marketplace name only if we inserted it, else `null`.
 - `uninstall` copies each platform's declared inverse commands at install time, so a pack dropped from the registry stays reversible.
 
@@ -1680,7 +1680,7 @@ git commit -m "feat(packs): wire pack sync and detection into install, update, u
 
 - **Spec coverage.** Registry → Task 1. Detection (root-only, git-toplevel resolution) → Task 2. Ownership-tracked Claude Code install/remove/sync and strict settings handling → Task 3. CLI-preferred resolution, all four platform statuses, Codex removal transition → Task 4. `/pack` module, argument routing, count updates → Task 5. Lifecycle wiring, non-destructive removal, detection reach → Task 6.
 - **Deferred deliberately:** the per-platform `uninstall` array is implemented (Task 4) but left unset for `databricks`, because upstream documents no uninstall command. Task 4's last test proves the mechanism against a temp registry that declares one.
-- **State-machine coverage.** Every `platforms[p]` value has a defined removal transition: `installed`+`claude-code` → `claude_remove` from the ownership record; `installed`+shell platform → declared inverse commands, else explicit guidance; `cli`/`manual` → guidance; `unavailable` → no-op (nothing was installed).
+- **State-machine coverage.** Every obligation in `platforms[p]` has a defined removal transition: `installed`+`claude-code` → `claude_remove` from the ownership record; `installed`+shell platform → declared inverse commands, else explicit guidance; `cli`/`manual` → guidance. A platform with no obligations needs no transition, nothing having been installed there.
 - **Naming consistency:** `load_registry`, `load_state`, `load_settings`, `project_root`, `pack_matches`, `settings_path`, `state_path`, `describe`, `render`, `write_json`, `merge_owned`, `claude_install`, `claude_remove`, `install_pack`, `remove_pack`, `which`, `run_command` are each defined once and used with the same signature throughout. `install_pack` returns `(platforms, owned)` in both Task 3 and Task 4.
 
 ## Review history

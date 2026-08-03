@@ -73,8 +73,39 @@ def load_state(path: Path) -> dict:
 
     Strict, because every caller writes it back. Read-only commands use
     peek_state instead — reporting should not fail over a damaged sidecar.
+
+    Nested shapes are validated too, and for the same reason lib/uninstall.js does it:
+    `owned.plugins` holding a string would be iterated character by character, popping
+    single-letter keys out of the user's enabledPlugins. A record we cannot trust is
+    never acted on and never overwritten.
     """
-    return _load_json_object(path, "the pack state file")
+    state = _load_json_object(path, "the pack state file")
+
+    def reject(detail: str):
+        raise SystemExit(
+            f"packs.py: refusing to act on the pack state file at {path} — {detail}. "
+            "Fix or move the file, then retry."
+        )
+
+    packs = state.get("packs", {})
+    if not isinstance(packs, dict):
+        reject(f"'packs' should be an object, found {type(packs).__name__}")
+    for slug, entry in packs.items():
+        if not isinstance(entry, dict):
+            reject(f"the record for '{slug}' should be an object, found {type(entry).__name__}")
+        owned = entry.get("owned", {})
+        if not isinstance(owned, dict):
+            reject(f"'{slug}.owned' should be an object, found {type(owned).__name__}")
+        plugins = owned.get("plugins", [])
+        if not isinstance(plugins, list):
+            reject(f"'{slug}.owned.plugins' should be a list, found {type(plugins).__name__}")
+        marketplace = owned.get("marketplace")
+        if marketplace is not None and not isinstance(marketplace, str):
+            reject(f"'{slug}.owned.marketplace' should be a string, found {type(marketplace).__name__}")
+        uninstall = entry.get("uninstall", {})
+        if not isinstance(uninstall, dict):
+            reject(f"'{slug}.uninstall' should be an object, found {type(uninstall).__name__}")
+    return state
 
 
 def peek_state(path: Path) -> dict:
