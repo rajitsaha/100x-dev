@@ -10,9 +10,9 @@
 [![npm](https://img.shields.io/npm/v/100xprism?style=flat-square&color=red)](https://www.npmjs.com/package/100xprism)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-**One source of truth.** 67 modules generate native config for **Claude Code · Cursor · Codex**. Quality gates run on every commit.
+**One source of truth.** 68 modules generate native config for **Claude Code · Cursor · Codex**. Quality gates run on every commit.
 
-<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 14 plugins, 27 slash commands, 40 auto-trigger skills" width="100%" />
+<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 14 plugins, 28 slash commands, 40 auto-trigger skills" width="100%" />
 
 </div>
 
@@ -75,7 +75,7 @@ Every `/commit` and `/push` runs a 5-point gate — tests, security, build, Dock
 
 | | |
 |---|---|
-| **67 modules** | 27 slash commands + 40 auto-trigger skills — see [full reference below](#slash-commands) |
+| **68 modules** | 28 slash commands + 40 auto-trigger skills — see [full reference below](#slash-commands) |
 | **14 Claude Code plugins** | superpowers, playwright, github, hookify, claude-mem, understand-anything, ui-ux-pro-max, motion-framer, and more |
 | **7 database engines** | Postgres, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle — one `/db` interface |
 | **27 SaaS CLIs** | `/connect` installs + authenticates GitHub, AWS, Stripe, Supabase, and more from `.env` |
@@ -107,7 +107,7 @@ Full guide: [docs/token-optimization.md](docs/token-optimization.md).
 
 ## Slash commands
 
-The following 27 slash commands are available. Run them inside Claude Code. In Codex, use the generated repo skill by name instead, for example `$gate`, `$commit`, or `/skills`.
+The following 28 slash commands are available. Run them inside Claude Code. In Codex, use the generated repo skill by name instead, for example `$gate`, `$commit`, or `/skills`.
 
 ### Lifecycle
 
