@@ -41,8 +41,44 @@ def load_registry(path: Path) -> dict:
     return data.get("packs", {})
 
 
+def _load_json_object(path: Path, label: str) -> dict:
+    """Read a JSON object, or abort. Absent is fine; present-but-unusable is not.
+
+    Both callers write their file back, so collapsing an unreadable file to {} would
+    destroy it. That applies to the pack state as much as to settings.json: the state
+    file is the only record of what we may remove, and losing it orphans every entry
+    we installed.
+    """
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise SystemExit(
+            f"packs.py: refusing to rewrite {label} at {path} — it exists but could not "
+            f"be read ({exc}). Fix or move the file, then retry."
+        )
+    if not isinstance(data, dict):
+        # Valid JSON of the wrong shape (a list, null, a bare string) is still
+        # somebody's file. Never silently replace it with an object.
+        raise SystemExit(
+            f"packs.py: refusing to rewrite {label} at {path} — expected a JSON object, "
+            f"found {type(data).__name__}. Fix or move the file, then retry."
+        )
+    return data
+
+
 def load_state(path: Path) -> dict:
-    """Our own sidecar. Tolerant: an unreadable sidecar just means 'nothing installed'."""
+    """Our sidecar record of what we installed and may therefore remove.
+
+    Strict, because every caller writes it back. Read-only commands use
+    peek_state instead — reporting should not fail over a damaged sidecar.
+    """
+    return _load_json_object(path, "the pack state file")
+
+
+def peek_state(path: Path) -> dict:
+    """Best-effort read for display only. Never feeds a write."""
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
@@ -51,21 +87,8 @@ def load_state(path: Path) -> dict:
 
 
 def load_settings(path: Path) -> dict:
-    """The user's settings.json. Strict: never replace config we could not read.
-
-    load_state's tolerance is wrong here — collapsing a malformed settings.json to {}
-    and writing it back would destroy the user's whole configuration.
-    """
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, ValueError) as exc:
-        raise SystemExit(
-            f"packs.py: refusing to rewrite {path} — it exists but could not be read ({exc}). "
-            "Fix or move the file, then retry."
-        )
-    return data if isinstance(data, dict) else {}
+    """The user's settings.json."""
+    return _load_json_object(path, "settings.json")
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -144,6 +167,10 @@ def run_command(command: str) -> tuple[int, str]:
     if log:
         with open(log, "a", encoding="utf-8") as fh:
             fh.write(command + "\n")
+        # PRISM_PACKS_RUNNER_FAIL names one command that should report failure, so
+        # tests can exercise partial-install and failed-uninstall paths.
+        if os.environ.get("PRISM_PACKS_RUNNER_FAIL") == command:
+            return 1, "simulated failure"
         return 0, ""
     proc = subprocess.run(shlex.split(command), capture_output=True, text=True, check=False)
     return proc.returncode, (proc.stderr or proc.stdout).strip()
@@ -194,14 +221,29 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
             if not which(binary):
                 platforms[platform] = "unavailable"
                 continue
-            failed = False
+            # A command that already succeeded has mutated the user's system. Once that
+            # happens the platform must be recorded `installed` even if a later command
+            # fails — `unavailable` carries no removal transition, which would strand
+            # the completed mutation with nothing able to reverse it.
+            ran_any = False
+            failed_at = ""
             for command in block["commands"]:
                 code, err = run_command(command)
                 if code != 0:
                     messages.append(f"{platform}: `{command}` failed ({err or f'exit {code}'})")
-                    failed = True
+                    failed_at = command
                     break
-            platforms[platform] = "unavailable" if failed else "installed"
+                ran_any = True
+            if failed_at and ran_any:
+                platforms[platform] = "installed"
+                messages.append(
+                    f"{platform}: partially installed — earlier steps succeeded before "
+                    f"`{failed_at}` failed. `/pack remove` will reverse what it can."
+                )
+            elif failed_at:
+                platforms[platform] = "unavailable"
+            else:
+                platforms[platform] = "installed"
             continue
 
         if block.get("manual"):
@@ -214,14 +256,19 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
     return platforms, owned
 
 
-def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
+def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
     """Reverse a pack from its recorded state. Registry-independent by design.
 
     Every recorded status has a transition here — a shell-installed platform is never
     silently forgotten, even when the pack declares no inverse command.
+
+    Returns False when a declared inverse command failed. The caller must then KEEP the
+    state entry: the installation is still there, and discarding the record would leave
+    it with nothing able to remove it.
     """
     platforms = entry.get("platforms", {})
     declared = entry.get("uninstall", {})
+    ok = True
 
     for platform, how in sorted(platforms.items()):
         if how == "installed" and platform == "claude-code":
@@ -238,13 +285,18 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
             for command in commands:
                 code, err = run_command(command)
                 if code != 0:
-                    messages.append(f"{platform}: `{command}` failed ({err or f'exit {code}'})")
+                    messages.append(
+                        f"{platform}: `{command}` failed ({err or f'exit {code}'}) — keeping the "
+                        "pack record so you can retry."
+                    )
+                    ok = False
         elif how in ("cli", "manual"):
             messages.append(
                 f"{platform}: installed outside 100xprism ({how}) — remove it with the "
                 "upstream tooling. Skill files on disk were left untouched."
             )
         # `unavailable` needs no transition: nothing was installed.
+    return ok
 
 
 def project_root(start: Path) -> Path:
@@ -318,7 +370,10 @@ def render(rows: list[dict]) -> str:
         else:
             note = "not installed"
         lines.append(f"  {row['slug']:<14} {row['title']}\n    {note}")
-    return "\n".join(lines) if lines else "  (no packs declared)"
+    # Empty means empty. install.sh/update.sh test this output for non-emptiness before
+    # printing a suggestions header — a placeholder string would show that header on
+    # every run, including the overwhelmingly common no-match case.
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -336,15 +391,24 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     packs = load_registry(Path(args.packs))
-    state = load_state(state_path(args))
 
     if args.command in ("detect", "status"):
+        # Read-only: tolerate a damaged sidecar rather than refuse to report.
         root = project_root(Path(args.project).resolve())
-        rows = describe(packs, root, os.environ, state)
+        rows = describe(packs, root, os.environ, peek_state(state_path(args)))
         if args.command == "detect":
             rows = [r for r in rows if r["detected"]]
-        print(json.dumps({"packs": rows}, indent=2) if args.json else render(rows))
+        if args.json:
+            print(json.dumps({"packs": rows}, indent=2))
+        else:
+            rendered = render(rows)
+            if rendered:
+                print(rendered)
+            elif args.command == "status":
+                print("  No packs installed. Run `/pack` after adding one to packs.json.")
         return 0
+
+    state = load_state(state_path(args))
 
     settings_file = settings_path(args)
     settings = load_settings(settings_file)
@@ -375,16 +439,28 @@ def main() -> int:
         if entry is None:
             print(f"packs.py: pack '{args.slug}' is not installed", file=sys.stderr)
             return 1
-        remove_pack(entry, settings, messages)
-        installed.pop(args.slug, None)
+        removed_cleanly = remove_pack(entry, settings, messages)
+        if removed_cleanly:
+            installed.pop(args.slug, None)
+        else:
+            write_json(settings_file, settings)
+            write_json(state_path(args), state)
+            for line in messages:
+                print(f"  {line}", file=sys.stderr)
+            return 1
 
     elif args.command == "sync":
         for slug in sorted(installed):
             entry = installed[slug]
             if slug not in packs:
-                claude_remove(entry.get("owned", EMPTY_OWNED), settings)
-                installed.pop(slug, None)
-                messages.append(f"{slug}: no longer declared — removed")
+                # Same removal path as an explicit `/pack remove`: a dropped pack still
+                # has non-Claude obligations, and reporting "removed" without running
+                # them would be a lie.
+                if remove_pack(entry, settings, messages):
+                    installed.pop(slug, None)
+                    messages.append(f"{slug}: no longer declared — reversed what 100xprism owned")
+                else:
+                    messages.append(f"{slug}: no longer declared, but removal failed — record kept")
             elif entry.get("platforms", {}).get("claude-code") == "installed":
                 owned = claude_install(packs[slug], settings)
                 if owned:
