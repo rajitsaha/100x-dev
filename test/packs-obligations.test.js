@@ -217,6 +217,43 @@ test('sync refuses a state whose packs is not an object', () => {
   )
 })
 
+test('remove refuses a state with an unrecognised obligation value', () => {
+  // An unknown value normalises to "no obligation", which would silently drop a
+  // recorded mutation and then delete the record.
+  const ctx = withState(
+    { schema: 1, packs: { databricks: { platforms: { codex: 'corrupt' }, owned: {}, uninstall: {} } } },
+    { enabledPlugins: {} },
+  )
+  const r = run(ctx, ['remove', 'databricks'], { allowFailure: true })
+  assert.notEqual(r.status, 0, 'refuses rather than silently discarding the record')
+  assert.ok(
+    'databricks' in JSON.parse(
+      fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8')).packs,
+    'record preserved',
+  )
+})
+
+test('remove refuses a state whose uninstall value is a string', () => {
+  // A string would be iterated into single characters and each run as a command.
+  const ctx = withState(
+    { schema: 1, packs: { databricks: {
+      platforms: { codex: ['installed'] }, owned: {}, uninstall: { codex: 'codex rm' },
+    } } },
+    { enabledPlugins: {} },
+  )
+  const r = run(ctx, ['remove', 'databricks'], { which: { codex: true }, allowFailure: true })
+  assert.notEqual(r.status, 0)
+  assert.deepEqual(commands(ctx), [], 'no characters were executed as commands')
+})
+
+test('remove refuses a state whose platforms is not an object', () => {
+  const ctx = withState(
+    { schema: 1, packs: { databricks: { platforms: [], owned: {}, uninstall: {} } } },
+    { enabledPlugins: {} },
+  )
+  assert.notEqual(run(ctx, ['remove', 'databricks'], { allowFailure: true }).status, 0)
+})
+
 test('the stricter guard still accepts sparse legacy state', () => {
   // A record written by an earlier version: single-string platform value, and no
   // `owned` or `uninstall` keys at all. Validation must accept it, not reject the user.

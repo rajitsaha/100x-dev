@@ -310,7 +310,7 @@ git commit -m "feat(packs): add pack registry and schema validation"
   - `load_registry(path: Path) -> dict`
   - `project_root(start: Path) -> Path` — git toplevel, else `start`
   - `pack_matches(pack: dict, root: Path, env: Mapping[str, str]) -> bool`
-  - `load_state(path: Path) -> dict` — sidecar only; tolerant, returns `{}` on any failure
+  - `load_state(path: Path) -> dict` — sidecar only. **Superseded:** the shipped version is strict, validating nested shapes and refusing to act on or overwrite a record it cannot trust; `peek_state()` is the tolerant read used only by read-only reporting
   - `load_settings(path: Path) -> dict` — **strict**; aborts rather than overwrite unreadable config
   - `state_path(args) -> Path`
   - CLI: `packs.py {detect,status} [--project DIR] [--packs FILE] [--settings FILE] [--state FILE] [--json]`

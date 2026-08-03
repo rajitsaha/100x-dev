@@ -102,9 +102,29 @@ def load_state(path: Path) -> dict:
         marketplace = owned.get("marketplace")
         if marketplace is not None and not isinstance(marketplace, str):
             reject(f"'{slug}.owned.marketplace' should be a string, found {type(marketplace).__name__}")
+        platforms = entry.get("platforms", {})
+        if not isinstance(platforms, dict):
+            reject(f"'{slug}.platforms' should be an object, found {type(platforms).__name__}")
+        for platform, value in platforms.items():
+            # An unrecognised value would normalise to "no obligation", silently
+            # discarding a recorded mutation and then deleting the record with it.
+            values = [value] if isinstance(value, str) else value
+            if not isinstance(values, list):
+                reject(f"'{slug}.platforms.{platform}' should be a string or list, "
+                       f"found {type(value).__name__}")
+            unknown = [v for v in values if v not in OBLIGATIONS]
+            if unknown:
+                reject(f"'{slug}.platforms.{platform}' has unrecognised obligation(s) {unknown}; "
+                       f"expected some of {list(OBLIGATIONS)}")
+
         uninstall = entry.get("uninstall", {})
         if not isinstance(uninstall, dict):
             reject(f"'{slug}.uninstall' should be an object, found {type(uninstall).__name__}")
+        for platform, commands in uninstall.items():
+            # A string here would be iterated into single characters, each then run as
+            # a shell command.
+            if not isinstance(commands, list) or any(not isinstance(c, str) for c in commands):
+                reject(f"'{slug}.uninstall.{platform}' should be a list of command strings")
     return state
 
 
