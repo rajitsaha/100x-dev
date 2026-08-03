@@ -397,7 +397,10 @@ def main() -> int:
     else:
         for line in messages:
             print(f"  {line}")
-        print("  Restart your agent to pick up the change.")
+        # `sync` runs on every install/update, so it stays silent unless it actually
+        # did something. Only an explicit add/remove always warrants the notice.
+        if args.command in ("add", "remove") or messages:
+            print("  Restart your agent to pick up the change.")
     return 0
 
 

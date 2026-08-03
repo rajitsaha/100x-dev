@@ -204,6 +204,18 @@ echo "────────────────────────�
 [ "$INSTALL_SHELL" = true ] && install_shell
 [ "$INSTALL_TEMPLATES" = true ] && install_templates
 
+# Read-only: reports packs relevant to this project. Never installs. Lives here
+# rather than in install_plugins so Cursor-only, Codex-only, and modules-without-
+# plugins installs still see the suggestion.
+SUGGESTIONS=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
+  --settings "$HOME/.claude/settings.json" 2>/dev/null || true)
+if [ -n "$SUGGESTIONS" ]; then
+  echo ""
+  echo -e "${CYAN}Optional skill packs for this project:${NC}"
+  echo "$SUGGESTIONS"
+  echo -e "${CYAN}Install with: /pack add <slug>${NC}"
+fi
+
 echo ""
 echo "──────────────────────────────────────"
 echo -e "${GREEN}✓ Done!${NC}"

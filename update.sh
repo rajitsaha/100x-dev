@@ -215,6 +215,8 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   echo "Syncing plugins and settings..."
   python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
     --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+  python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+    echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
   sync_hooks
   run_plugin_updates
   # Still reconcile projects: an earlier run may have pulled v3 and then failed
@@ -293,6 +295,8 @@ echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
 python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
   --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+  echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
 remove_session_update_hook
 
 echo -e "  ${CYAN}→ Shell startup files are not modified. Run 100xprism uninstall to remove legacy source lines.${NC}"
@@ -319,6 +323,16 @@ fi
 # still surface in this script's exit status.
 RECONCILE_STATUS=0
 regenerate_tracked_projects || RECONCILE_STATUS=$?
+
+# Read-only: reports packs relevant to this project. Never installs.
+SUGGESTIONS=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
+  --settings "$SETTINGS_FILE" 2>/dev/null || true)
+if [ -n "$SUGGESTIONS" ]; then
+  echo ""
+  echo -e "${CYAN}Optional skill packs for this project:${NC}"
+  echo "$SUGGESTIONS"
+  echo -e "${CYAN}Install with: /pack add <slug>${NC}"
+fi
 
 echo ""
 NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"

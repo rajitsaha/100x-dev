@@ -145,6 +145,10 @@ install_plugins() {
   python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
     --settings "$SETTINGS_FILE" --plugins "$PLUGINS_FILE"
 
+  # Re-apply opted-in packs and prune any dropped from packs.json.
+  python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+    echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
+
   echo -e "  ${GREEN}→ Plugins merged into ~/.claude/settings.json ✓${NC}"
   echo -e "  ${CYAN}→ Restart Claude Code to activate new plugins${NC}"
 }
