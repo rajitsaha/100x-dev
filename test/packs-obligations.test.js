@@ -217,6 +217,18 @@ test('sync refuses a state whose packs is not an object', () => {
   )
 })
 
+test('the stricter guard still accepts sparse legacy state', () => {
+  // A record written by an earlier version: single-string platform value, and no
+  // `owned` or `uninstall` keys at all. Validation must accept it, not reject the user.
+  const ctx = withState(
+    { schema: 1, packs: { databricks: { platforms: { cursor: 'manual' } } } },
+    { enabledPlugins: {} },
+  )
+  const out = run(ctx, ['remove', 'databricks'])
+  assert.equal(out.status, 0, 'sparse legacy state is legitimate')
+  assert.ok(out.messages.some((m) => m.startsWith('cursor:')), 'its obligation is still honoured')
+})
+
 // --- Re-add must not resurrect uninstall commands that already succeeded ----------
 
 test('re-add does not restore checkpointed uninstall commands for an untouched platform', () => {
