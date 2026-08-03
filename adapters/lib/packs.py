@@ -66,6 +66,86 @@ def load_settings(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+EMPTY_OWNED = {"plugins": [], "marketplace": None}
+
+
+def merge_owned(a: dict, b: dict) -> dict:
+    """Union two ownership records; a non-null marketplace wins over null."""
+    plugins = list(dict.fromkeys(list(a.get("plugins", [])) + list(b.get("plugins", []))))
+    return {"plugins": plugins, "marketplace": a.get("marketplace") or b.get("marketplace")}
+
+
+def claude_install(pack: dict, settings: dict) -> dict | None:
+    """Add the pack's marketplace + plugins. Returns ONLY what this call inserted.
+
+    An entry that already exists — an enabled plugin, an explicitly disabled one, or a
+    marketplace the user configured — is left exactly as-is and is NOT claimed. That
+    record is what makes removal safe.
+    """
+    block = pack.get("install", {}).get("claude-code")
+    if not block:
+        return None
+
+    owned = {"plugins": [], "marketplace": None}
+
+    marketplace = block.get("marketplace")
+    if marketplace:
+        marketplaces = settings.setdefault("extraKnownMarketplaces", {})
+        if marketplace["name"] not in marketplaces:
+            marketplaces[marketplace["name"]] = {"source": marketplace["source"]}
+            owned["marketplace"] = marketplace["name"]
+
+    enabled = settings.setdefault("enabledPlugins", {})
+    for plugin in block.get("plugins", []):
+        if plugin not in enabled:
+            enabled[plugin] = True
+            owned["plugins"].append(plugin)
+
+    return owned
+
+
+def claude_remove(owned: dict, settings: dict) -> list[str]:
+    """Reverse an ownership record. Never consults the registry — a pack dropped from
+    packs.json must still be removable."""
+    enabled = settings.setdefault("enabledPlugins", {})
+    removed = [p for p in owned.get("plugins", []) if enabled.pop(p, None) is not None]
+
+    name = owned.get("marketplace")
+    if name and not any(p.rsplit("@", 1)[-1] == name for p in enabled):
+        settings.get("extraKnownMarketplaces", {}).pop(name, None)
+    return removed
+
+
+def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[str, str], dict]:
+    """Install a pack. Returns ({platform: status}, ownership record).
+
+    Task 4 replaces this body with the full CLI-preferred resolution order; the
+    signature is final.
+    """
+    owned = claude_install(pack, settings)
+    if owned is None:
+        return {}, dict(EMPTY_OWNED)
+    return {"claude-code": "installed"}, owned
+
+
+def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
+    """Reverse a pack from its recorded state. Registry-independent by design."""
+    platforms = entry.get("platforms", {})
+    if platforms.get("claude-code") == "installed":
+        claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+    for platform, how in sorted(platforms.items()):
+        if how in ("cli", "manual"):
+            messages.append(
+                f"{platform}: installed outside 100xprism ({how}) — remove it with the "
+                "upstream tooling. Skill files on disk were left untouched."
+            )
+
+
 def project_root(start: Path) -> Path:
     """Git toplevel of `start`, or `start` itself when not in a repository."""
     try:
@@ -165,7 +245,59 @@ def main() -> int:
         print(json.dumps({"packs": rows}, indent=2) if args.json else render(rows))
         return 0
 
-    raise SystemExit(f"packs.py: '{args.command}' not implemented yet")
+    settings_file = settings_path(args)
+    settings = load_settings(settings_file)
+    state.setdefault("schema", 1)
+    installed = state.setdefault("packs", {})
+    messages: list[str] = []
+
+    if args.command == "add":
+        if args.slug not in packs:
+            print(f"packs.py: unknown pack '{args.slug}'", file=sys.stderr)
+            return 1
+        platforms, owned = install_pack(packs[args.slug], settings, messages)
+        previous = installed.get(args.slug, {})
+        installed[args.slug] = {
+            "platforms": platforms,
+            # Union with any prior record so a second `add` — which inserts nothing —
+            # cannot erase what the first one claimed.
+            "owned": merge_owned(previous.get("owned", EMPTY_OWNED), owned),
+            # Copied from the registry so removal survives the pack being dropped.
+            "uninstall": {
+                p: list((packs[args.slug].get("install", {}).get(p) or {}).get("uninstall", []))
+                for p in PLATFORMS
+            },
+        }
+
+    elif args.command == "remove":
+        entry = installed.get(args.slug)
+        if entry is None:
+            print(f"packs.py: pack '{args.slug}' is not installed", file=sys.stderr)
+            return 1
+        remove_pack(entry, settings, messages)
+        installed.pop(args.slug, None)
+
+    elif args.command == "sync":
+        for slug in sorted(installed):
+            entry = installed[slug]
+            if slug not in packs:
+                claude_remove(entry.get("owned", EMPTY_OWNED), settings)
+                installed.pop(slug, None)
+                messages.append(f"{slug}: no longer declared — removed")
+            elif entry.get("platforms", {}).get("claude-code") == "installed":
+                owned = claude_install(packs[slug], settings)
+                if owned:
+                    entry["owned"] = merge_owned(entry.get("owned", EMPTY_OWNED), owned)
+
+    write_json(settings_file, settings)
+    write_json(state_path(args), state)
+    if args.json:
+        print(json.dumps({"pack": args.slug, "messages": messages}, indent=2))
+    else:
+        for line in messages:
+            print(f"  {line}")
+        print("  Restart your agent to pick up the change.")
+    return 0
 
 
 if __name__ == "__main__":
