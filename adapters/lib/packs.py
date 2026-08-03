@@ -97,8 +97,11 @@ def load_state(path: Path) -> dict:
         if not isinstance(owned, dict):
             reject(f"'{slug}.owned' should be an object, found {type(owned).__name__}")
         plugins = owned.get("plugins", [])
-        if not isinstance(plugins, list):
-            reject(f"'{slug}.owned.plugins' should be a list, found {type(plugins).__name__}")
+        if not isinstance(plugins, list) or any(not isinstance(p, str) for p in plugins):
+            # Elements matter as much as the container: a non-string entry is either an
+            # unhashable dict key (a crash) or a coerced key that could match something
+            # the user owns.
+            reject(f"'{slug}.owned.plugins' should be a list of strings")
         marketplace = owned.get("marketplace")
         if marketplace is not None and not isinstance(marketplace, str):
             reject(f"'{slug}.owned.marketplace' should be a string, found {type(marketplace).__name__}")

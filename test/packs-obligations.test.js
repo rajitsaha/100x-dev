@@ -217,6 +217,33 @@ test('sync refuses a state whose packs is not an object', () => {
   )
 })
 
+test('both removal paths refuse owned.plugins holding non-string elements', () => {
+  const corrupt = {
+    schema: 1,
+    packs: { databricks: {
+      platforms: { 'claude-code': ['installed'] },
+      owned: { plugins: [1, { a: 1 }], marketplace: MARKET },
+      uninstall: {},
+    } },
+  }
+  // Python path: an unhashable element would crash; a coerced one could match a key.
+  const ctx = withState(corrupt, { enabledPlugins: { 1: true }, extraKnownMarketplaces: { [MARKET]: {} } })
+  const r = run(ctx, ['remove', 'databricks'], { allowFailure: true })
+  assert.notEqual(r.status, 0, 'python path refuses')
+  assert.equal(
+    JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8')).enabledPlugins['1'], true, 'key survives')
+
+  // JS path: same record, same refusal.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pko-'))
+  const claude = path.join(home, '.claude')
+  fs.mkdirSync(claude, { recursive: true })
+  fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), JSON.stringify(corrupt))
+  fs.writeFileSync(path.join(claude, 'settings.json'),
+    JSON.stringify({ enabledPlugins: { 1: true }, extraKnownMarketplaces: { [MARKET]: {} } }))
+  assert.equal(cleanManagedPacks(home).removed, 0, 'js path refuses')
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
+})
+
 test('remove refuses a state with an unrecognised obligation value', () => {
   // An unknown value normalises to "no obligation", which would silently drop a
   // recorded mutation and then delete the record.
