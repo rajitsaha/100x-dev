@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "packs": {
+    "databricks": {
+      "title": "Databricks Agent Skills",
+      "description": "30+ skills — Unity Catalog, Asset Bundles, Lakeflow, model serving, vector search.",
+      "source": "https://github.com/databricks/databricks-agent-skills",
+      "detect": {
+        "files": ["databricks.yml", "databricks.yaml"],
+        "env": ["DATABRICKS_HOST"],
+        "contains": [
+          { "file": "requirements.txt", "pattern": "^databricks-" },
+          { "file": "pyproject.toml", "pattern": "databricks-" }
+        ]
+      },
+      "install": {
+        "preferred": "cli",
+        "cli": {
+          "requires": "databricks",
+          "command": "databricks aitools install",
+          "covers": ["claude-code", "cursor", "codex"],
+          "hint": "Install the Databricks CLI: https://docs.databricks.com/dev-tools/cli/install.html"
+        },
+        "claude-code": {
+          "marketplace": {
+            "name": "databricks-agent-skills",
+            "source": { "source": "github", "repo": "databricks/databricks-agent-skills" }
+          },
+          "plugins": ["databricks@databricks-agent-skills"]
+        },
+        "codex": {
+          "commands": [
+            "codex plugin marketplace add databricks/databricks-agent-skills",
+            "codex plugin add databricks"
+          ]
+        },
+        "cursor": { "manual": ["/add-plugin databricks"] }
+      }
+    }
+  }
+}

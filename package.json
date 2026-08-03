@@ -15,6 +15,7 @@
     "bin/",
     "lib/",
     "modules/",
+    "packs/",
     "plugins/",
     "templates/",
     "shell/",
