@@ -35,6 +35,7 @@ test('emitClaudeModules writes skills + slash aliases from modules/', () => {
   const modulesDir = makeTmpDir(), skills = makeTmpDir(), commands = makeTmpDir()
   fakeModules(modulesDir, [
     { slug: 'gate', fm: { name: 'gate', description: 'Quality gate.', slash_command: '/gate' } },
+    { slug: 'fix-bugs', fm: { name: 'fix-bugs', description: 'Fix bugs.', slash_command: '/fix' } },
     { slug: 'copywriting', fm: { name: 'copywriting', description: 'Write copy.' } }, // no slash
     { slug: '_lib', fm: {}, body: '' }, // shared-ref dir — but has SKILL.md here; skip via missing? keep simple
   ])
@@ -42,14 +43,19 @@ test('emitClaudeModules writes skills + slash aliases from modules/', () => {
   fs.rmSync(path.join(modulesDir, '_lib', 'SKILL.md'))
 
   const r = emitClaudeModules(modulesDir, skills, commands)
-  assert.equal(r.skills, 2, 'two real modules emitted, _lib skipped')
+  assert.equal(r.skills, 3, 'three real modules emitted, _lib skipped')
   assert.ok(fs.existsSync(path.join(skills, 'gate', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(skills, 'gate', '.100xprism-generated')), 'marker written')
-  assert.ok(fs.existsSync(path.join(commands, 'gate.md')), 'slash alias written')
+  // An alias is written ONLY when the command name differs from the slug. Claude
+  // Code already exposes every skill as /<slug>, so a same-name alias double-lists
+  // the module and pays its description twice. Matches cmd_emit_claude_code in
+  // adapters/lib/modules.py, which the JS path used to diverge from.
+  assert.ok(!fs.existsSync(path.join(commands, 'gate.md')), 'no alias when /gate === slug')
+  assert.ok(fs.existsSync(path.join(commands, 'fix.md')), 'alias written when /fix !== fix-bugs')
   assert.ok(!fs.existsSync(path.join(commands, 'copywriting.md')), 'no alias without slash_command')
   const manifest = JSON.parse(fs.readFileSync(path.join(skills, '.100xprism-manifest.json'), 'utf8'))
-  assert.deepEqual(manifest.skills, ['copywriting', 'gate'])
-  assert.deepEqual(manifest.commands, ['gate'])
+  assert.deepEqual(manifest.skills, ['copywriting', 'fix-bugs', 'gate'])
+  assert.deepEqual(manifest.commands, ['fix'])
 })
 
 test('emitClaudeModules prunes removed modules but keeps user-authored skills/commands', () => {
@@ -77,13 +83,37 @@ test('emitClaudeModules prunes removed modules but keeps user-authored skills/co
   assert.ok(!fs.existsSync(path.join(skills, 'ghost')), 'marker-tagged orphan pruned')
 })
 
-test('scaffoldClaudeMd writes CLAUDE.md with project name', () => {
+test('scaffoldClaudeMd writes a router-shaped CLAUDE.md plus an on-demand config', () => {
   const projectDir = makeTmpDir()
   scaffoldClaudeMd(projectDir)
   const content = fs.readFileSync(path.join(projectDir, 'CLAUDE.md'), 'utf8')
   assert.ok(content.includes(path.basename(projectDir)))
-  assert.ok(content.includes('## Database'))
+  assert.ok(content.includes('## Project Overview'))
+  assert.ok(content.includes('## Key Conventions'))
+  assert.ok(content.includes('## Reference docs (read on demand)'))
   assert.ok(content.includes('## Rules'))
+
+  // The always-on file must stay small; detail belongs in docs/ behind the router.
+  assert.ok(content.length < 1800, `scaffold is ${content.length} bytes — keep it lean`)
+
+  // Machine-readable config moved out of the always-on file. Keys must stay
+  // flush-left: /db and friends match them with an anchored grep.
+  const cfg = fs.readFileSync(path.join(projectDir, '.claude', '100xprism.yml'), 'utf8')
+  for (const key of ['# engine:', '# gcp_project:', '# production_url:', '# security_exceptions:']) {
+    assert.ok(cfg.includes(`\n${key}`), `${key} present at column 0`)
+  }
+  assert.ok(!content.includes('## Database'), 'db config no longer in CLAUDE.md')
+})
+
+test('scaffoldClaudeMd does not clobber an existing 100xprism.yml', () => {
+  const projectDir = makeTmpDir()
+  fs.mkdirSync(path.join(projectDir, '.claude'), { recursive: true })
+  fs.writeFileSync(path.join(projectDir, '.claude', '100xprism.yml'), 'engine: postgres\n')
+  scaffoldClaudeMd(projectDir)
+  assert.equal(
+    fs.readFileSync(path.join(projectDir, '.claude', '100xprism.yml'), 'utf8'),
+    'engine: postgres\n',
+  )
 })
 
 test('scaffoldClaudeMd skips if CLAUDE.md already exists', () => {

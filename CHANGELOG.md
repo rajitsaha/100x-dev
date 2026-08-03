@@ -7,6 +7,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-02
+
+### Added
+
+- **Retention classes and per-repo profiles — the always-on skill index is no longer all-or-nothing.** An installed module's *description* is re-sent on every turn while its *body* is free until invoked, so installing a module carries a standing token cost. Modules now derive a retention class (`must` / `profile` / `resolver`, overridable per module via frontmatter) and a profile list, letting an install keep the 12 must-have workflows resident and route the specialist catalog behind a generated `100x-resolver` artifact that lists each module with an exact path to read. Measured on this repo: the Claude Code index drops **4,900 → 1,732 tokens per turn** (`profile`) or **554** (`must`); a slimmed Cursor project drops **7,249 → 2,189**.
+
+  **Both switches default to off.** With no project config and no environment override, `emit-cursor`, `emit-codex`, and `emit-claude-code` produce byte-identical output to the previous release — verified by diffing the pre-change and post-change emitters over the same module tree.
+
+- **`100xprism slim`** — writes the two reversible switches (`~/.100xprism/config.json` `skills`, `<project>/.100xprism.json` `profiles`), re-emits, and reports oversized instruction files. Supports `--dry-run`, `--all-projects`, and `--skills=all|profile|must`. The first `update` after this version applies `profile` mode once, announces it, and records the choice so no later update overrides a preference you set; `update --no-slim` skips it.
+
+- **`detect-profiles` subcommand** on `adapters/lib/modules.py`, classifying a repo from its build/infra/content markers.
+
+### Changed
+
+- **Project config moves to `.claude/100xprism.yml`.** `CLAUDE.md` is re-sent on every turn, so machine-readable db/cloud/production/security-exception config no longer belongs there. `/db`, `/query`, `/gate`, `/cloud-security`, and `/launch` read the new file first and **fall back to the instruction file**, so repos that keep config in `CLAUDE.md` are unaffected. Keys must stay flush-left — those modules match them with an anchored `grep`.
+- **The scaffolded `CLAUDE.md` is now a router.** Project Overview / Key Conventions / a "Reference docs (read on demand)" table, replacing ~350 tokens of commented-out placeholders that in practice were never filled in. Existing files are never rewritten.
+- `commit`, `push`, and `branch` re-tiered `core` → `on-demand`. Cursor loads the full *body* of an `alwaysApply: true` rule, and all three are explicitly invoked; the `gate-on-commit` PreToolUse hook already blocks `git commit`/`git push` deterministically, so prompt residency was redundant with machine enforcement. `gate` stays resident. This lands **~3,700 tokens per turn** for every Cursor user with no opt-in.
+
+### Fixed
+
+- **The Windows emitter wrote a slash-command alias for every command, diverging from the Python path**, which skips aliases whose name matches the slug. Claude Code already exposes every skill as `/<slug>`, so a same-name alias double-listed the module and paid its description twice. The two paths now agree, and a parity test compares them across every real module.
+- `meta-check` conflated "modules declaring a slash command" (27) with "alias files actually emitted" (5), so the documented count in `AGENTS.md` could never be correct. It now computes and validates both, and rejects an unknown `retention:` value.
+- Corrected a stale GitHub URL in `.env.example` and `templates/.env.example`, an out-of-date auto-trigger skill count and category table in `README.md`, and a real project name used as illustrative sample data in a design spec.
+- **The Windows/Python profile resolvers diverged on an empty `"profiles": []`.** Python's `if not cfg` treats an empty array as unset (unfiltered); the JS port's `if (!cfg)` doesn't, since an empty array is truthy — silently activating filtering on the Windows path. Fixed, with a parity test covering the case directly.
+- **GCP cloud-project detection (`gate`, `cloud-security`) was case-sensitive**, missing the lowercase `gcp_project:` key the new `.claude/100xprism.yml` scaffold documents and writes. Both greps are now case-insensitive.
+
 ---
 
 ## [3.0.1] — 2026-08-01

@@ -2,7 +2,7 @@
 name: commit
 description: Quality gate runs FIRST. **Do NOT commit if any gate fails.**
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /commit
 ---
 

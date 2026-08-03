@@ -2,7 +2,7 @@
 name: push
 description: Quality gate re-runs before pushing. **Do NOT push if any gate fails.**
 category: lifecycle
-tier: core
+tier: on-demand
 slash_command: /push
 ---
 

@@ -71,7 +71,9 @@ def check_modules() -> dict[str, int]:
         return {"modules": 0, "slash": 0, "skills": 0}
 
     slash = 0
+    aliases = 0
     allowed_tiers = {"core", "on-demand"}
+    allowed_retention = {"must", "profile", "resolver"}
     for sf in skill_files:
         fm, well_formed = split_frontmatter(sf.read_text())
         slug = sf.parent.name
@@ -85,12 +87,22 @@ def check_modules() -> dict[str, int]:
         tier = fm.get("tier", "on-demand")
         if tier not in allowed_tiers:
             fail(f"{slug}: frontmatter tier='{tier}' must be one of {sorted(allowed_tiers)}")
-        if fm.get("slash_command"):
+        retention = fm.get("retention", "")
+        if retention and retention not in allowed_retention:
+            fail(f"{slug}: frontmatter retention='{retention}' must be one of {sorted(allowed_retention)}")
+        command = fm.get("slash_command", "")
+        if command:
             slash += 1
+            # An alias file is only emitted when the command name differs from the
+            # slug — Claude Code already exposes every skill as /<slug>, so a
+            # same-name alias double-lists it. See cmd_emit_claude_code.
+            if command.lstrip("/") != slug:
+                aliases += 1
 
     total = len(skill_files)
-    counts = {"modules": total, "slash": slash, "skills": total - slash}
-    ok(f"modules parsed: {total} ({slash} slash commands, {total - slash} auto-trigger skills)")
+    counts = {"modules": total, "slash": slash, "aliases": aliases, "skills": total - slash}
+    ok(f"modules parsed: {total} ({slash} slash commands → {aliases} emitted alias(es), "
+       f"{total - slash} auto-trigger skills)")
     return counts
 
 
@@ -204,7 +216,7 @@ def check_current_doc_count_drift(counts: dict[str, int]) -> None:
         r"(\d+)\s+SKILL\.md files": ("SKILL.md files", counts["modules"]),
         r"(\d+)\s+cross-tool modules": ("cross-tool modules", counts["modules"]),
         r"(\d+)\s+slash commands": ("slash commands", counts["slash"]),
-        r"(\d+)\s+slash command aliases": ("slash command aliases", counts["slash"]),
+        r"(\d+)\s+slash command aliases": ("slash command aliases", counts["aliases"]),
         r"(\d+)\s+command-style modules": ("command-style modules", counts["slash"]),
         r"(\d+)\s+auto-trigger skills": ("auto-trigger skills", counts["skills"]),
         r"(\d+)\s+plugins": ("plugins", counts["plugins"]),
