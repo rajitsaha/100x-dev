@@ -91,6 +91,18 @@ test('ownership survives a per-platform to cli transition in state', () => {
   assert.deepEqual(entryOf(ctx).owned.plugins, [PLUGIN], 'ownership record preserved across paths')
 })
 
+// --- claude-code must not lose its guidance when it was not ours to reverse -------
+
+test('remove gives claude-code guidance when the pack CLI installed it', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'], { which: { databricks: true } })
+  const out = run(ctx, ['remove', 'databricks'], { which: { databricks: true } })
+  assert.ok(
+    out.messages.some((m) => m.startsWith('claude-code:')),
+    'claude-code was installed by the upstream CLI — the user must be told how to undo it',
+  )
+})
+
 // --- Failed removal must checkpoint what it already reversed ----------------------
 
 test('a failed removal records the transitions it completed before failing', () => {

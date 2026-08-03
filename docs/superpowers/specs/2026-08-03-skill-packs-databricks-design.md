@@ -146,6 +146,25 @@ still references them. This mirrors the managed-set rule in `sync_plugins.py`.
 State also copies each platform's declared `uninstall` commands at install time, so
 a pack dropped from the registry is still reversible.
 
+**The ownership record — not the status label — decides what removal reverses.** A
+platform's status can legitimately change between installs: an `add` that used the
+per-platform path records `claude-code: installed`, and a later `add` with the pack's
+CLI available records `claude-code: cli`. If removal keyed off that label it would skip
+the reversal and orphan the entries we inserted. So removal always reverses `owned`
+when it is non-empty, whatever the label says, and the label only decides what guidance
+the user is given.
+
+**A status may be raised on re-install, never lowered.** Statuses rank by how much
+removal obligation they carry: `installed` > `cli` > `manual` > `unavailable`. A retry
+that fails must not downgrade a platform whose earlier attempt already mutated the
+system — the weaker value would drop the transition that reverses it.
+
+**Removal checkpoints as it goes.** Platforms are processed in a fixed order, so a
+failure partway through leaves earlier transitions already applied. Each completed
+transition is cleared from the record before the failure is reported, so a retry does
+only what remains: it will not re-reverse config the user may have restored in the
+meantime, nor re-run inverse commands that already succeeded.
+
 The opt-in model means there is no first-run seeding step. `sync_plugins.py` seeds a
 managed set because its plugins install unconditionally and predate the state file;
 a pack only ever enters state because the user ran `/pack add`, so an absent entry

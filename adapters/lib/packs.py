@@ -296,10 +296,17 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
         # Checkpoint immediately: if a later platform fails and the user retries, we must
         # not "reverse" these a second time — by then the user may have re-added them.
         entry["owned"] = dict(EMPTY_OWNED)
-    platforms.pop("claude-code", None)
     entry["platforms"] = platforms
 
     for platform, how in sorted(platforms.items()):
+        # claude-code is the one platform we install in-process, so an `installed`
+        # status was fully handled by the ownership reversal above. Every other status
+        # it can carry (cli / manual) still owes the user guidance, so it must fall
+        # through to the shared branches rather than being skipped wholesale.
+        if platform == "claude-code" and how == "installed":
+            platforms.pop(platform, None)
+            continue
+
         if how == "installed":
             commands = declared.get(platform) or []
             if not commands:

@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-03-skill-packs-databricks-design.md`
 
+> **Status: implemented. This plan is a historical record, not a description of the
+> shipped code.** The six tasks below were executed as written, and then three rounds of
+> Codex/Cursor/Claude review changed several mechanisms. Where this document and the code
+> disagree, **the code and the spec are correct** — see *Divergence from the shipped
+> implementation* at the end before using any snippet here as a reference.
+
 ## Global Constraints
 
 - Python helpers use the **standard library only** — no new dependencies. `package.json` has zero runtime deps and must keep zero.
@@ -1687,3 +1693,26 @@ Reviewed by Codex (`--sandbox read-only`) and Cursor (`composer-2.5`, ask mode) 
 | 10 | Medium | Schema tests mutated the tracked registry; `node --test` runs 4 files concurrently | `--packs` override validates a temp copy |
 | 11 | Medium | Detection lived in `install_plugins`, invisible to Cursor-only/Codex-only installs | Moved to the final section of `install.sh` and `update.sh` |
 | 12 | Medium | `./adapters/claude-code.sh` dispatches to `install_global`, so the E2E step tested nothing | Uses the `--plugins` entry point |
+
+---
+
+## Divergence from the shipped implementation
+
+Three review rounds (Codex, Cursor, Claude) changed mechanisms this plan specifies. The
+snippets in Tasks 1–6 reflect the pre-review design; the list below is what actually
+shipped. The spec has been updated to match.
+
+| Plan says | Shipped instead | Why |
+| --- | --- | --- |
+| `remove_pack` branches on `platforms[p]` to decide what to reverse | Reverses the `owned` record whenever non-empty, independent of status; the label only selects the user-facing guidance | A status can change across re-adds (per-platform install, later CLI install → `cli`), and keying off the label skipped the reversal and orphaned inserted entries |
+| `add` writes `platforms` wholesale | `merge_platforms()` takes a per-platform max by obligation rank (`installed` > `cli` > `manual` > `unavailable`) | A failed retry could otherwise downgrade `installed` → `unavailable` and drop the removal transition for a mutation that really happened |
+| `remove_pack` returns `None`; caller always pops the entry | Returns `bool`; on failure the caller keeps the entry and exits non-zero, and completed transitions are cleared from the record first | A failed removal previously erased the record needed to retry, and an un-checkpointed retry would re-reverse config the user may have restored |
+| `load_state` tolerant, `load_settings` strict | Both strict for writers via `_load_json_object` (rejects wrong-shape JSON such as `[]`/`null`/scalars); `peek_state` is the tolerant read used only by read-only reporting | Collapsing an unreadable file to `{}` and writing it back destroys it — and the pack state is the only record of what may be removed |
+| `cleanManagedPacks` writes when `removed > 0` | Tracks `changed` separately, and applies the same wrong-shape guard as `packs.py` | A marketplace-only cleanup was computed then dropped; `settings.json` containing `null` crashed the function outright |
+| Shell command loop marks a platform `unavailable` on any failure | A platform where an earlier command already succeeded is recorded `installed` | `unavailable` carries no removal transition, stranding the completed mutation |
+| `render([])` returns `"(no packs declared)"` | Returns `""` | The shell wiring tests the output for non-emptiness, so a placeholder printed an empty suggestions header on every install |
+| Detection block inlined at the end of `update.sh` | Extracted to a `suggest_packs()` function, called from both exit paths | The already-up-to-date branch returns before the tail of the script, so the common no-update run never showed suggestions |
+| `add` always records state | Exits non-zero without recording when no platform could be installed | Recording a no-op install made `/pack` report a pack as present when nothing happened |
+
+Regression coverage for every row lives in `test/packs-recovery.test.js` and
+`test/packs-readd.test.js`.
