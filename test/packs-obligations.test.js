@@ -1,0 +1,175 @@
+'use strict'
+
+// Round-3 review regressions.
+//
+// The central correction: a platform can accumulate MORE THAN ONE removal obligation.
+// Installing directly (we own settings entries) and later installing through the pack's
+// own CLI (which writes files we do not track) are independent mutations. Collapsing
+// them to a single ranked status discards one of them, so obligations are now a set.
+
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const { spawnSync } = require('node:child_process')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+
+const REPO = path.resolve(__dirname, '..')
+const SCRIPT = path.join(REPO, 'adapters', 'lib', 'packs.py')
+const REGISTRY = path.join(REPO, 'packs', 'packs.json')
+const { cleanManagedPacks } = require('../lib/uninstall.js')
+const PLUGIN = 'databricks@databricks-agent-skills'
+const MARKET = 'databricks-agent-skills'
+
+function setup() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pko-'))
+  fs.writeFileSync(path.join(dir, 'settings.json'), '{}')
+  return { dir, settingsFile: path.join(dir, 'settings.json'), log: path.join(dir, 'commands.log') }
+}
+
+function run(ctx, argv, opts = {}) {
+  const env = { ...process.env, PRISM_PACKS_WHICH: JSON.stringify(opts.which || { databricks: false }) }
+  env.PRISM_PACKS_RUNNER_LOG = ctx.log
+  if (opts.failOn) env.PRISM_PACKS_RUNNER_FAIL = opts.failOn
+  const r = spawnSync('python3', [
+    SCRIPT, ...argv, '--settings', ctx.settingsFile, '--project', ctx.dir,
+    '--packs', opts.registry || REGISTRY, '--json',
+  ], { encoding: 'utf8', env })
+  if (!opts.allowFailure) assert.equal(r.status, 0, r.stderr)
+  let messages = []
+  try { messages = JSON.parse(r.stdout).messages || [] } catch { /* non-JSON */ }
+  return { status: r.status, messages }
+}
+
+const entryOf = (ctx) =>
+  JSON.parse(fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8')).packs.databricks
+const commands = (ctx) =>
+  fs.existsSync(ctx.log) && fs.readFileSync(ctx.log, 'utf8').trim()
+    ? fs.readFileSync(ctx.log, 'utf8').trim().split('\n') : []
+
+// --- Finding 1: independent obligations must both survive -------------------------
+
+test('a direct install followed by a CLI install keeps BOTH obligations', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: false } })
+  run(ctx, ['add', 'databricks'], { which: { databricks: true } })
+
+  const obligations = entryOf(ctx).platforms['claude-code']
+  assert.ok(Array.isArray(obligations), 'obligations are a set, not a single ranked status')
+  assert.ok(obligations.includes('installed'), 'we still own settings entries')
+  assert.ok(obligations.includes('cli'), 'the upstream CLI also wrote files')
+})
+
+test('removal honours both obligations: reverses ours AND reports the CLI', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: false } })
+  run(ctx, ['add', 'databricks'], { which: { databricks: true } })
+
+  const out = run(ctx, ['remove', 'databricks'], { which: { databricks: true } })
+  const settings = JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8'))
+  assert.equal(PLUGIN in settings.enabledPlugins, false, 'our entries reversed')
+  assert.ok(
+    out.messages.some((m) => m.startsWith('claude-code:') && /upstream tooling/.test(m)),
+    'the CLI obligation is still reported, not swallowed by the direct-install one',
+  )
+})
+
+// --- Finding 2: a multi-command removal must not repeat completed commands ---------
+
+test('retrying a partly-failed removal resumes instead of repeating', () => {
+  const ctx = setup()
+  const registry = path.join(ctx.dir, 'multi.json')
+  const data = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'))
+  data.packs.databricks.install.codex.uninstall = ['codex step-one', 'codex step-two']
+  fs.writeFileSync(registry, JSON.stringify(data))
+
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: true }, registry })
+  fs.writeFileSync(ctx.log, '')
+
+  // step-one succeeds, step-two fails.
+  run(ctx, ['remove', 'databricks'], {
+    which: { databricks: false, codex: true }, registry,
+    failOn: 'codex step-two', allowFailure: true,
+  })
+  assert.deepEqual(commands(ctx), ['codex step-one', 'codex step-two'])
+
+  // Retry must NOT re-run step-one.
+  fs.writeFileSync(ctx.log, '')
+  run(ctx, ['remove', 'databricks'], { which: { databricks: false, codex: true }, registry })
+  assert.deepEqual(commands(ctx), ['codex step-two'], 'resumes at the failed command')
+})
+
+// --- Finding 3: nested wrong-shape state must not be discarded --------------------
+
+function fakeHome(state, settings) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-pko-'))
+  const claude = path.join(home, '.claude')
+  fs.mkdirSync(claude, { recursive: true })
+  fs.writeFileSync(path.join(claude, 'settings.json'), JSON.stringify(settings))
+  fs.writeFileSync(path.join(claude, '.100xprism-packs.json'), JSON.stringify(state))
+  return { home, claude }
+}
+
+test('uninstall keeps state when packs is the wrong shape', () => {
+  const { home, claude } = fakeHome({ schema: 1, packs: [] }, { enabledPlugins: { [PLUGIN]: true } })
+  assert.equal(cleanManagedPacks(home).removed, 0)
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')),
+    'a state file we could not interpret is not evidence that nothing is owned')
+})
+
+test('uninstall keeps state when enabledPlugins is the wrong shape', () => {
+  const { home, claude } = fakeHome(
+    { schema: 1, packs: { databricks: { platforms: { 'claude-code': ['installed'] },
+      owned: { plugins: [PLUGIN], marketplace: MARKET }, uninstall: {} } } },
+    { enabledPlugins: [], extraKnownMarketplaces: {} },
+  )
+  assert.equal(cleanManagedPacks(home).removed, 0)
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
+})
+
+test('uninstall skips a malformed pack entry rather than dropping the whole file', () => {
+  const { home, claude } = fakeHome(
+    { schema: 1, packs: { databricks: 'not-an-object' } },
+    { enabledPlugins: { [PLUGIN]: true } },
+  )
+  assert.equal(cleanManagedPacks(home).removed, 0)
+  const settings = JSON.parse(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'))
+  assert.equal(settings.enabledPlugins[PLUGIN], true, 'nothing removed on a record we cannot read')
+})
+
+// --- Finding 4: writes must be atomic ---------------------------------------------
+
+test('a write leaves no partial file behind', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'])
+  // Both files must be complete, parseable JSON after a normal run.
+  JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8'))
+  JSON.parse(fs.readFileSync(path.join(ctx.dir, '.100xprism-packs.json'), 'utf8'))
+  // No temp artifacts left in the directory.
+  const strays = fs.readdirSync(ctx.dir).filter((f) => f.includes('.tmp'))
+  assert.deepEqual(strays, [], 'atomic replace cleans up after itself')
+})
+
+// --- Legacy state written by an earlier version must still load -------------------
+
+test('a legacy string status is understood as a single obligation', () => {
+  const ctx = setup()
+  fs.writeFileSync(path.join(ctx.dir, '.100xprism-packs.json'), JSON.stringify({
+    schema: 1,
+    packs: {
+      databricks: {
+        platforms: { 'claude-code': 'installed', cursor: 'manual' },
+        owned: { plugins: [PLUGIN], marketplace: MARKET },
+        uninstall: {},
+      },
+    },
+  }))
+  fs.writeFileSync(ctx.settingsFile, JSON.stringify({
+    enabledPlugins: { [PLUGIN]: true }, extraKnownMarketplaces: { [MARKET]: {} },
+  }))
+
+  const out = run(ctx, ['remove', 'databricks'])
+  const settings = JSON.parse(fs.readFileSync(ctx.settingsFile, 'utf8'))
+  assert.equal(PLUGIN in settings.enabledPlugins, false, 'legacy record still reversible')
+  assert.ok(out.messages.some((m) => m.startsWith('cursor:')), 'legacy manual status still reported')
+})

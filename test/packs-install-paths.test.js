@@ -45,7 +45,7 @@ test('prefers the pack CLI when its binary is present', () => {
   const ctx = setup()
   run(ctx, ['add', 'databricks'], { databricks: true })
   assert.deepEqual(commands(ctx), ['databricks aitools install'])
-  assert.deepEqual(platforms(ctx), { 'claude-code': 'cli', cursor: 'cli', codex: 'cli' })
+  assert.deepEqual(platforms(ctx), { 'claude-code': ['cli'], cursor: ['cli'], codex: ['cli'] })
 })
 
 test('falls back to per-platform blocks when the CLI binary is missing', () => {
@@ -56,16 +56,17 @@ test('falls back to per-platform blocks when the CLI binary is missing', () => {
     'codex plugin add databricks',
   ])
   const p = platforms(ctx)
-  assert.equal(p['claude-code'], 'installed', 'claude handled in-process')
-  assert.equal(p.codex, 'installed')
-  assert.equal(p.cursor, 'manual', 'cursor has no shell installer')
+  assert.deepEqual(p['claude-code'], ['installed'], 'claude handled in-process')
+  assert.deepEqual(p.codex, ['installed'])
+  assert.deepEqual(p.cursor, ['manual'], 'cursor has no shell installer')
   assert.ok(out.messages.some((m) => m.includes('/add-plugin databricks')), 'prints the cursor command')
 })
 
 test('reports a platform as unavailable when its binary is missing', () => {
   const ctx = setup()
   const out = run(ctx, ['add', 'databricks'], { databricks: false, codex: false })
-  assert.equal(platforms(ctx).codex, 'unavailable')
+  // `unavailable` is now the ABSENCE of an obligation, so the platform is simply not recorded.
+  assert.equal(platforms(ctx).codex, undefined)
   assert.ok(out.messages.some((m) => m.includes('docs.databricks.com')), 'prints the hint')
 })
 

@@ -92,8 +92,22 @@ def load_settings(path: Path) -> dict:
 
 
 def write_json(path: Path, data: dict) -> None:
+    """Write atomically: a crash mid-write must not truncate the user's settings.
+
+    Note the ORDER callers use — settings first, then the state sidecar. If the process
+    dies between the two, we have inserted config without recording ownership: a leak,
+    which is recoverable by hand. The reverse order would leave a record claiming we own
+    entries we never inserted, and removal would then delete the user's own config.
+    Leak over wrongful deletion, always.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    tmp = path.with_name(f".{path.name}.tmp{os.getpid()}")
+    try:
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp, path)  # atomic within a filesystem
+    finally:
+        if tmp.exists():
+            tmp.unlink()
 
 
 EMPTY_OWNED = {"plugins": [], "marketplace": None}
@@ -105,20 +119,32 @@ def merge_owned(a: dict, b: dict) -> dict:
     return {"plugins": plugins, "marketplace": a.get("marketplace") or b.get("marketplace")}
 
 
-# How much removal obligation a status carries. A re-add may raise a platform's status
-# but must never lower it: the weaker value would describe a system state that is no
-# longer true and would drop the transition that reverses the earlier mutation.
-STATUS_RANK = {"unavailable": 0, "manual": 1, "cli": 2, "installed": 3}
+# Obligations are a SET, not a scale. `installed` and `cli` are independent mutations —
+# we inserted settings entries, and separately the pack's own CLI wrote files we do not
+# track. A platform can carry both, so ranking them and keeping the winner would silently
+# drop one. `unavailable` is the absence of obligation and is never stored.
+OBLIGATIONS = ("installed", "cli", "manual")
+
+
+def as_obligations(value) -> list[str]:
+    """Normalise a stored status to a list. Accepts the legacy single-string form."""
+    if isinstance(value, str):
+        return [value] if value in OBLIGATIONS else []
+    if isinstance(value, list):
+        return [v for v in value if v in OBLIGATIONS]
+    return []
 
 
 def merge_platforms(previous: dict, current: dict) -> dict:
-    """Per-platform max by obligation. Retries can only ever add obligation."""
-    merged = dict(previous)
-    for platform, status in current.items():
-        keep = merged.get(platform)
-        if keep is None or STATUS_RANK.get(status, 0) >= STATUS_RANK.get(keep, 0):
-            merged[platform] = status
-    return merged
+    """Union of obligations per platform. A retry can only ever add obligation."""
+    merged: dict[str, list[str]] = {}
+    for source in (previous, current):
+        for platform, value in (source or {}).items():
+            existing = merged.get(platform, [])
+            merged[platform] = existing + [o for o in as_obligations(value) if o not in existing]
+    # Drop platforms that ended up owing nothing, so `unavailable` never persists as a
+    # phantom entry that later reads have to special-case.
+    return {p: obligations for p, obligations in merged.items() if obligations}
 
 
 def claude_install(pack: dict, settings: dict) -> dict | None:
@@ -211,7 +237,7 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
         code, err = run_command(cli["command"])
         if code == 0:
             for platform in cli.get("covers", []):
-                platforms[platform] = "cli"
+                platforms[platform] = ["cli"]
             messages.append(f"ran `{cli['command']}` — covers {', '.join(cli.get('covers', []))}")
             return platforms, owned
         messages.append(f"`{cli['command']}` failed ({err or f'exit {code}'}); falling back per platform")
@@ -220,22 +246,22 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
     for platform in PLATFORMS:
         block = install.get(platform)
         if not block:
-            platforms[platform] = "unavailable"
+            platforms[platform] = []
             continue
 
         if platform == "claude-code":
             claimed = claude_install(pack, settings)
             if claimed is None:
-                platforms[platform] = "unavailable"
+                platforms[platform] = []
             else:
-                platforms[platform] = "installed"
+                platforms[platform] = ["installed"]
                 owned = merge_owned(owned, claimed)
             continue
 
         if block.get("commands"):
             binary = block["commands"][0].split()[0]
             if not which(binary):
-                platforms[platform] = "unavailable"
+                platforms[platform] = []
                 continue
             # A command that already succeeded has mutated the user's system. Once that
             # happens the platform must be recorded `installed` even if a later command
@@ -251,23 +277,23 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
                     break
                 ran_any = True
             if failed_at and ran_any:
-                platforms[platform] = "installed"
+                platforms[platform] = ["installed"]
                 messages.append(
                     f"{platform}: partially installed — earlier steps succeeded before "
                     f"`{failed_at}` failed. `/pack remove` will reverse what it can."
                 )
             elif failed_at:
-                platforms[platform] = "unavailable"
+                platforms[platform] = []
             else:
-                platforms[platform] = "installed"
+                platforms[platform] = ["installed"]
             continue
 
         if block.get("manual"):
-            platforms[platform] = "manual"
+            platforms[platform] = ["manual"]
             messages.append(f"{platform}: run this in your agent yourself — {', '.join(block['manual'])}")
 
     # 3. Nothing worked for some platform: surface the pack's own hint.
-    if cli and cli.get("hint") and any(v == "unavailable" for v in platforms.values()):
+    if cli and cli.get("hint") and any(not v for v in platforms.values()):
         messages.append(cli["hint"])
     return platforms, owned
 
@@ -282,8 +308,8 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
     state entry: the installation is still there, and discarding the record would leave
     it with nothing able to remove it.
     """
-    platforms = dict(entry.get("platforms", {}))
-    declared = entry.get("uninstall", {})
+    platforms = {p: as_obligations(v) for p, v in (entry.get("platforms") or {}).items()}
+    declared = entry.get("uninstall") or {}
     ok = True
 
     # Reverse our own config first, driven by the OWNERSHIP RECORD rather than by the
@@ -298,49 +324,52 @@ def remove_pack(entry: dict, settings: dict, messages: list[str]) -> bool:
         entry["owned"] = dict(EMPTY_OWNED)
     entry["platforms"] = platforms
 
-    for platform, how in sorted(platforms.items()):
-        # claude-code is the one platform we install in-process, so an `installed`
-        # status was fully handled by the ownership reversal above. Every other status
-        # it can carry (cli / manual) still owes the user guidance, so it must fall
-        # through to the shared branches rather than being skipped wholesale.
-        if platform == "claude-code" and how == "installed":
-            platforms.pop(platform, None)
-            continue
-
-        if how == "installed":
-            commands = declared.get(platform) or []
-            if not commands:
-                messages.append(
-                    f"{platform}: 100xprism ran the upstream installer, but this pack declares "
-                    "no uninstall command — remove it with the upstream tooling. Skill files on "
-                    "disk were left untouched."
-                )
-                platforms.pop(platform, None)
+    # Each platform can owe several independent obligations; discharge them one at a
+    # time and drop each from the record as it completes, so a retry resumes rather
+    # than repeating.
+    for platform, obligations in sorted(platforms.items()):
+        for how in list(obligations):
+            if how == "installed" and platform == "claude-code":
+                # The one platform we install in-process; the ownership reversal above
+                # already discharged it. Any other obligation it carries still applies.
+                obligations.remove(how)
                 continue
-            failed = False
-            for command in commands:
-                code, err = run_command(command)
-                if code != 0:
-                    messages.append(
-                        f"{platform}: `{command}` failed ({err or f'exit {code}'}) — keeping the "
-                        "pack record so you can retry."
-                    )
-                    failed = True
-                    ok = False
-                    break
-            if not failed:
-                platforms.pop(platform, None)
-        elif how in ("cli", "manual"):
-            messages.append(
-                f"{platform}: installed outside 100xprism ({how}) — remove it with the "
-                "upstream tooling. Skill files on disk were left untouched."
-            )
-            platforms.pop(platform, None)
-        else:
-            # `unavailable` needs no transition: nothing was installed.
-            platforms.pop(platform, None)
 
-    entry["platforms"] = platforms
+            if how == "installed":
+                remaining = list(declared.get(platform) or [])
+                if not remaining:
+                    messages.append(
+                        f"{platform}: 100xprism ran the upstream installer, but this pack declares "
+                        "no uninstall command — remove it with the upstream tooling. Skill files on "
+                        "disk were left untouched."
+                    )
+                    obligations.remove(how)
+                    continue
+                failed = False
+                for command in list(remaining):
+                    code, err = run_command(command)
+                    if code != 0:
+                        messages.append(
+                            f"{platform}: `{command}` failed ({err or f'exit {code}'}) — keeping the "
+                            "pack record so you can retry."
+                        )
+                        failed = True
+                        ok = False
+                        break
+                    # Checkpoint per command: a retry must not re-run what already worked.
+                    remaining.remove(command)
+                declared[platform] = remaining
+                if not failed:
+                    obligations.remove(how)
+            else:  # cli / manual — not ours to reverse, but the user must be told.
+                messages.append(
+                    f"{platform}: installed outside 100xprism ({how}) — remove it with the "
+                    "upstream tooling. Skill files on disk were left untouched."
+                )
+                obligations.remove(how)
+
+    entry["platforms"] = {p: o for p, o in platforms.items() if o}
+    entry["uninstall"] = declared
     return ok
 
 
@@ -479,7 +508,7 @@ def main() -> int:
         nothing_happened = (
             not merged_owned.get("plugins")
             and not merged_owned.get("marketplace")
-            and all(v == "unavailable" for v in merged_platforms.values())
+            and not any(merged_platforms.values())
         )
         if nothing_happened:
             for line in messages:
@@ -528,7 +557,7 @@ def main() -> int:
                     messages.append(f"{slug}: no longer declared — reversed what 100xprism owned")
                 else:
                     messages.append(f"{slug}: no longer declared, but removal failed — record kept")
-            elif entry.get("platforms", {}).get("claude-code") == "installed":
+            elif "installed" in as_obligations((entry.get("platforms") or {}).get("claude-code")):
                 owned = claude_install(packs[slug], settings)
                 if owned:
                     entry["owned"] = merge_owned(entry.get("owned", EMPTY_OWNED), owned)

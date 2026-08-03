@@ -53,11 +53,11 @@ test('re-add does not downgrade an installed platform to unavailable', () => {
     which: { databricks: false, codex: true },
     failOn: 'codex plugin add databricks',
   })
-  assert.equal(entryOf(ctx).platforms.codex, 'installed')
+  assert.deepEqual(entryOf(ctx).platforms.codex, ['installed'])
 
   // Second add with the codex binary now absent — must NOT forget the mutation.
   run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: false } })
-  assert.equal(entryOf(ctx).platforms.codex, 'installed',
+  assert.deepEqual(entryOf(ctx).platforms.codex, ['installed'],
     'a recorded mutation cannot be downgraded by a later failed attempt')
 
   const out = run(ctx, ['remove', 'databricks'], { which: { databricks: false, codex: false } })
@@ -136,7 +136,7 @@ test('a failed removal records the transitions it completed before failing', () 
   assert.equal(entry.owned.marketplace, null)
   assert.equal(entry.platforms['claude-code'], undefined,
     'a completed transition is dropped so a retry does not repeat it')
-  assert.equal(entry.platforms.codex, 'installed', 'the failed platform is still owed')
+  assert.deepEqual(entry.platforms.codex, ['installed'], 'the failed platform is still owed')
 })
 
 // --- Finding 3: do not claim an install when nothing was installed ----------------

@@ -458,7 +458,8 @@ def load_registry(path: Path) -> dict:
 
 
 def load_state(path: Path) -> dict:
-    """Our own sidecar. Tolerant: an unreadable sidecar just means 'nothing installed'."""
+    """SUPERSEDED — shipped code makes this strict (_load_json_object) and adds
+    peek_state for read-only callers. See the divergence table."""
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
@@ -871,6 +872,7 @@ Replace `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")` in
         platforms, owned = install_pack(packs[args.slug], settings, messages)
         previous = installed.get(args.slug, {})
         installed[args.slug] = {
+            # SUPERSEDED — shipped code unions obligations via merge_platforms.
             "platforms": platforms,
             # Union with any prior record so a second `add` — which inserts nothing —
             # cannot erase what the first one claimed.
@@ -918,6 +920,9 @@ Replace `raise SystemExit(f"packs.py: '{args.command}' not implemented yet")` in
 Task 4 extends this with the shell-command platforms. Add above `main()`:
 
 ```python
+# SUPERSEDED — the shipped remove_pack returns bool, is driven by the ownership
+# record rather than the platform label, and checkpoints each completed
+# obligation and command. See the divergence table.
 def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
     """Reverse a pack from its recorded state. Registry-independent by design."""
     platforms = entry.get("platforms", {})
@@ -1168,6 +1173,9 @@ def install_pack(pack: dict, settings: dict, messages: list[str]) -> tuple[dict[
 Replace the Task 3 `remove_pack` with:
 
 ```python
+# SUPERSEDED — the shipped remove_pack returns bool, is driven by the ownership
+# record rather than the platform label, and checkpoints each completed
+# obligation and command. See the divergence table.
 def remove_pack(entry: dict, settings: dict, messages: list[str]) -> None:
     """Reverse a pack from its recorded state. Registry-independent by design.
 
@@ -1713,6 +1721,10 @@ shipped. The spec has been updated to match.
 | `render([])` returns `"(no packs declared)"` | Returns `""` | The shell wiring tests the output for non-emptiness, so a placeholder printed an empty suggestions header on every install |
 | Detection block inlined at the end of `update.sh` | Extracted to a `suggest_packs()` function, called from both exit paths | The already-up-to-date branch returns before the tail of the script, so the common no-update run never showed suggestions |
 | `add` always records state | Exits non-zero without recording when no platform could be installed | Recording a no-op install made `/pack` report a pack as present when nothing happened |
+| `platforms[p]` is one status string | A **set** of obligations per platform (`["installed","cli"]`), unioned on re-add | `installed` and `cli` are independent mutations that can accumulate; a single ranked value silently discarded one of them |
+| A platform's `uninstall` array runs as a unit | Each command is dropped from the record as it succeeds | A retry after a mid-array failure re-ran commands that had already completed |
+| `write_json` writes in place | Temp file + `os.replace`, settings written before state | An interrupted write could truncate `settings.json`; the ordering makes the failure mode a recoverable leak rather than wrongful deletion |
+| `cleanManagedPacks` guards top-level shape only | Also validates `state.packs`, `enabledPlugins`, `extraKnownMarketplaces`, and each pack entry | Nested wrong-shape JSON read as "nothing owned", after which the ownership record was deleted |
 
 Regression coverage for every row lives in `test/packs-recovery.test.js` and
 `test/packs-readd.test.js`.

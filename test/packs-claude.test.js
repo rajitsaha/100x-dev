@@ -51,7 +51,7 @@ test('add wires the marketplace, enables the plugin, and records ownership', () 
   assert.ok(s.extraKnownMarketplaces[MARKET])
 
   const entry = stateOf(ctx).packs.databricks
-  assert.equal(entry.platforms['claude-code'], 'installed')
+  assert.deepEqual(entry.platforms['claude-code'], ['installed'])
   assert.deepEqual(entry.owned.plugins, [PLUGIN])
   assert.equal(entry.owned.marketplace, MARKET)
 })

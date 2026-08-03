@@ -59,7 +59,7 @@ test('a partially-completed shell install is recorded as installed, not unavaila
     which: { databricks: false, codex: true },
     failOn: 'codex plugin add databricks',
   })
-  assert.equal(stateOf(ctx).packs.databricks.platforms.codex, 'installed',
+  assert.deepEqual(stateOf(ctx).packs.databricks.platforms.codex, ['installed'],
     'a mutation happened, so it must be reversible')
   assert.ok(out.messages.some((m) => m.includes('partially')), 'the partial state is reported')
 })
@@ -150,7 +150,7 @@ test('uninstall persists a marketplace-only removal', () => {
     schema: 1,
     packs: {
       databricks: {
-        platforms: { 'claude-code': 'installed' },
+        platforms: { 'claude-code': ['installed'] },
         owned: { plugins: [], marketplace: MARKET },
         uninstall: {},
       },
@@ -178,7 +178,7 @@ for (const shape of ['[]', 'null', '"a string"', '42']) {
       schema: 1,
       packs: {
         databricks: {
-          platforms: { 'claude-code': 'installed' },
+          platforms: { 'claude-code': ['installed'] },
           owned: { plugins: [PLUGIN], marketplace: MARKET },
           uninstall: {},
         },
