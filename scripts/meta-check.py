@@ -125,6 +125,62 @@ def check_plugins() -> int:
     return n
 
 
+PACK_PLATFORMS = {"claude-code", "codex", "cursor"}
+
+
+def check_packs(path: Path) -> int:
+    """Validate a pack registry — schema version, required keys, platform names."""
+    data = json.loads(path.read_text())
+    if data.get("schema") != 1:
+        fail(f"packs.json: unsupported `schema` {data.get('schema')!r} (expected 1)")
+
+    packs = data.get("packs", {})
+    for slug, pack in packs.items():
+        for key in ("title", "description", "source", "detect", "install"):
+            if not pack.get(key):
+                fail(f"packs.json: '{slug}' missing required key `{key}`")
+
+        install = pack.get("install", {})
+        for key in install:
+            if key not in PACK_PLATFORMS | {"preferred", "cli"}:
+                fail(f"packs.json: '{slug}' unknown install key '{key}'")
+
+        preferred = install.get("preferred")
+        if preferred and preferred != "cli" and preferred not in PACK_PLATFORMS:
+            fail(f"packs.json: '{slug}' install.preferred='{preferred}' is not 'cli' or a platform")
+
+        cli = install.get("cli")
+        if cli:
+            for key in ("requires", "command", "covers"):
+                if not cli.get(key):
+                    fail(f"packs.json: '{slug}' install.cli missing `{key}`")
+            for platform in cli.get("covers", []):
+                if platform not in PACK_PLATFORMS:
+                    fail(f"packs.json: '{slug}' install.cli.covers has unknown platform '{platform}'")
+
+        detect = pack.get("detect", {})
+        for key in detect:
+            if key not in {"files", "env", "contains"}:
+                fail(f"packs.json: '{slug}' unknown detect key '{key}'")
+        # Detection is root-only by design (see spec): reject anything path-like so a
+        # nested path can never turn into a directory walk.
+        paths = list(detect.get("files", [])) + [e.get("file", "") for e in detect.get("contains", [])]
+        for p in paths:
+            if "/" in p or "\\" in p or p in ("", ".", ".."):
+                fail(f"packs.json: '{slug}' detect path '{p}' must be a bare filename")
+        for entry in detect.get("contains", []):
+            if not entry.get("file") or not entry.get("pattern"):
+                fail(f"packs.json: '{slug}' detect.contains entry needs `file` and `pattern`")
+                continue
+            try:
+                re.compile(entry["pattern"])
+            except re.error as exc:
+                fail(f"packs.json: '{slug}' detect.contains pattern invalid — {exc}")
+
+    ok(f"packs[] entries: {len(packs)}")
+    return len(packs)
+
+
 def check_readme_counts(counts: dict[str, int]) -> None:
     """Assert every numeric count mention in the README matches the repo."""
     readme = (REPO / "README.md").read_text()
@@ -211,10 +267,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="100xprism repo consistency checker")
     ap.add_argument("--tag", default=os.environ.get("TAG", ""),
                     help="git tag (e.g. v2.0.4) to include in the version-triple check")
+    ap.add_argument("--packs", default="",
+                    help="pack registry to validate (default: packs/packs.json). "
+                         "Tests pass a temp copy so the tracked registry is never mutated.")
     args = ap.parse_args()
 
     counts = check_modules()
     counts["plugins"] = check_plugins()
+    check_packs(Path(args.packs) if args.packs else REPO / "packs" / "packs.json")
     check_readme_counts(counts)
     check_current_doc_count_drift(counts)
     check_evals()

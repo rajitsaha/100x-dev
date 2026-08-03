@@ -209,12 +209,30 @@ regenerate_tracked_projects() {
   return 0
 }
 
+# Read-only: reports packs relevant to this project. Never installs. Defined as a
+# function because update.sh has two exit paths — the already-up-to-date branch below
+# returns before the tail of the script, so an inline block there would only ever run
+# on the far rarer "there was an update" path.
+suggest_packs() {
+  local suggestions
+  suggestions=$(python3 "$REPO_DIR/adapters/lib/packs.py" detect \
+    --settings "$SETTINGS_FILE" 2>/dev/null || true)
+  if [ -n "$suggestions" ]; then
+    echo ""
+    echo -e "${CYAN}Optional skill packs for this project:${NC}"
+    echo "$suggestions"
+    echo -e "${CYAN}Install with: /pack add <slug>${NC}"
+  fi
+}
+
 if [ "$LOCAL" = "$REMOTE" ]; then
   echo -e "${GREEN}✓ Repo already up to date.${NC}"
   echo ""
   echo "Syncing plugins and settings..."
   python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
     --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+  python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+    echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
   sync_hooks
   run_plugin_updates
   # Still reconcile projects: an earlier run may have pulled v3 and then failed
@@ -227,6 +245,7 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   else
     regenerate_tracked_projects || RECONCILE_STATUS=$?
   fi
+  suggest_packs
   echo ""
   echo -e "${CYAN}Tip: Restart Claude Code to activate any plugin changes.${NC}"
   echo ""
@@ -293,6 +312,8 @@ echo -e "  ${GREEN}→ Updated modules ✓${NC}"
 
 python3 "$REPO_DIR/adapters/lib/sync_plugins.py" \
   --settings "$SETTINGS_FILE" --plugins "$REPO_DIR/plugins/plugins.json"
+python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
+  echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
 remove_session_update_hook
 
 echo -e "  ${CYAN}→ Shell startup files are not modified. Run 100xprism uninstall to remove legacy source lines.${NC}"
@@ -319,6 +340,8 @@ fi
 # still surface in this script's exit status.
 RECONCILE_STATUS=0
 regenerate_tracked_projects || RECONCILE_STATUS=$?
+
+suggest_packs
 
 echo ""
 NEW_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"

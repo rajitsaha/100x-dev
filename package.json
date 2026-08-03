@@ -1,7 +1,7 @@
 {
   "name": "100xprism",
   "version": "3.1.0",
-  "description": "67 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, and Codex.",
+  "description": "68 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, and Codex.",
   "scripts": {
     "preuninstall": "node ./lib/uninstall.js --remove-live-links",
     "test": "node --test",
@@ -15,6 +15,7 @@
     "bin/",
     "lib/",
     "modules/",
+    "packs/",
     "plugins/",
     "templates/",
     "shell/",

@@ -4,7 +4,7 @@ Contributor contract for AI coding agents working on this repo. Users see `READM
 
 ## What this repo is
 
-100xprism is a **distributor**, not an app. The product is `modules/` (67 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, and Codex repo skills + `AGENTS.md`. Users install via `npm i -g 100xprism` or `get.sh`.
+100xprism is a **distributor**, not an app. The product is `modules/` (68 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, and Codex repo skills + `AGENTS.md`. Users install via `npm i -g 100xprism` or `get.sh`.
 
 Every adapter uses progressive disclosure — descriptions in the always-on index, bodies loaded on demand. The single-file concat adapters (Windsurf/Copilot/Gemini/Antigravity) were removed in v3.0.0 precisely because they could not do this.
 
@@ -22,7 +22,7 @@ name: <slug>
 description: <one-line trigger guidance — used by Claude Code/Cursor for auto-activation>
 category: <docs|code|growth|...>
 tier: <core|on-demand>
-slash_command: /<name>   # optional — only for the 27 command-style modules
+slash_command: /<name>   # optional — only for the 28 command-style modules
 retention: <must|profile|resolver>   # optional — overrides the derived class
 profiles: <core, code, data, …>      # optional — overrides the category default
 ---

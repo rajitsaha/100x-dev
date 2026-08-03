@@ -4,7 +4,7 @@
 
 ## How it works
 
-100xPrism ships 67 modules as markdown files with YAML frontmatter. Your AI tool reads them and follows the instructions — running commands, enforcing thresholds, looping until checks pass.
+100xPrism ships 68 modules as markdown files with YAML frontmatter. Your AI tool reads them and follows the instructions — running commands, enforcing thresholds, looping until checks pass.
 
 Each module is the **single source of truth**. Adapters generate the right format for each tool:
 
@@ -34,7 +34,7 @@ npm install -g 100xprism && 100xprism install
 
 The installer:
 0. Cleans legacy startup hooks, stale command links, and any old owned dashboard process
-1. Emits all 67 modules to `~/.claude/skills/`
+1. Emits all 68 modules to `~/.claude/skills/`
 2. Creates slash command aliases in `~/.claude/commands/` for the modules whose command name differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) — every other module is invoked as `/<skill-name>` directly
 3. Merges 14 Claude Code plugins into `~/.claude/settings.json`
 4. Leaves shell startup files untouched; optional aliases are available with `source ~/100xprism/shell/aliases.sh`
@@ -162,7 +162,7 @@ source "$HOME/work/100xprism/shell/aliases.sh"   # adjust to your checkout path
 
 ### In Claude Code — slash commands
 
-The following 27 slash commands are available. Run them directly:
+The following 28 slash commands are available. Run them directly:
 
 **Lifecycle:**
 ```
