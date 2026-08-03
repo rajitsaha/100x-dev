@@ -137,6 +137,21 @@ test('uninstall skips a malformed pack entry rather than dropping the whole file
   assert.equal(settings.enabledPlugins[PLUGIN], true, 'nothing removed on a record we cannot read')
 })
 
+// --- Obligations must render as text, not as a Python list repr -------------------
+
+test('status renders obligations readably', () => {
+  const ctx = setup()
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: false } })
+  run(ctx, ['add', 'databricks'], { which: { databricks: true } })
+
+  const r = spawnSync('python3', [
+    SCRIPT, 'status', '--settings', ctx.settingsFile, '--project', ctx.dir, '--packs', REGISTRY,
+  ], { encoding: 'utf8', env: { ...process.env, DATABRICKS_HOST: '' } })
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(!/\[|'/.test(r.stdout), `no list repr leaked into user output:\n${r.stdout}`)
+  assert.match(r.stdout, /claude-code=installed\+cli/)
+})
+
 // --- Finding 4: writes must be atomic ---------------------------------------------
 
 test('a write leaves no partial file behind', () => {

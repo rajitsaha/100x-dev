@@ -438,10 +438,13 @@ def render(rows: list[dict]) -> str:
     lines = []
     for row in rows:
         if row["platforms"]:
-            # Don't label the row "installed" wholesale — some platforms may be `manual`
-            # (the user still has to act) or `unavailable` (nothing happened there).
+            # Don't label the row "installed" wholesale — a platform may owe only a
+            # `manual` step the user still has to take. Obligations are a list, so join
+            # them: a bare f-string would print Python's list repr to the terminal.
             note = "per platform: " + ", ".join(
-                f"{k}={v}" for k, v in sorted(row["platforms"].items())
+                f"{platform}={'+'.join(as_obligations(value))}"
+                for platform, value in sorted(row["platforms"].items())
+                if as_obligations(value)
             )
         elif row["detected"]:
             note = f"detected here — run `/pack add {row['slug']}` to install"
