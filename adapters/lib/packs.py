@@ -519,18 +519,26 @@ def main() -> int:
             print(f"packs.py: '{args.slug}' could not be installed on any platform", file=sys.stderr)
             return 1
 
+        # Inverse commands are copied from the registry so removal survives the pack
+        # being dropped — but only for platforms THIS add actually reinstalled. A
+        # previous removal may have checkpointed a shortened list after a mid-array
+        # failure; restoring the full list for a platform we did not touch would make a
+        # later removal re-run commands that already succeeded.
+        declared = dict(previous.get("uninstall") or {})
+        for platform in PLATFORMS:
+            reinstalled = "installed" in as_obligations(platforms.get(platform))
+            if reinstalled or platform not in declared:
+                block = packs[args.slug].get("install", {}).get(platform) or {}
+                declared[platform] = list(block.get("uninstall", []))
+
         installed[args.slug] = {
-            # Per-platform max by obligation: a retry can raise a status but never lower
-            # it, so a mutation recorded by an earlier attempt keeps its removal path.
+            # Union of obligations: a retry can add obligation but never drop one, so a
+            # mutation recorded by an earlier attempt keeps its removal transition.
             "platforms": merged_platforms,
             # Union with any prior record so a second `add` — which inserts nothing —
             # cannot erase what the first one claimed.
             "owned": merged_owned,
-            # Copied from the registry so removal survives the pack being dropped.
-            "uninstall": {
-                p: list((packs[args.slug].get("install", {}).get(p) or {}).get("uninstall", []))
-                for p in PLATFORMS
-            },
+            "uninstall": declared,
         }
 
     elif args.command == "remove":

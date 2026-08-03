@@ -133,7 +133,9 @@ command exists at implementation time, add it then.
 2. Otherwise fall back to per-platform blocks: `claude-code` is performed directly
    by `packs.py`, `codex` shells out, `cursor` is printed for the user.
 3. If a platform has no usable path at all — no CLI binary and no per-platform block —
-   report that platform as `unavailable` and print `install.cli.hint`.
+   report that platform as unavailable and print `install.cli.hint`. "Unavailable" is
+   not a stored value — it is represented by the platform simply carrying no obligation
+   (see the state shape below), because there is nothing there to reverse.
 
 State records *how* each platform was installed, so removal knows what it is entitled
 to reverse. Crucially this is a **set of obligations per platform**, not one status:

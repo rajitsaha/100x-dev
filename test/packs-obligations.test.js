@@ -127,7 +127,7 @@ test('uninstall keeps state when enabledPlugins is the wrong shape', () => {
   assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
 })
 
-test('uninstall skips a malformed pack entry rather than dropping the whole file', () => {
+test('uninstall skips a malformed pack entry AND keeps the state file', () => {
   const { home, claude } = fakeHome(
     { schema: 1, packs: { databricks: 'not-an-object' } },
     { enabledPlugins: { [PLUGIN]: true } },
@@ -135,6 +135,84 @@ test('uninstall skips a malformed pack entry rather than dropping the whole file
   assert.equal(cleanManagedPacks(home).removed, 0)
   const settings = JSON.parse(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'))
   assert.equal(settings.enabledPlugins[PLUGIN], true, 'nothing removed on a record we cannot read')
+  // The earlier version of this test asserted only the settings and so passed
+  // vacuously: the state file was deleted anyway, losing the ownership record.
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')),
+    'a record we could not interpret is not a record we may discard')
+})
+
+test('uninstall refuses a pack entry whose owned.plugins is not an array', () => {
+  // `plugins` as a string would otherwise be iterated character by character, deleting
+  // single-letter keys from enabledPlugins.
+  const { home, claude } = fakeHome(
+    { schema: 1, packs: { databricks: {
+      platforms: { 'claude-code': ['installed'] },
+      owned: { plugins: 'abc', marketplace: MARKET },
+      uninstall: {},
+    } } },
+    { enabledPlugins: { a: true, b: true, [PLUGIN]: true }, extraKnownMarketplaces: { [MARKET]: {} } },
+  )
+  assert.equal(cleanManagedPacks(home).removed, 0)
+  const settings = JSON.parse(fs.readFileSync(path.join(claude, 'settings.json'), 'utf8'))
+  assert.equal(settings.enabledPlugins.a, true, 'characters were not treated as plugin keys')
+  assert.equal(settings.enabledPlugins.b, true)
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
+})
+
+test('uninstall refuses a pack entry whose owned.marketplace is not a string', () => {
+  const { home, claude } = fakeHome(
+    { schema: 1, packs: { databricks: {
+      platforms: { 'claude-code': ['installed'] },
+      owned: { plugins: [], marketplace: { nested: true } },
+      uninstall: {},
+    } } },
+    { enabledPlugins: {}, extraKnownMarketplaces: { [MARKET]: {} } },
+  )
+  assert.equal(cleanManagedPacks(home).removed, 0)
+  assert.ok(fs.existsSync(path.join(claude, '.100xprism-packs.json')), 'state kept')
+})
+
+// --- Re-add must not resurrect uninstall commands that already succeeded ----------
+
+test('re-add does not restore checkpointed uninstall commands for an untouched platform', () => {
+  const ctx = setup()
+  const registry = path.join(ctx.dir, 'multi.json')
+  const data = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'))
+  data.packs.databricks.install.codex.uninstall = ['codex step-one', 'codex step-two']
+  fs.writeFileSync(registry, JSON.stringify(data))
+
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: true }, registry })
+  // step-one succeeds, step-two fails -> the record keeps only step-two.
+  run(ctx, ['remove', 'databricks'], {
+    which: { databricks: false, codex: true }, registry,
+    failOn: 'codex step-two', allowFailure: true,
+  })
+  assert.deepEqual(entryOf(ctx).uninstall.codex, ['codex step-two'], 'checkpointed')
+
+  // Re-add via the CLI path: codex gains a `cli` obligation but is NOT reinstalled
+  // through its commands, so its checkpointed remainder must survive.
+  run(ctx, ['add', 'databricks'], { which: { databricks: true }, registry })
+  assert.deepEqual(entryOf(ctx).uninstall.codex, ['codex step-two'],
+    'a completed command must not be resurrected by an unrelated re-add')
+})
+
+test('re-add DOES restore the full command list for a platform it reinstalls', () => {
+  const ctx = setup()
+  const registry = path.join(ctx.dir, 'multi.json')
+  const data = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'))
+  data.packs.databricks.install.codex.uninstall = ['codex step-one', 'codex step-two']
+  fs.writeFileSync(registry, JSON.stringify(data))
+
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: true }, registry })
+  run(ctx, ['remove', 'databricks'], {
+    which: { databricks: false, codex: true }, registry,
+    failOn: 'codex step-two', allowFailure: true,
+  })
+  // Re-installing codex through its own commands genuinely re-creates what step-one
+  // undid, so the full inverse list applies again.
+  run(ctx, ['add', 'databricks'], { which: { databricks: false, codex: true }, registry })
+  assert.deepEqual(entryOf(ctx).uninstall.codex, ['codex step-one', 'codex step-two'],
+    'a genuine reinstall restores the full inverse')
 })
 
 // --- Obligations must render as text, not as a Python list repr -------------------
