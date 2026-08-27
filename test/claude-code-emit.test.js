@@ -44,11 +44,13 @@ test('emit-claude-code prunes a removed module but keeps user-authored skills/co
   assert.ok(!fs.existsSync(path.join(skills, 'systems-architect')), 'removed module pruned')
   assert.ok(fs.existsSync(path.join(skills, 'my-custom-skill')), 'user skill kept')
   assert.ok(fs.existsSync(path.join(commands, 'my-cmd.md')), 'user command kept')
-  assert.ok(fs.existsSync(path.join(skills, 'enterprise-design')), 'current module written')
+  assert.ok(fs.existsSync(path.join(skills, 'gate')), 'must-have module written')
+  assert.ok(fs.existsSync(path.join(skills, '100x-resolver')), 'resolver written')
   // Each emitted skill carries the generation marker, and a manifest is written.
-  assert.ok(fs.existsSync(path.join(skills, 'enterprise-design', '.100xprism-generated')))
+  assert.ok(fs.existsSync(path.join(skills, 'gate', '.100xprism-generated')))
   const manifest = JSON.parse(fs.readFileSync(path.join(skills, '.100xprism-manifest.json'), 'utf8'))
-  assert.ok(manifest.skills.includes('enterprise-design'))
+  assert.ok(manifest.skills.includes('gate'))
+  assert.ok(manifest.skills.includes('100x-resolver'))
   assert.ok(!manifest.skills.includes('systems-architect'))
 })
 

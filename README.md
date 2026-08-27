@@ -10,9 +10,9 @@
 [![npm](https://img.shields.io/npm/v/100xprism?style=flat-square&color=red)](https://www.npmjs.com/package/100xprism)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-**One source of truth.** 68 modules generate native config for **Claude Code · Cursor · Codex**. Quality gates run on every commit.
+**One source of truth.** 68 modules generate native config for **Claude Code · Cursor · Codex · Pi**. Quality gates run on every commit.
 
-<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 14 plugins, 28 slash commands, 40 auto-trigger skills" width="100%" />
+<img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 2 plugins, 28 slash commands, 40 auto-trigger skills" width="100%" />
 
 </div>
 
@@ -78,7 +78,7 @@ Every `/commit` and `/push` runs a 5-point gate — tests, security, build, Dock
 | | |
 |---|---|
 | **68 modules** | 28 slash commands + 40 auto-trigger skills — see [full reference below](#slash-commands) |
-| **14 Claude Code plugins** | superpowers, playwright, github, hookify, claude-mem, understand-anything, ui-ux-pro-max, motion-framer, and more |
+| **2 Claude Code core plugins** | GitHub + security guidance by default; other integrations are profile recommendations or manual opt-ins |
 | **7 database engines** | Postgres, Cloud SQL, Snowflake, Databricks, Athena, Presto, Oracle — one `/db` interface |
 | **27 SaaS CLIs** | `/connect` installs + authenticates GitHub, AWS, Stripe, Supabase, and more from `.env` |
 | **4 project templates** | node-fullstack · node-frontend · python-api · docker-compose |
@@ -95,8 +95,11 @@ That part is mostly working. The harder, more important question is the one that
 This is a first, deliberately humble attempt to **make the measurement chain visible to everyone**, because watching it isn't one person's job. **It's everybody's responsibility.**
 
 ```bash
-100xprism tokens   # token economics — what every session, across every repo, is costing
-100xprism value    # delivery economics — observable work associated with that spend
+100xprism tokens                  # local dashboard
+100xprism tokens --json           # fast, versioned provider-counter report
+100xprism tokens --json --tool codex
+100xprism audit --json             # standing-context estimate + skills/plugins/hooks
+100xprism value                    # delivery economics
 ```
 
 - **`100xprism tokens`** — one offline, machine-wide dashboard at a single URL: the input/output/cache split, a startup-bloat meter, an *estimated* code-vs-files-read-vs-logs-vs-chat composition, and $ cost — by project, model, session, and skill. Claude Code and Codex provide exact local token counters; Cursor agent-transcript JSONL and Antigravity local artifacts contribute project/session/activity coverage but are never assigned invented token cost because their local formats expose no counters. Cursor chats, `state.vscdb`, and legacy transcript `.txt` are outside the collector's scope. It auto-refreshes every 30 seconds once started. Start it explicitly with `100xprism tokens`, `100xprism dashboard`, or `100xprism install --dashboard`; shell startup never starts it.
@@ -105,22 +108,25 @@ This is a first, deliberately humble attempt to **make the measurement chain vis
 
 ### Paying only for the skills a repo uses
 
-An installed module's **description** is re-sent on every turn; its **body** is free
-until invoked. So the always-on cost is the index, not the content. `100xprism slim`
-keeps the must-have workflows resident and routes the specialist catalog behind a
-generated `100x-resolver` the agent reads on demand.
+An installed module's **description** may be re-sent on every turn; its **body** is
+loaded only when invoked by tools that support progressive disclosure. Fresh installs
+therefore default to the 12 must-have workflows plus one generated `100x-resolver`.
+Specialist bodies stay on disk and are loaded through `/100x <workflow>` (or the
+closest native skill invocation) only when needed.
 
 ```bash
-100xprism slim                 # slim user scope + this repo (reversible)
-100xprism slim --all-projects  # every project 100xprism has touched
-100xprism slim --skills=all    # undo
+100xprism optimize              # enforce must-only for user scope + this repo
+100xprism optimize --all-projects
+100xprism optimize --skills=profile  # widen to detected project profiles
+100xprism optimize --skills=all      # restore every module
+100xprism slim ...                   # compatibility alias
 ```
 
-Measured on this repo: Claude Code's always-on index drops from ~4,900 to ~1,730
-tokens per turn (~550 in `--skills=must`), and a slimmed Cursor project from ~7,250
-to ~2,190. Nothing is deleted — routed modules keep their bodies on disk and appear
-as catalog rows with an exact path. Codex is left alone: `.agents/skills` already
-loads on demand.
+Current deterministic description-footprint estimates (characters ÷ 4): Claude falls
+from ~4,816 tokens in `all` mode to ~574 in `must`; Cursor falls from ~1,942 to
+~261. Codex and Pi use the same must-first selection. CI enforces committed must-mode
+budgets, and `100xprism audit` separately inventories instruction files, aliases,
+plugins, and hooks. These are standing-context estimates, not provider-billed usage.
 
 Full guide: [docs/token-optimization.md](docs/token-optimization.md).
 

@@ -10,6 +10,8 @@ Commands:
   update     Pull latest workflows and regenerate tracked projects
   check      Check for a newer version without applying
   slim       Shrink the always-on context: keep must-have skills, route the rest
+  optimize   Apply the lean context policy (slim compatibility successor)
+  audit      Inventory standing context, plugins, hooks, and indexed skills
   tokens     Start/open the AI economics dashboard
   dashboard  Alias for tokens
   value      Print value report for a directory
@@ -23,6 +25,8 @@ Examples:
   100xprism slim --dry-run        # show what it would change
   100xprism slim --all-projects   # every project 100xprism has touched
   100xprism slim --skills=must    # most aggressive; --skills=all reverts
+  100xprism audit --json           # machine-readable standing-context estimate
+  100xprism optimize --all-projects
   100xprism install --dashboard  # optionally start dashboard after install
   100xprism tokens               # start and open dashboard
   100xprism tokens --no-open      # serve without opening browser
@@ -38,6 +42,8 @@ switch (cmd) {
   case 'update':  require('../lib/update').run(args);  break
   case 'check':   require('../lib/update').run(['--check-only']); break
   case 'slim':    require('../lib/slim').run(args);    break
+  case 'optimize': require('../lib/slim').run(args);    break
+  case 'audit': require('../lib/audit').run(args); break
   case 'tokens':
   case 'dashboard': require('../lib/tokens').runDashboard(args); break
   case 'value': require('../lib/tokens').runValue(args); break

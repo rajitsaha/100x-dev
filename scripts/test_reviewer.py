@@ -176,6 +176,20 @@ class TestReviewer(unittest.TestCase):
         with self.assertRaises(ValueError):
             reviewer.invoke("gemini", "review this", "/repo", run_command=lambda *a: "unused")
 
+    def test_command_for_pi_is_read_only_and_pins_provider(self):
+        cmd = reviewer.command_for("pi", model="gemini-2.5-flash", provider="google")
+        self.assertEqual(cmd[0], "pi")
+        self.assertIn("-p", cmd)
+        self.assertIn("read,grep,find,ls", cmd)
+        self.assertNotIn("write", ",".join(cmd))
+        self.assertNotIn("edit", ",".join(cmd))
+        self.assertNotIn("bash", ",".join(cmd))
+        self.assertEqual(cmd[cmd.index("--provider") + 1], "google")
+        self.assertEqual(cmd[cmd.index("--model") + 1], "gemini-2.5-flash")
+
+    def test_pi_is_a_supported_vendor(self):
+        self.assertIn("pi", reviewer._SUPPORTED_TOOLS)
+
 
 if __name__ == "__main__":
     unittest.main()

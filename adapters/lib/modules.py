@@ -7,6 +7,8 @@ Used by all adapters. Outputs JSON to stdout with one of these subcommands:
   detect-profiles <dir>      — JSON: profiles a project looks like + resulting split
   emit-cursor <project_dir>  — write .cursor/rules/<slug>.mdc per module
   emit-codex <project_dir>   — write Codex-native AGENTS.md, repo skills, hooks
+  emit-pi <project_dir>      — write retention-filtered .pi/skills (+ prompts, catalog)
+  emit-pi-package            — write filtered pi/skills for `pi install` (repo root)
   emit-claude-code           — write ~/.claude/skills/<slug>/* + ~/.claude/commands/<slug>.md
   emit-hooks [--sync]        — idempotently merge first-party hooks into
                                ~/.claude/settings.json from hooks/hooks.manifest.json.
@@ -259,10 +261,10 @@ def read_project_config(project_dir: str | Path) -> dict:
 
 
 def active_profiles(project_dir: str | Path) -> list[str] | None:
-    """Profiles to filter by, or None to emit everything (the default).
+    """Profiles to filter by; [] means must-only and None explicitly means all.
 
-    Precedence: PRISM_PROFILES env override → project config → off. Both the env
-    var and the config accept "all" as an explicit opt-out of filtering.
+    Precedence: PRISM_PROFILES env override → project config → lean default. Both
+    the env var and the config accept "all" as an explicit opt-out of filtering.
     """
     env = os.environ.get("PRISM_PROFILES", "").strip()
     if env:
@@ -273,7 +275,7 @@ def active_profiles(project_dir: str | Path) -> list[str] | None:
 
     cfg = read_project_config(project_dir).get("profiles")
     if not cfg:
-        return None
+        return []
     if isinstance(cfg, str):
         cfg = [cfg]
     if "all" in cfg:
@@ -349,20 +351,20 @@ RESOLVER_DESCRIPTION = (
 def user_skills_mode() -> str:
     """How much of the catalog gets installed as real user-scope skills.
 
-    'all' (default) preserves the pre-resolver behaviour. Set by `100xprism slim`,
-    or per-run via PRISM_SKILLS. Unknown values fall back to 'all' — the safe end.
+    'must' is the lean default. Set by `100xprism optimize`/`slim`, or per-run via
+    PRISM_SKILLS. Unknown values fail closed to 'must' instead of widening context.
     """
     env = os.environ.get("PRISM_SKILLS", "").strip().lower()
     if env in ("all", "profile", "must"):
         return env
     if env:
-        return "all"
+        return "must"
     try:
         cfg = json.loads((Path.home() / ".100xprism" / "config.json").read_text())
     except (OSError, ValueError):
-        return "all"
-    mode = str(cfg.get("skills", "all")).strip().lower()
-    return mode if mode in ("all", "profile", "must") else "all"
+        return "must"
+    mode = str(cfg.get("skills", "must")).strip().lower()
+    return mode if mode in ("all", "profile", "must") else "must"
 
 
 def split_by_mode(modules: list[dict], mode: str) -> tuple[list[dict], list[dict]]:
@@ -413,6 +415,20 @@ def render_resolver(catalog: list[dict], path_template: str) -> str:
         "that matches the task, **read the file in its `Read` column**, then follow it as "
         "you would any skill. If nothing matches, proceed without one.\n"
         + render_catalog_table(catalog, path_template)
+    )
+
+
+def render_generic_route(argument_expr: str = "$ARGUMENTS") -> str:
+    """One compact command/prompt replacing resident aliases for routed modules."""
+    return (
+        "---\n"
+        "description: Load any routed 100xprism workflow by slug without indexing every workflow.\n"
+        "argument-hint: <workflow> [arguments]\n"
+        "---\n\n"
+        f"{ALIAS_MARKER}\n\n"
+        "Use the `100x-resolver` skill. Find the workflow named by the first argument, "
+        "read its catalog SKILL.md path, and follow it with the remaining arguments.\n\n"
+        f"{argument_expr}\n"
     )
 
 
@@ -508,10 +524,10 @@ def cmd_emit_cursor(project_dir: str):
     rules_dir.mkdir(parents=True, exist_ok=True)
     mods = list_modules()
 
-    # Filtering is opt-in: with no project config (and no PRISM_PROFILES) this
-    # resolves to None and every module gets a rule, exactly as before profiles.
+    # Fresh emits are must-only. Explicit project profiles widen the index and
+    # `profiles: ["all"]` restores the legacy unfiltered output.
     profiles = active_profiles(project_dir)
-    keep, catalog = select_modules(mods, profiles) if profiles is not None else (mods, [])
+    keep, catalog = (mods, []) if profiles is None else select_modules(mods, profiles)
 
     def write_rule(slug: str, description: str, always_apply: str, model: str, body: str) -> None:
         cursor_fm = [
@@ -561,44 +577,22 @@ def cmd_emit_codex(project_dir: str):
     project = Path(project_dir)
     mods = list_modules()
 
-    # Only AGENTS.md is always-on for Codex; `.agents/skills` is loaded on demand,
-    # so the whole module set stays on disk there and only the router is filtered.
     profiles = active_profiles(project_dir)
-    routed = select_modules(mods, profiles)[0] if profiles is not None else mods
+    keep, catalog = (mods, []) if profiles is None else select_modules(mods, profiles)
 
     agents_file = project / "AGENTS.md"
     agents_file.parent.mkdir(parents=True, exist_ok=True)
-    agents_file.write_text(render_codex_agents(routed))
+    agents_file.write_text(render_codex_agents(keep))
 
     skills_dir = project / ".agents" / "skills"
     index_file = project / ".agents" / "100x-index.md"
     index_file.parent.mkdir(parents=True, exist_ok=True)
     index_file.write_text(render_codex_index(mods))
-    if skills_dir.exists():
-        for child in skills_dir.iterdir():
-            if not child.is_dir():
-                continue
-            marker = child / ".100xprism-generated"
-            if marker.exists():
-                shutil.rmtree(child)
-    skills_dir.mkdir(parents=True, exist_ok=True)
-    skill_count = 0
-    for module_dir in sorted(MODULES_DIR.glob("*")):
-        if not module_dir.is_dir() or not (module_dir / "SKILL.md").is_file():
-            continue
-        target = skills_dir / module_dir.name
-        if target.exists():
-            marker = target / ".100xprism-generated"
-            if marker.exists():
-                shutil.rmtree(target)
-            else:
-                print(f"skipped existing non-100xprism skill: {target}", file=sys.stderr)
-                continue
-        shutil.copytree(module_dir, target)
-        (target / ".100xprism-generated").write_text(
-            "Generated by 100xprism from modules/<slug>/SKILL.md. Regenerate instead of editing here.\n"
-        )
-        skill_count += 1
+    catalog_dir = project / ".agents" / CATALOG_DIRNAME
+    skill_count, _ = _write_pi_skill_tree(
+        skills_dir, keep, catalog, catalog_dir,
+        f".agents/{CATALOG_DIRNAME}/{{slug}}/SKILL.md",
+    )
 
     hooks_dir = project / ".codex"
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -610,8 +604,11 @@ def cmd_emit_codex(project_dir: str):
     wrapper.chmod(0o755)
 
     hooks: dict[str, list[dict]] = {}
+    hooks_opted_in = os.environ.get("PRISM_HOOKS", "").strip().lower() in (
+        "1", "true", "yes", "on"
+    )
     for hook in manifest.get("hooks", []):
-        if not _hook_enabled(hook):
+        if not hooks_opted_in or not _hook_enabled(hook):
             continue
         command = _codex_hook_command(hook["script"])
         hooks.setdefault(hook["event"], []).append({
@@ -627,6 +624,225 @@ def cmd_emit_codex(project_dir: str):
     print(
         f"wrote Codex AGENTS.md + {skill_count} repo skills + "
         f"{sum(len(v) for v in hooks.values())} hook group(s) to {project}"
+    )
+
+
+def pi_active_profiles(project_dir: str | Path) -> list[str] | None:
+    """Profiles for Pi emits. Fresh installs are must-only.
+
+    - Explicit `profiles: ["all"]` / PRISM_PROFILES=all → no profile filter
+      (still parks resolver-class modules in the catalog).
+    - Explicit profile list → that list (+ core).
+    - Unset or empty → [] (must-only).
+    """
+    env = os.environ.get("PRISM_PROFILES", "").strip()
+    if env:
+        vals = [p.strip() for p in env.replace(",", " ").split() if p.strip()]
+        if "all" in vals:
+            return None
+        return sorted(set(vals) | {"core"})
+
+    cfg = read_project_config(project_dir).get("profiles")
+    if cfg is not None:
+        if isinstance(cfg, str):
+            cfg = [cfg]
+        if not isinstance(cfg, list):
+            return []
+        if "all" in cfg:
+            return None
+        cleaned = [str(p).strip() for p in cfg if str(p).strip()]
+        if not cleaned:
+            return []
+        return sorted(set(cleaned) | {"core"})
+
+    return []
+
+
+def render_pi_prompt_alias(slug: str, description: str) -> str:
+    """One-liner prompt template that routes a slash alias to /skill:<slug>."""
+    desc = short_description(description) or slug
+    return (
+        "---\n"
+        f"description: {desc}\n"
+        "---\n"
+        f"Load and follow the 100xprism skill `/skill:{slug}` "
+        f"(read its SKILL.md if needed). Arguments: ${{@ARGUMENTS:-}}\n"
+    )
+
+
+def render_pi_agents(modules: list[dict]) -> str:
+    """Compact project AGENTS.md for Pi (same router budget idea as Codex)."""
+    out = [
+        "# 100x Dev for Pi\n",
+        "# Generated by 100xprism (https://github.com/rajitsaha/100xprism)\n",
+        "# Source of truth: modules/<slug>/SKILL.md. Regenerate instead of hand-editing.\n\n",
+        "## How Pi Should Use 100x Dev\n\n",
+        "- Retention-filtered skills live in `.pi/skills/<slug>/SKILL.md` "
+        "(descriptions only until loaded).\n",
+        "- Prefer `/skill:<slug>` (or a thin prompt alias when the slash name differs).\n",
+        "- Resolver-class modules are listed by `100x-resolver` — read the catalog "
+        "path, then the module body.\n",
+        "- Gate/secret enforcement is a Pi extension, not resident markdown.\n",
+        "- Claude Code plugins in `plugins/plugins.json` are not installed into Pi.\n\n",
+        "## 100xprism Command Map\n\n",
+    ]
+    commands = [m for m in modules if m["slash_command"]]
+    for m in sorted(commands, key=lambda x: x["slash_command"]):
+        out.append(
+            f"- `{m['slash_command']}` → `/skill:{m['slug']}` — "
+            f"{short_description(m['description'])}\n"
+        )
+    return "".join(out)
+
+
+def _prune_generated_skill_dirs(skills_dir: Path) -> None:
+    if not skills_dir.exists():
+        return
+    for child in skills_dir.iterdir():
+        if child.is_dir() and (child / GENERATED_MARKER).exists():
+            shutil.rmtree(child)
+
+
+def _write_pi_skill_tree(
+    skills_dir: Path,
+    keep: list[dict],
+    catalog: list[dict],
+    catalog_dir: Path,
+    catalog_path_template: str,
+) -> tuple[int, int]:
+    """Write filtered skills + optional resolver. Returns (skill_count, prompt-ready alias count)."""
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    _prune_generated_skill_dirs(skills_dir)
+    skill_count = 0
+    for m in keep:
+        target = skills_dir / m["slug"]
+        if target.exists():
+            if (target / GENERATED_MARKER).exists():
+                shutil.rmtree(target)
+            else:
+                print(f"skipped existing non-100xprism skill: {target}", file=sys.stderr)
+                continue
+        shutil.copytree(m["dir"], target)
+        (target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism from modules/<slug>/SKILL.md. Regenerate instead of editing here.\n"
+        )
+        skill_count += 1
+
+    _write_catalog_bodies(catalog, catalog_dir)
+    if catalog:
+        resolver_target = skills_dir / RESOLVER_SLUG
+        if resolver_target.exists():
+            shutil.rmtree(resolver_target)
+        resolver_target.mkdir(parents=True)
+        (resolver_target / "SKILL.md").write_text(
+            render_resolver(catalog, catalog_path_template)
+        )
+        (resolver_target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism. Regenerate instead of editing here.\n"
+        )
+        skill_count += 1
+
+    alias_n = sum(
+        1 for m in keep
+        if m["slash_command"] and m["slash_command"].lstrip("/") != m["slug"]
+    )
+    return skill_count, alias_n
+
+
+def _write_pi_prompts(prompts_dir: Path, keep: list[dict]) -> int:
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    for f in list(prompts_dir.glob("*.md")):
+        try:
+            if "Generated by 100xprism" in f.read_text():
+                f.unlink()
+        except OSError:
+            pass
+    n = 0
+    for m in keep:
+        slash = m["slash_command"].lstrip("/")
+        if not slash or slash == m["slug"]:
+            continue
+        (prompts_dir / f"{slash}.md").write_text(
+            "---\n"
+            f"description: {short_description(m['description']) or m['slug']}\n"
+            "---\n"
+            "<!-- Generated by 100xprism -->\n"
+            f"Load and follow the 100xprism skill `/skill:{m['slug']}` "
+            f"(read its SKILL.md if needed). Arguments: ${{@ARGUMENTS:-}}\n"
+        )
+        n += 1
+    return n
+
+
+def _write_pi_generic_prompt(prompts_dir: Path, catalog: list[dict]) -> int:
+    if not catalog:
+        return 0
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    (prompts_dir / "100x.md").write_text(render_generic_route("${@ARGUMENTS:-}"))
+    return 1
+
+
+def cmd_emit_pi(project_dir: str):
+    """Write Pi project artifacts under .pi/ (retention ON by default)."""
+    project = Path(project_dir)
+    mods = list_modules()
+    profiles = pi_active_profiles(project_dir)
+    keep, catalog = select_modules(mods, profiles)
+
+    pi_dir = project / ".pi"
+    skills_dir = pi_dir / "skills"
+    prompts_dir = pi_dir / "prompts"
+    catalog_dir = pi_dir / CATALOG_DIRNAME
+
+    skill_count, _ = _write_pi_skill_tree(
+        skills_dir, keep, catalog, catalog_dir,
+        f".pi/{CATALOG_DIRNAME}/{{slug}}/SKILL.md",
+    )
+    prompt_count = _write_pi_prompts(prompts_dir, keep)
+    prompt_count += _write_pi_generic_prompt(prompts_dir, catalog)
+
+    agents_file = project / "AGENTS.md"
+    if not agents_file.exists():
+        agents_file.write_text(render_pi_agents(keep))
+        agents_note = " + AGENTS.md"
+    else:
+        agents_note = " (AGENTS.md left in place)"
+
+    # Manifest for extensions / tests
+    (pi_dir / ".100xprism-pi-manifest.json").write_text(json.dumps({
+        "profiles": profiles,
+        "skills": [m["slug"] for m in keep] + ([RESOLVER_SLUG] if catalog else []),
+        "catalog": [m["slug"] for m in catalog],
+    }, indent=2) + "\n")
+
+    print(
+        f"wrote {skill_count} Pi skills + {prompt_count} prompt alias(es) to {pi_dir}"
+        f"{agents_note} (profiles={profiles})"
+    )
+
+
+def cmd_emit_pi_package():
+    """Write package-local pi/skills for `pi install` (must-only default)."""
+    mods = list_modules()
+    keep, catalog = select_modules(mods, [])
+    pi_dir = REPO / "pi"
+    skills_dir = pi_dir / "skills"
+    prompts_dir = pi_dir / "prompts"
+    catalog_dir = pi_dir / CATALOG_DIRNAME
+
+    skill_count, _ = _write_pi_skill_tree(
+        skills_dir, keep, catalog, catalog_dir,
+        f"pi/{CATALOG_DIRNAME}/{{slug}}/SKILL.md",
+    )
+    prompt_count = _write_pi_prompts(prompts_dir, keep)
+    prompt_count += _write_pi_generic_prompt(prompts_dir, catalog)
+    (pi_dir / ".100xprism-pi-manifest.json").write_text(json.dumps({
+        "profiles": [],
+        "skills": [m["slug"] for m in keep] + ([RESOLVER_SLUG] if catalog else []),
+        "catalog": [m["slug"] for m in catalog],
+    }, indent=2) + "\n")
+    print(
+        f"wrote package Pi tree: {skill_count} skills + {prompt_count} prompts → {pi_dir}"
     )
 
 
@@ -728,6 +944,9 @@ def cmd_emit_claude_code():
         )
         current_slugs.append(RESOLVER_SLUG)
         skill_count += 1
+        (commands_dir / "100x.md").write_text(render_generic_route())
+        current_cmds.append("100x")
+        cmd_count += 1
 
     cur_skill_set = set(current_slugs)
     cur_cmd_set = set(current_cmds)
@@ -822,6 +1041,24 @@ def _strip_command(entries: list, command: str) -> list:
     return out
 
 
+def _strip_stale_managed_commands(entries: list, valid_commands: set[str]) -> tuple[list, int]:
+    """Remove only obsolete hook commands whose path proves 100xprism ownership."""
+    out, removed = [], 0
+    for entry in entries:
+        kept_hooks = []
+        for hook in entry.get("hooks", []):
+            command = str(hook.get("command", ""))
+            normalized = command.replace("\\\\", "/")
+            managed = "/100xprism/hooks/" in normalized
+            if managed and command not in valid_commands:
+                removed += 1
+            else:
+                kept_hooks.append(hook)
+        if kept_hooks:
+            out.append({**entry, "hooks": kept_hooks})
+    return out, removed
+
+
 def cmd_emit_hooks(sync: bool = False):
     """Idempotently merge first-party hooks into settings.json (declarative).
 
@@ -844,6 +1081,15 @@ def cmd_emit_hooks(sync: bool = False):
         settings = {}
 
     settings_hooks = settings.setdefault("hooks", {})
+    valid_commands = {_hook_command(hook["script"]) for hook in hooks_spec}
+    stale_removed = 0
+    for event, entries in list(settings_hooks.items()):
+        cleaned, count = _strip_stale_managed_commands(entries, valid_commands)
+        stale_removed += count
+        if cleaned:
+            settings_hooks[event] = cleaned
+        else:
+            del settings_hooks[event]
     added, kept, removed = [], [], []
 
     for hook in hooks_spec:
@@ -877,6 +1123,8 @@ def cmd_emit_hooks(sync: bool = False):
         parts.append(f"refreshed {len(kept)}")
     if removed:
         parts.append(f"removed {len(removed)} ({', '.join(removed)})")
+    if stale_removed:
+        parts.append(f"removed {stale_removed} stale managed command(s)")
     print(f"hooks: {'; '.join(parts) if parts else 'no changes'} → {settings_file}")
 
 
@@ -893,6 +1141,10 @@ def main(argv: list[str]):
         cmd_emit_cursor(argv[2])
     elif cmd == "emit-codex":
         cmd_emit_codex(argv[2])
+    elif cmd == "emit-pi":
+        cmd_emit_pi(argv[2] if len(argv) > 2 else ".")
+    elif cmd == "emit-pi-package":
+        cmd_emit_pi_package()
     elif cmd == "emit-claude-code":
         cmd_emit_claude_code()
     elif cmd == "emit-hooks":

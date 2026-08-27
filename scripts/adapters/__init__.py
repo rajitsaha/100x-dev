@@ -8,6 +8,6 @@ from collections import namedtuple
 
 Usage = namedtuple("Usage", "dir day input output cache_read cache_write tool")
 
-from . import antigravity, claude_code, codex, cursor  # noqa: E402
+from . import antigravity, claude_code, codex, cursor, pi  # noqa: E402
 
-ADAPTERS = [claude_code, codex, cursor, antigravity]
+ADAPTERS = [claude_code, codex, cursor, antigravity, pi]

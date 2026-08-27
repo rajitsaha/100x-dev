@@ -14,14 +14,15 @@ function makeTmpDir(prefix = '100x-codex-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
 }
 
-function emitCodex(projectDir) {
+function emitCodex(projectDir, env = {}) {
   execFileSync('python3', [MODULES_PY, 'emit-codex', projectDir], {
     cwd: REPO,
     encoding: 'utf8',
+    env: { ...process.env, ...env },
   })
 }
 
-test('codex adapter emits compact AGENTS plus repo skills', () => {
+test('codex adapter emits compact AGENTS plus must-have repo skills and resolver', () => {
   const tmp = makeTmpDir()
   emitCodex(tmp)
 
@@ -44,14 +45,27 @@ test('codex adapter emits compact AGENTS plus repo skills', () => {
   const sourceSkillCount = fs.readdirSync(path.join(REPO, 'modules'))
     .filter((name) => fs.existsSync(path.join(REPO, 'modules', name, 'SKILL.md')))
     .length
-  assert.equal(skillFiles.length, sourceSkillCount)
+  assert.ok(skillFiles.length < sourceSkillCount)
+  assert.ok(skillFiles.length < 20, `lean default should stay small, got ${skillFiles.length}`)
   assert.ok(fs.existsSync(path.join(skillsDir, 'gate', 'SKILL.md')))
-  assert.ok(fs.existsSync(path.join(skillsDir, 'copywriting', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(skillsDir, '100x-resolver', 'SKILL.md')))
+  assert.ok(!fs.existsSync(path.join(skillsDir, 'copywriting', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(tmp, '.agents', '100xprism-catalog', 'copywriting', 'SKILL.md')))
 })
 
-test('codex adapter emits hooks.json for Codex hook review flow', () => {
+test('codex adapter keeps hooks disabled by default', () => {
   const tmp = makeTmpDir()
   emitCodex(tmp)
+
+  const hooksPath = path.join(tmp, '.codex', 'hooks.json')
+  const hooksText = fs.readFileSync(hooksPath, 'utf8')
+  const config = JSON.parse(hooksText)
+  assert.deepEqual(config.hooks, {})
+})
+
+test('codex adapter emits hooks only after explicit opt-in', () => {
+  const tmp = makeTmpDir()
+  emitCodex(tmp, { PRISM_HOOKS: '1' })
 
   const hooksPath = path.join(tmp, '.codex', 'hooks.json')
   const hooksText = fs.readFileSync(hooksPath, 'utf8')

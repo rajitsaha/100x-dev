@@ -43,7 +43,7 @@ test('emitClaudeModules writes skills + slash aliases from modules/', () => {
   fs.rmSync(path.join(modulesDir, '_lib', 'SKILL.md'))
 
   const r = emitClaudeModules(modulesDir, skills, commands)
-  assert.equal(r.skills, 3, 'three real modules emitted, _lib skipped')
+  assert.equal(r.skills, 2, 'must-have module plus resolver emitted')
   assert.ok(fs.existsSync(path.join(skills, 'gate', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(skills, 'gate', '.100xprism-generated')), 'marker written')
   // An alias is written ONLY when the command name differs from the slug. Claude
@@ -51,11 +51,12 @@ test('emitClaudeModules writes skills + slash aliases from modules/', () => {
   // the module and pays its description twice. Matches cmd_emit_claude_code in
   // adapters/lib/modules.py, which the JS path used to diverge from.
   assert.ok(!fs.existsSync(path.join(commands, 'gate.md')), 'no alias when /gate === slug')
-  assert.ok(fs.existsSync(path.join(commands, 'fix.md')), 'alias written when /fix !== fix-bugs')
+  assert.ok(!fs.existsSync(path.join(commands, 'fix.md')), 'routed alias is not resident')
+  assert.ok(fs.existsSync(path.join(commands, '100x.md')), 'one generic routed command is resident')
   assert.ok(!fs.existsSync(path.join(commands, 'copywriting.md')), 'no alias without slash_command')
   const manifest = JSON.parse(fs.readFileSync(path.join(skills, '.100xprism-manifest.json'), 'utf8'))
-  assert.deepEqual(manifest.skills, ['copywriting', 'fix-bugs', 'gate'])
-  assert.deepEqual(manifest.commands, ['fix'])
+  assert.deepEqual(manifest.skills, ['100x-resolver', 'gate'])
+  assert.deepEqual(manifest.commands, ['100x'])
 })
 
 test('emitClaudeModules prunes removed modules but keeps user-authored skills/commands', () => {
@@ -177,6 +178,7 @@ test('emitCursorRules writes one .mdc per module with tier-driven alwaysApply', 
     { slug: 'gate', fm: { name: 'gate', category: 'quality', tier: 'core', slash_command: '/gate', description: 'Quality gate.' }, body: 'GATE BODY' },
     { slug: 'copywriting', fm: { name: 'copywriting', category: 'marketing', tier: 'on-demand', description: 'Write copy.' }, body: 'COPY BODY' },
   ])
+  fs.writeFileSync(path.join(projectDir, '.100xprism.json'), JSON.stringify({ profiles: ['all'] }))
   const count = emitCursorRules(modulesDir, projectDir)
   assert.equal(count, 2, 'wrote a rule per module')
 
@@ -207,6 +209,7 @@ test('emitCursorRules prunes real generated rules for modules that disappeared',
     { slug: 'gate', fm: { name: 'gate', category: 'quality', tier: 'core', slash_command: '/gate', description: 'Quality gate.' }, body: 'GATE BODY' },
     { slug: 'copywriting', fm: { name: 'copywriting', category: 'marketing', tier: 'on-demand', description: 'Write copy.' }, body: 'COPY BODY' },
   ])
+  fs.writeFileSync(path.join(projectDir, '.100xprism.json'), JSON.stringify({ profiles: ['all'] }))
   emitCursorRules(modulesDir, projectDir)
   assert.ok(fs.existsSync(path.join(rulesDir, 'copywriting.mdc')), 'precondition: rule was generated')
 
@@ -246,11 +249,21 @@ test('emitCodexProject emits Codex-native repo skills and portable hooks', () =>
     }],
   }))
 
-  const r = emitCodexProject(modulesDir, projectDir, hooksDir)
+  const previous = process.env.PRISM_HOOKS
+  process.env.PRISM_HOOKS = '1'
+  let r
+  try {
+    r = emitCodexProject(modulesDir, projectDir, hooksDir)
+  } finally {
+    if (previous === undefined) delete process.env.PRISM_HOOKS
+    else process.env.PRISM_HOOKS = previous
+  }
 
   assert.equal(r.skills, 2)
   assert.ok(fs.existsSync(path.join(projectDir, 'AGENTS.md')))
   assert.ok(fs.existsSync(path.join(projectDir, '.agents', 'skills', 'gate', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(projectDir, '.agents', 'skills', '100x-resolver', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(projectDir, '.agents', '100xprism-catalog', 'copywriting', 'SKILL.md')))
   const hooksText = fs.readFileSync(path.join(projectDir, '.codex', 'hooks.json'), 'utf8')
   assert.match(hooksText, /\.codex\/100xprism-hooks\/run-hook\.py/)
   assert.doesNotMatch(hooksText, new RegExp(modulesDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))

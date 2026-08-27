@@ -4,13 +4,13 @@ Contributor contract for AI coding agents working on this repo. Users see `READM
 
 ## What this repo is
 
-100xprism is a **distributor**, not an app. The product is `modules/` (68 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, and Codex repo skills + `AGENTS.md`. Users install via `npm i -g 100xprism` or `get.sh`.
+100xprism is a **distributor**, not an app. The product is `modules/` (68 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, Codex repo skills + `AGENTS.md`, and a **Pi package** (retention-filtered `.pi/skills/` + extensions). Users install via `npm i -g 100xprism` or `get.sh`. For Pi: `pi install git:github.com/rajitsaha/100xprism`.
 
 Every adapter uses progressive disclosure — descriptions in the always-on index, bodies loaded on demand. The single-file concat adapters (Windsurf/Copilot/Gemini/Antigravity) were removed in v3.0.0 precisely because they could not do this.
 
 ## The golden rule
 
-**A module is the source of truth. Adapter output is generated.** Edit `modules/<slug>/SKILL.md`. Never hand-edit `~/.claude/skills/*`, `.cursor/rules/*.mdc`, or any rendered artifact in a consumer project — those are reset by the next adapter run.
+**A module is the source of truth. Adapter output is generated.** Edit `modules/<slug>/SKILL.md`. Never hand-edit `~/.claude/skills/*`, `.cursor/rules/*.mdc`, `.pi/skills/*`, or any rendered artifact in a consumer project — those are reset by the next adapter run.
 
 ## Module shape
 

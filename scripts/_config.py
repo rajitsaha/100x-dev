@@ -25,8 +25,12 @@ DEFAULTS = {
     # current latest Sonnet, so it doesn't go stale on release.
     "pair_loop": {"coder": "claude", "reviewer": "codex", "max_rounds": 3,
                   "pr_final_round": False,
+                  # Pi independence: different provider required when both roles
+                  # are pi. Same-provider different-model is an explicit fallback.
+                  "coder_provider": None, "coder_model": None,
+                  "reviewer_provider": None, "reviewer_model": None,
                   "fallback_models": {"claude": "sonnet", "codex": "gpt-5.6-luna",
-                                      "cursor": "composer-2.5"}},
+                                      "cursor": "composer-2.5", "pi": "gemini-2.5-flash"}},
     "github": {
         "enabled": False,
         "users": [],

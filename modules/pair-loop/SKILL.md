@@ -1,6 +1,6 @@
 ---
 name: pair-loop
-description: Coder<->reviewer handoff loop (claude/codex/cursor, roles swappable) with self-instrumented per-round cost tracking. Loops locally via HANDOFF.md until approved, then opens a PR with the full transcript.
+description: Coder<->reviewer handoff loop (claude/codex/cursor/pi, roles swappable) with self-instrumented per-round cost tracking. Loops locally via HANDOFF.md until approved, then opens a PR with the full transcript.
 category: lifecycle
 tier: on-demand
 slash_command: /pair-loop
@@ -10,10 +10,23 @@ slash_command: /pair-loop
 
 Runs a formal review loop between a coder and a reviewer (default: you as coder,
 Codex as reviewer — swap via `~/.100xprism/config.json`'s `pair_loop` section).
-Three vendors are supported — `claude`, `codex`, `cursor` — as either role.
+Four vendors are supported — `claude`, `codex`, `cursor`, `pi` — as either role.
 Each round is recorded in `HANDOFF.md` and self-instrumented into a cost
 manifest the token dashboard reads. Do NOT ask for permission to start or to
 run rounds — only stop for the outcomes listed in "When to stop" below.
+
+When both roles are `pi`, set **different providers** (`coder_provider` ≠
+`reviewer_provider`). Same-provider different-model is allowed only as an
+explicit fallback (`fallback_used: true`). Same-model `APPROVED` is still
+refused (#93). If `budget.per_run_usd` is unset and coder is `pi`, the cap
+defaults to **$5**.
+
+Pi reviewer argv (read-only, isolated session):
+
+```bash
+pi -p --provider <other-than-coder> --model <mid-or-cheap> \
+  --tools read,grep,find,ls --no-skills --no-extensions --no-session
+```
 
 ## Step 1 — Start
 

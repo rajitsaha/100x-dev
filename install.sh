@@ -62,7 +62,7 @@ select_components() {
   while true; do
     echo "  [$([ "$INSTALL_MODULES" = true ] && echo "x" || echo " ")] 1) Modules      — 68 modules (lifecycle, quality, engineering, marketing, …)"
     if [ "$TOOL_CLAUDE" = true ]; then
-      echo "  [$([ "$INSTALL_PLUGINS" = true ] && echo "x" || echo " ")] 2) Plugins      — Claude Code only: superpowers, hookify, claude-mem, ..."
+      echo "  [$([ "$INSTALL_PLUGINS" = true ] && echo "x" || echo " ")] 2) Plugins      — Claude Code core only: GitHub + security guidance"
     fi
     echo "  [$([ "$INSTALL_SHELL" = true ] && echo "x" || echo " ")] 3) Shell        — print manual alias instructions (no rc-file edits)"
     echo "  [$([ "$INSTALL_TEMPLATES" = true ] && echo "x" || echo " ")] 4) Templates   — project starters (node, python, docker)"

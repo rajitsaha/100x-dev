@@ -50,6 +50,11 @@ def _add(dst, i, o, cr, cw):
     dst["cache_write"] += cw
 
 
+def _lines(path):
+    with open(path, errors="ignore") as fh:
+        yield from fh
+
+
 def parse_file(path):
     """Aggregate one Codex rollout into the same summary shape claude_code.parse_file
     produces (minus fields Codex has no data for: composition, first_fixed,
@@ -58,13 +63,14 @@ def parse_file(path):
     by_day = defaultdict(_empty)
     by_model = defaultdict(_empty)
     by_day_model = defaultdict(lambda: defaultdict(_empty))
+    main_subagent_by_day = defaultdict(lambda: {"main": _empty(), "subagent": _empty()})
     session_id = None
     cwd = None
     current_model = "unknown"
     prev_cum = None
     msgs = 0
 
-    for line in open(path, errors="ignore"):
+    for line in _lines(path):
         try:
             o = json.loads(line)
         except Exception:
@@ -121,12 +127,14 @@ def parse_file(path):
         day = (o.get("timestamp") or "")[:10] or "unknown"
         _add(by_day[day], d_in, d_out, d_cr, 0)
         _add(by_day_model[day][current_model], d_in, d_out, d_cr, 0)
+        _add(main_subagent_by_day[day]["main"], d_in, d_out, d_cr, 0)
 
     return {
         "totals": totals,
         "by_day": dict(by_day),
         "by_model": dict(by_model),
         "by_day_model": {d: dict(models) for d, models in by_day_model.items()},
+        "main_subagent_by_day": {day: dict(buckets) for day, buckets in main_subagent_by_day.items()},
         "comp": {},
         "msgs": msgs,
         "turns": msgs,

@@ -92,7 +92,7 @@ wholesale on update, so removed modules simply stop appearing. 100xprism does no
 generate `CLAUDE.md` — it scaffolds an editable project file once and leaves it
 to you.
 
-## The routed index (v3.1)
+## The routed index
 
 The audit above shrank *what was installed*. This pass changes *what installation
 costs*, by separating the two things a module charges you for:
@@ -100,10 +100,9 @@ costs*, by separating the two things a module charges you for:
 - its **description** — re-sent on every turn, forever, once installed
 - its **body** — free until the module is actually invoked
 
-Measured on this repo: 67 descriptions = **~4,744 tokens per turn**, of which
-**marketing alone is 2,701 (57%)** across 32 modules, none of which owns a slash
-command. In a Terraform/Cloud Run repo that is rent paid for `cold-email` and
-`programmatic-seo`.
+The committed footprint check measures every adapter in `all`, `profile`, and `must`
+mode. It uses description characters ÷ 4 as a deterministic estimate and labels it
+as such; these numbers are not provider-billed usage.
 
 ### Retention classes
 
@@ -113,7 +112,7 @@ can override it with `retention:` in frontmatter):
 | Class | Kept because | Count |
 |---|---|---|
 | `must` | Deterministic machinery or house policy a model won't reproduce unprompted — the commands `gate` runs, the order `release` runs them in, the protocol `pair-loop` speaks. | 12 |
-| `profile` | Earns its slot in repos of a matching kind. Also **anything owning a slash command**: the user can type it, so it has to resolve. | 17 |
+| `profile` | Earns its slot in repos of a matching kind. Also **anything owning a slash command**: the generic resolver route keeps it reachable. | 18 |
 | `resolver` | General expertise a capable model already has. One catalog row, read by path on demand. | 38 |
 
 Routed modules are copied to a catalog directory *outside* whatever the tool indexes
@@ -124,10 +123,10 @@ One description now stands in for 38.
 
 | Surface | Before | After | Notes |
 |---|---|---|---|
-| Claude Code user scope | 4,900 | **1,732** (`profile`) · **554** (`must`) | 67 → 30 → 13 skills |
-| Cursor, any repo | 7,249 | **3,584** | from the re-tier alone — no opt-in needed |
-| Cursor, slimmed repo | 7,249 | **2,189** | 67 → 29 rules + 39 catalog |
-| Codex `AGENTS.md` | 1,003 | 955 | already compact; `.agents/skills` is on-demand and untouched |
+| Claude Code user scope | 4,816 | **1,667** (`profile`) · **574** (`must`) | 68 → 31 → 13 indexed entries |
+| Cursor project rules | 1,942 | **705** (`profile`) · **261** (`must`) | 68 → 31 → 13 indexed entries |
+| Codex repo skills | 4,816 | **1,648** (`profile`) · **555** (`must`) | non-selected bodies move to the catalog |
+| Pi package skills | 4,816 | **1,667** (`profile`) · **574** (`must`) | extensions remain available but opt-in |
 | Consumer `CLAUDE.md` scaffold | ~350 | ~180 | commented TODOs → router table; config to `.claude/100xprism.yml` |
 
 `commit`, `push` and `branch` moved from `tier: core` to `on-demand`, which is where
@@ -136,20 +135,20 @@ most of the unconditional Cursor win comes from: Cursor loads the full **body** 
 PreToolUse hook already blocks `git commit`/`git push` deterministically — the
 always-resident copies were redundant with machine enforcement. `gate` stays resident.
 
-### Both switches default to off
+### Lean by default
 
-An emit with no config behaves exactly as it did before any of this existed; the test
-suite asserts old and new behaviour side by side.
+A fresh emit with no config keeps only must-have modules plus one resolver. Explicit
+configuration widens the index and remains reversible.
 
 | Scope | File | Values |
 |---|---|---|
-| user | `~/.100xprism/config.json` → `skills` | `all` (default) · `profile` · `must` |
-| project | `<project>/.100xprism.json` → `profiles` | detected list, or `["all"]` to opt out |
+| user | `~/.100xprism/config.json` → `skills` | `must` (default) · `profile` · `all` |
+| project | `<project>/.100xprism.json` → `profiles` | `[]`/unset = must; detected list = profile widening; `["all"]` = every module |
 
-`100xprism slim` writes both (`--dry-run`, `--all-projects`, `--skills=`). The first
-`100xprism update` after this version switches user scope to `profile` once, announces
-it, and records the choice so no later update overrides a preference you set.
-`100xprism update --no-slim` skips it.
+`100xprism optimize` writes both (`--dry-run`, `--all-projects`, `--skills=`), and
+`100xprism slim` remains a compatibility alias. Install/update reconciliation removes
+only marker- or sidecar-owned 100xprism artifacts; user-authored skills, rules, hooks,
+and plugins are preserved.
 
 ### Does a smarter model make this unnecessary?
 
@@ -184,6 +183,9 @@ register `express.raw()` before `express.json()`. Model capability retires
 100xprism tokens                            # web UI at http://127.0.0.1:8787
 100xprism dashboard                         # alias for tokens
 100xprism tokens --print                    # text summary, no server
+100xprism tokens --json                     # fast versioned cross-tool counter report
+100xprism tokens --json --tool codex        # exact source filter
+100xprism audit --json                      # standing-context estimate and inventory
 100xprism tokens --ensure-daemon            # start it detached if not already running
 100xprism value                             # value report for the current directory
 ```
@@ -230,9 +232,10 @@ Tokens measure *cost*; the `100xprism tokens` dashboard measures *value* in the 
 
 The dashboard shows **every directory that consumed tokens** (repo or not) plus every agentic project discovered machine-wide by marker files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`) — even directories with zero Claude token spend. Value is derived tool-agnostically from git history (commits / merged PRs / releases / files / churn — merged PRs are deduped by PR number across squash-merge subjects and real merge commits) with a filesystem-mtime fallback for non-repos, plus cached AI one-line summaries generated via the local `claude` CLI (non-blocking, degrades silently when absent).
 
-Collection lives in pluggable per-tool adapters (`scripts/adapters/`). `claude_code`
-and `codex` parse provider-recorded local token counters and support list-price
-cost attribution. `cursor` parses flat and nested JSONL beneath
+Collection lives in a registry of pluggable per-tool adapters (`scripts/adapters/`).
+`claude_code` and `codex` parse provider-recorded local token counters and support
+list-price cost attribution. Pi is best-effort because its JSONL shape varies: only
+records containing native usage fields are metered. `cursor` parses flat and nested JSONL beneath
 `~/.cursor/projects/*/agent-transcripts` for project/session/message/date activity;
 legacy `.txt`, `~/.cursor/chats`, and Cursor `state.vscdb` data are outside its scope.
 `antigravity` joins local protobuf

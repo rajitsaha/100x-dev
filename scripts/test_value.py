@@ -106,6 +106,8 @@ class GitValueTest(unittest.TestCase):
             self.assertEqual(v["prs"], 2)               # (#1) and (#2)
             self.assertGreaterEqual(v["files"], 1)
             self.assertEqual(len(v["subjects"]), 3)
+            self.assertEqual(sum(day["commits"] for day in v["by_day"].values()), 3)
+            self.assertEqual(sum(day["prs"] for day in v["by_day"].values()), 2)
 
     def test_not_a_repo_returns_none(self):
         with tempfile.TemporaryDirectory() as d:
@@ -156,6 +158,28 @@ class DirValueTest(unittest.TestCase):
 
 
 class AdapterTest(unittest.TestCase):
+    def test_claude_parse_emits_windowed_skill_dimensions(self):
+        import importlib
+        ad = importlib.import_module("adapters.claude_code")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "session.jsonl")
+            with open(path, "w") as f:
+                f.write(json.dumps({
+                    "timestamp": "2026-07-09T10:00:00Z",
+                    "sessionId": "skill-session",
+                    "attributionSkill": "loop",
+                    "message": {"role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                                 "content": "edited a file",
+                                 "usage": {"input_tokens": 10, "output_tokens": 5,
+                                           "cache_read_input_tokens": 2,
+                                           "cache_creation_input_tokens": 1}},
+                }) + "\n")
+            parsed = ad.parse_file(path)
+        self.assertIn("2026-07-09", parsed["comp_by_day"])
+        self.assertIn("loop", parsed["by_skill_model"])
+        self.assertIn("claude-sonnet-4-5-20250929", parsed["by_skill_model"]["loop"])
+        self.assertEqual(parsed["skill_invocations_by_day"]["2026-07-09"]["loop"], 1)
+
     def test_claude_iter_dir_days(self):
         import importlib
         ad = importlib.import_module("adapters.claude_code")
@@ -245,6 +269,9 @@ class DeliveryEconomicsTest(unittest.TestCase):
         self.assertIn("Token cost → observable delivery → business value", td.PAGE)
         self.assertIn("delivery cost / PR", td.PAGE)
         self.assertIn("PR details", td.PAGE)
+        self.assertIn("selectedComposition", td.PAGE)
+        self.assertIn("selectedDelivery", td.PAGE)
+        self.assertIn("directory</th><th>model", td.PAGE)
         self.assertNotIn("unit economics</th>", td.PAGE)
 
 
@@ -638,6 +665,7 @@ class TestBuildIntegration(unittest.TestCase):
         os.makedirs(self.proj_dir)
         session = {
             "type": "assistant",
+            "attributionSkill": "loop",
             "message": {"role": "assistant", "content": "done",
                         "model": "claude-sonnet-4-5-20251001",
                         "usage": {"input_tokens": 1000, "output_tokens": 200,
@@ -695,6 +723,11 @@ class TestBuildIntegration(unittest.TestCase):
         self.assertEqual(data["data_quality"]["pricing_coverage_pct"], 100.0)
         self.assertEqual(data["pricing"]["as_of"], "2026-07-19")
         self.assertIn("models", data["by_session"][0])
+        skill = next(row for row in data["by_skill"] if row["skill"] == "loop")
+        self.assertEqual(skill["tools"], ["claude-code"])
+        self.assertEqual(skill["projects"], ["Unresolved · Users-x-proj"])
+        self.assertEqual(skill["models"][0]["model"], "claude-sonnet-4-5-20251001")
+        self.assertIn("loop", data["skill_by_day"]["2026-07-09"])
         self.assertEqual(data["activity"]["by_tool"]["cursor"]["sessions"], 1)
         self.assertEqual(data["activity"]["by_tool"]["cursor"]["messages"], 2)
 

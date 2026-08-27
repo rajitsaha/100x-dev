@@ -7,9 +7,8 @@ deduplicated/removed plugin) — without ever touching plugins the user enabled
 themselves, and without flipping an entry the user explicitly turned on/off.
 
 "Managed" plugins (the set 100xprism owns) are tracked in a sidecar state file so
-settings.json stays clean. On the very first run (no state yet) the managed set
-is seeded from the current intersection of declared ∧ enabled, so nothing is
-removed until a subsequent run observes an actual drop.
+settings.json stays clean. A plugin is owned only when 100xprism actually adds it;
+an already-enabled plugin remains user-owned even when current policy recommends it.
 
 Usage:
   sync_plugins.py --settings <settings.json> --plugins <plugins.json>
@@ -51,17 +50,13 @@ def main() -> int:
     enabled = settings.setdefault("enabledPlugins", {})
 
     state = _load(state_file, {})
-    first_run = "managed" not in state
-    managed = set(state.get("managed", []))
-    if first_run:
-        # Seed: only claim plugins we can see are both declared and already enabled.
-        # Nothing is removed on this run.
-        managed = {p for p in desired if p in enabled}
+    managed = set(state.get("managed", [])) if "managed" in state else set()
 
     added = 0
     for p in desired:
         if p not in enabled:          # never flip an existing True/False
             enabled[p] = True
+            managed.add(p)            # own only entries this sync actually added
             added += 1
 
     removed = []
@@ -70,8 +65,8 @@ def main() -> int:
             if enabled.pop(p, None) is not None:
                 removed.append(p)
 
-    # We now own exactly the declared set.
-    new_state = {"managed": sorted(desired_set)}
+    # Keep ownership only for entries this tool added and policy still selects.
+    new_state = {"managed": sorted(managed & desired_set)}
 
     # Merge marketplaces (additive — never drop a marketplace the user may rely on).
     extra = repo_data.get("extraKnownMarketplaces", {})
