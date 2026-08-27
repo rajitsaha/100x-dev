@@ -1048,7 +1048,7 @@ def _strip_stale_managed_commands(entries: list, valid_commands: set[str]) -> tu
         kept_hooks = []
         for hook in entry.get("hooks", []):
             command = str(hook.get("command", ""))
-            normalized = command.replace("\\\\", "/")
+            normalized = command.replace(chr(92), "/")
             managed = "/100xprism/hooks/" in normalized
             if managed and command not in valid_commands:
                 removed += 1

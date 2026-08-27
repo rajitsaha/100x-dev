@@ -200,11 +200,13 @@ test('emit-hooks removes stale 100xprism-managed commands and preserves user hoo
   fs.writeFileSync(f, JSON.stringify({
     hooks: { SessionStart: [{ hooks: [
       { type: 'command', command: 'python3 "/tmp/100xprism/hooks/removed-hook.py"' },
+      { type: 'command', command: 'python3 "C:\\Users\\me\\100xprism\\hooks\\removed-windows.py"' },
       { type: 'command', command: 'echo mine' },
     ] }] },
   }))
   emitHooks(f, {}, ['--sync'])
   const s = readSettings(f)
   assert.equal(commandCount(s, 'removed-hook.py'), 0)
+  assert.equal(commandCount(s, 'removed-windows.py'), 0)
   assert.equal(commandCount(s, 'echo mine'), 1)
 })
