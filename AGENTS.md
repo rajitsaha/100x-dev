@@ -28,7 +28,7 @@ profiles: <core, code, data, …>      # optional — overrides the category def
 ---
 ```
 
-A module must work across **all 3 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
+A module must work across **all 4 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
 
 ## Retention: what earns a permanent slot
 
@@ -42,19 +42,19 @@ decides which modules are worth it. Derived in `retention_of()`, overridable per
 | `profile` | Earns its place only in repos of a matching kind. | default; also **any module owning a slash command** — the user can type it, so it must resolve |
 | `resolver` | General expertise a capable model already has. Never installed; one row in the generated catalog, loaded by path on demand. | `marketing` / `design` without a slash command |
 
-Two switches control how much of that is applied, and **both default to off** —
-an emit with neither set behaves exactly as it did before retention existed:
+Two switches control how much of that is applied. Fresh emits default to the
+`must` set plus one resolver; wider profile and `all` modes require explicit opt-in:
 
 - **user scope** — `~/.100xprism/config.json` `"skills": all|profile|must` (or `PRISM_SKILLS`)
 - **per project** — `<project>/.100xprism.json` `"profiles": [...]` (or `PRISM_PROFILES`); `["all"]` opts back out
 
-`100xprism slim` writes both. Keep that default-off property when you touch the
-emitters: it is what lets the test suite assert old and new behaviour side by side.
+`100xprism optimize` writes both (`100xprism slim` remains a compatibility alias).
+Keep the must-only default and reversible widening when you touch the emitters.
 
 Modules routed out of the index are copied to a catalog directory *outside* whatever
 the tool indexes (`~/.100xprism/100xprism-catalog/`, `.cursor/100xprism-catalog/`) and
-listed in a generated `100x-resolver` artifact. Codex is deliberately exempt:
-`.agents/skills` is already loaded on demand, so only its `AGENTS.md` router is filtered.
+listed in a generated `100x-resolver` artifact. Codex follows the same retention
+policy for parity even though `.agents/skills` is loaded on demand.
 
 ## After editing a module
 
@@ -64,8 +64,9 @@ Run the Claude Code adapter as a smoke test — it surfaces frontmatter errors a
 ./adapters/claude-code.sh
 ```
 
-Expected output ends with `67 skills + 5 slash command aliases` (or whatever the current
-totals are — an alias is written only when the command name differs from the slug, e.g.
+Expected output reports `13 skills` plus the `/100x` route and `56 catalog module(s)`
+in the default must mode (or whatever the current totals are — an alias is written only
+when the command name differs from the slug, e.g.
 `fix-bugs` → `/fix`; a same-name alias would double-list the module and pay its
 description twice). If the skill count drops unexpectedly, you broke a frontmatter parse.
 
