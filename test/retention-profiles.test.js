@@ -350,3 +350,17 @@ test('slim writes a reversible project config', () => {
   assert.deepEqual(cfg.profiles, ['core', 'code'])
   assert.match(cfg._comment, /all/, 'the config explains how to undo itself')
 })
+
+test('slim treats an empty generated profile list as widenable', () => {
+  const p = tmp()
+  fs.writeFileSync(path.join(p, '.100xprism.json'), JSON.stringify({ profiles: [] }))
+  const lines = []
+  const original = console.log
+  console.log = message => lines.push(String(message))
+  try {
+    slim.slimProject(p, { dryRun: true, mode: 'all' })
+  } finally {
+    console.log = original
+  }
+  assert.match(lines.join('\\n'), /would set profiles → all/)
+})

@@ -1225,7 +1225,8 @@ function selectedProjectCost(d,label,current){
  return observed?total:null;
 }
 function projectRowsForWindow(d,current,includeUnpriced=false){
- const rows=(d.directories||[]).map(row=>({...row,window_cost:selectedProjectCost(d,row.label,current),window_value:selectedRowValue(row,current)}));
+ const anchorDays=meteredDays(d);
+ const rows=(d.directories||[]).map(row=>({...row,window_cost:selectedProjectCost(d,row.label,current),window_value:selectedRowValue(row,current,anchorDays)}));
  return rows.filter(row=>includeUnpriced||row.window_cost!=null)
    .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||a.label.localeCompare(b.label));
 }
@@ -1261,11 +1262,11 @@ function selectedBloat(d,current){
  return {median:values[Math.floor(values.length/2)]||0,avg:values.reduce((a,v)=>a+v,0)/values.length,samples:values.length};
 }
 function selectedDelivery(d,current){
- const raw=d.delivery_by_day||{}, days=Object.keys(raw).sort();
+ const raw=d.delivery_by_day||{}, days=Object.keys(raw).sort(), anchorDays=meteredDays(d);
  const outcomes={commits:0,prs:0,releases:0,files:0,insertions:0,deletions:0};
  let attributed=0;
  for(const day of days){
-  if(!dayInWindow(day,current,days))continue;
+  if(!dayInWindow(day,current,anchorDays))continue;
   const row=raw[day]||{};
   for(const key of Object.keys(outcomes))outcomes[key]+=(+row[key]||0);
   attributed+=(+row.attributed_spend||0);
@@ -1278,11 +1279,11 @@ function selectedDelivery(d,current){
   per_release:outcomes.releases?Math.round(attributed/outcomes.releases*100)/100:null
  },business_value:(d.delivery_economics||{}).business_value||{label:'Not measured',reason:'Git delivery signals do not establish business or human value.'}};
 }
-function selectedRowValue(row,current){
+function selectedRowValue(row,current,anchorDays){
  const value=row.value||{}, raw=value.by_day||{}, days=Object.keys(raw).sort();
  if(!days.length)return value;
  const out={commits:0,prs:0,releases:[],files:0,insertions:0,deletions:0};
- for(const day of days){if(!dayInWindow(day,current,days))continue;const v=raw[day]||{};for(const key of ['commits','prs','files','insertions','deletions'])out[key]+=(+v[key]||0);out.releases.push(...(v.releases||[]));}
+ for(const day of days){if(!dayInWindow(day,current,anchorDays||days))continue;const v=raw[day]||{};for(const key of ['commits','prs','files','insertions','deletions'])out[key]+=(+v[key]||0);out.releases.push(...(v.releases||[]));}
  return {...value,...out};
 }
 function sideTabs(current){

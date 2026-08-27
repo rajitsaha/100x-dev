@@ -6,7 +6,7 @@
     "preuninstall": "node ./lib/uninstall.js --remove-live-links",
     "prepare": "python3 adapters/lib/modules.py emit-pi-package",
     "test": "node --test",
-    "test:python": "python3 -m unittest scripts/test_token_report.py scripts/test_codex_adapter.py scripts/test_claude_code_adapter.py scripts/test_activity_adapters.py scripts/test_pi_adapter.py",
+    "test:python": "python3 -m unittest scripts/test_token_report.py scripts/test_codex_adapter.py scripts/test_claude_code_adapter.py scripts/test_activity_adapters.py scripts/test_pi_adapter.py scripts/test_pair_loop_start.py scripts/test_pair_loop_review.py scripts/test_pair_loop_summary.py scripts/test_reviewer.py scripts/test_value.py",
     "context:check": "node scripts/context-footprint.js",
     "check": "python3 adapters/lib/modules.py emit-pi-package && node --test && npm run test:python && node scripts/context-footprint.js && python3 scripts/meta-check.py && HOME=$(mktemp -d) ./adapters/claude-code.sh"
   },
