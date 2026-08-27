@@ -787,7 +787,7 @@ def cmd_emit_pi(project_dir: str):
     project = Path(project_dir)
     mods = list_modules()
     profiles = pi_active_profiles(project_dir)
-    keep, catalog = select_modules(mods, profiles)
+    keep, catalog = (mods, []) if profiles is None else select_modules(mods, profiles)
 
     pi_dir = project / ".pi"
     skills_dir = pi_dir / "skills"

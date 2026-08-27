@@ -50,8 +50,8 @@ test('emit-pi respects profiles all', () => {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(tmp, '.pi', '.100xprism-pi-manifest.json'), 'utf8'),
   )
-  // all non-resolver + resolver skill
-  assert.ok(manifest.skills.length > 20)
+  assert.equal(manifest.skills.length, 68)
+  assert.equal(manifest.catalog.length, 0)
   assert.equal(manifest.profiles, null)
 })
 
