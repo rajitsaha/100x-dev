@@ -1,6 +1,6 @@
 # 100xprism as a Pi package — design
 
-> Status: approved · Shape **B** · 2026-08-18  
+> Status: approved · Shape **B** · 2026-08-18
 > Related: `docs/token-optimization.md`, pair-loop + skill-packs specs
 
 ## Problem / goal

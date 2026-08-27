@@ -43,8 +43,19 @@ def _usage_from_obj(o: dict):
         if isinstance(u, dict):
             inp = int(u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0)
             out = int(u.get("output") or u.get("output_tokens") or u.get("completion_tokens") or 0)
-            cr = int(u.get("cache_read") or u.get("cache_read_input_tokens") or u.get("cached_tokens") or 0)
-            cw = int(u.get("cache_write") or u.get("cache_creation_input_tokens") or 0)
+            cr = int(
+                u.get("cache_read")
+                or u.get("cacheRead")
+                or u.get("cache_read_input_tokens")
+                or u.get("cached_tokens")
+                or 0
+            )
+            cw = int(
+                u.get("cache_write")
+                or u.get("cacheWrite")
+                or u.get("cache_creation_input_tokens")
+                or 0
+            )
             if inp or out or cr or cw:
                 return inp, out, cr, cw
     inp = int(o.get("input_tokens") or o.get("prompt_tokens") or 0)

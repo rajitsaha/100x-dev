@@ -1,7 +1,7 @@
 # Cross-tool token observability and lean-context design
 
-**Status:** Proposed — awaiting approval  
-**Date:** 2026-08-26  
+**Status:** Approved
+**Date:** 2026-08-26
 **Repository:** `100xprism`
 
 ## Summary

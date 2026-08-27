@@ -50,6 +50,20 @@ def _effective_per_run_usd(cfg):
     return per_run
 
 
+def _pi_independence_error(config):
+    if config.get("coder") != "pi" or config.get("reviewer") != "pi":
+        return None
+    coder_provider = config.get("coder_provider")
+    reviewer_provider = config.get("reviewer_provider")
+    if not coder_provider or not reviewer_provider or coder_provider == reviewer_provider:
+        return "Pi coder and reviewer require two explicitly configured different providers"
+    coder_model = config.get("coder_model")
+    reviewer_model = config.get("reviewer_model")
+    if coder_model and reviewer_model and coder_model == reviewer_model:
+        return "Pi coder and reviewer must not use the same model"
+    return None
+
+
 def cmd_start(args):
     cwd = os.path.abspath(args.cwd or ".")
     # The dirty-tree check must run before any manifest/HANDOFF.md side effects
@@ -60,6 +74,10 @@ def cmd_start(args):
         sys.exit(1)
     full = _config.load_config()
     cfg = full["pair_loop"]
+    independence_error = _pi_independence_error(cfg)
+    if independence_error:
+        print(f"error: {independence_error}", file=sys.stderr)
+        sys.exit(1)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     branch = _current_branch(cwd)
     manifest = run_manifest.new_manifest(run_id, args.task, cwd, branch,
@@ -303,19 +321,15 @@ def cmd_review(args):
 
     reviewer_provider = manifest.get("reviewer_provider")
     reviewer_model = manifest.get("reviewer_model")
-    coder_provider = manifest.get("coder_provider")
-    same_provider = (
-        manifest.get("coder") == "pi" and manifest.get("reviewer") == "pi"
-        and coder_provider and reviewer_provider
-        and coder_provider == reviewer_provider
-    )
+    independence_error = _pi_independence_error(manifest)
+    if independence_error:
+        print(f"error: {independence_error}", file=sys.stderr)
+        sys.exit(1)
 
     result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
                              fallback_models=fallback_models, require_cli=require_cli,
                              coder=manifest["coder"],
                              provider=reviewer_provider, model=reviewer_model)
-    if same_provider and not result.fallback_used:
-        result = result._replace(fallback_used=True)
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
@@ -324,8 +338,6 @@ def cmd_review(args):
                                  fallback_models=fallback_models, require_cli=require_cli,
                              coder=manifest["coder"],
                              provider=reviewer_provider, model=reviewer_model)
-        if same_provider and not result.fallback_used:
-            result = result._replace(fallback_used=True)
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:

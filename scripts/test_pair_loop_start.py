@@ -63,6 +63,17 @@ class TestPairLoopStart(unittest.TestCase):
         out = json.loads(r.stdout)
         self.assertEqual(out["per_run_usd"], 5)
 
+    def test_start_refuses_pi_same_provider_before_writing_state(self):
+        os.makedirs(os.path.join(self.env["HOME"], ".100xprism"), exist_ok=True)
+        with open(os.path.join(self.env["HOME"], ".100xprism", "config.json"), "w") as f:
+            json.dump({"pair_loop": {"coder": "pi", "reviewer": "pi",
+                                     "coder_provider": "google",
+                                     "reviewer_provider": "google"}}, f)
+        r = self._run("start", "--task", "x")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("different providers", r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "HANDOFF.md")))
+
     def test_budget_check_alerts_when_cap_exceeded(self):
         os.makedirs(os.path.join(self.env["HOME"], ".100xprism"), exist_ok=True)
         with open(os.path.join(self.env["HOME"], ".100xprism", "config.json"), "w") as f:

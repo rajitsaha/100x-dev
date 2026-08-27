@@ -251,7 +251,7 @@ Open `/hooks` in Codex to inspect and trust generated hooks. Claude Code plugins
 
 ### In Pi
 
-Pi indexes every discovered skill description, so 100xprism **filters by default** (must + matching profiles + one `100x-resolver` catalog) instead of installing all 68.
+Pi indexes every discovered skill description, so 100xprism **defaults to must-only** plus one `100x-resolver` instead of installing all 68. Explicit project profiles widen that set; `profiles: ["all"]` installs all 68.
 
 ```bash
 # Global / user package (runs npm prepare → emit-pi-package)
@@ -269,9 +269,9 @@ Then:
 /skill:commit
 ```
 
-Thin prompt aliases exist only when the slash name differs from the slug (same set as Claude Code). Gate and secret-scan run as Pi `tool_call` extensions (shell-out to the existing Python hooks) — not as always-on markdown.
+One generic `/100x <workflow>` prompt loads routed skills without indexing every alias. Gate/secret and retention extension files ship under `pi/extensions/`, but package auto-loading is disabled by default so hooks remain an explicit opt-in.
 
-Claude Code plugins in `plugins/plugins.json` are **not** installed into Pi. Widen the skill index with `.100xprism.json` `"profiles": ["all"]` if you really want every non-resolver module.
+Claude Code plugins in `plugins/plugins.json` are **not** installed into Pi. Widen the skill index with `.100xprism.json` `"profiles": ["all"]` only if you explicitly want all 68 modules.
 
 ### In Cursor
 

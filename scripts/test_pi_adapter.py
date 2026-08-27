@@ -38,6 +38,20 @@ class TestPiAdapter(unittest.TestCase):
         self.assertIn("gemini-2.5-flash", row["by_model"])
         self.assertEqual(row["by_day"]["2026-08-18"]["input"], 10)
 
+    def test_parse_file_preserves_native_camel_case_cache_usage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "native.jsonl")
+            with open(path, "w") as f:
+                f.write(json.dumps({
+                    "sessionId": "native",
+                    "timestamp": "2026-08-18T12:00:00Z",
+                    "usage": {"input": 100, "output": 50, "cacheRead": 40, "cacheWrite": 5},
+                }) + "\n")
+            row = pi.parse_file(path)
+        self.assertEqual(row["totals"], {
+            "input": 100, "output": 50, "cache_read": 40, "cache_write": 5,
+        })
+
     def test_parse_file_without_usage_stays_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "empty.jsonl")
