@@ -59,7 +59,6 @@ import _suggest  # noqa: E402
 import _config  # noqa: E402
 
 HOME = os.path.expanduser("~")
-PROJECTS_DIR = claude_code.SOURCE_DIR
 REFRESH_SECONDS = 30  # auto-rebuild cadence; mtime/size cache makes a no-op pass cheap
 PID_FILE = os.path.join(HOME, ".100xprism", "token-dashboard.pid")
 GITHUB_CACHE_FILE = os.path.join(HOME, ".100xprism", "github-pr-insights.json")
@@ -2291,8 +2290,13 @@ def main():
             print(line)
         return
 
-    if not os.path.isdir(PROJECTS_DIR):
-        print(f"No transcripts found at {PROJECTS_DIR}", file=sys.stderr)
+    available_sources = [
+        collector.source
+        for collector in usage_collectors()
+        if os.path.isdir(getattr(collector.module, "SOURCE_DIR", ""))
+    ]
+    if not available_sources:
+        print("No supported local AI-tool transcripts found", file=sys.stderr)
         sys.exit(1)
 
     url = f"http://127.0.0.1:{args.port}"
