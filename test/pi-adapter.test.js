@@ -82,3 +82,10 @@ test('emit-pi-package writes must-only tree under pi/', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'))
   assert.deepEqual(pkg.pi.extensions, [], 'Pi extensions remain available but are opt-in')
 })
+
+test('Pi enforcement extension fails closed when a hook is unavailable or errors', () => {
+  const source = fs.readFileSync(path.join(REPO, 'pi', 'extensions', 'gate-secret.ts'), 'utf8')
+  assert.match(source, /hook unavailable/)
+  assert.match(source, /result\.status !== 0/)
+  assert.match(source, /block: true, reason: `100xprism hook unavailable/)
+})

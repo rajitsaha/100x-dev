@@ -1850,7 +1850,7 @@ function selectedModelTotals(d,current){
 }
 function selectedMainSubagent(d,current){
  const raw=d.main_subagent_by_day||{}, days=Object.keys(raw).sort(), out={main:0,subagent:0};
- for(const day of days)if(dayInWindow(day,current,days))for(const role of Object.keys(out))out[role]+=(+(raw[day]||{})[role]||0);
+ for(const day of days)if(dayInWindow(day,current,days))for(const role of Object.keys(out)){const bucket=(raw[day]||{})[role]||{};for(const value of Object.values(bucket))out[role]+=+value||0;}
  return out;
 }
 function toolBadge(t){

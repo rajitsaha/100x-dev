@@ -27,7 +27,7 @@ function hookScript(name: string): string | null {
 function runHook(scriptName: string, event: Record<string, unknown>): { block: boolean; reason: string } {
   const script = hookScript(scriptName);
   if (!script) {
-    return { block: false, reason: "" };
+    return { block: true, reason: `100xprism hook unavailable: ${scriptName}` };
   }
   const result = spawnSync("python3", [script], {
     input: JSON.stringify(event),
@@ -39,6 +39,13 @@ function runHook(scriptName: string, event: Record<string, unknown>): { block: b
     return {
       block: true,
       reason: (result.stderr || result.stdout || "blocked by 100xprism hook").trim(),
+    };
+  }
+  if (result.status !== 0) {
+    return {
+      block: true,
+      reason: (result.error?.message || result.stderr || result.stdout
+        || `100xprism hook failed: ${scriptName}`).trim(),
     };
   }
   return { block: false, reason: "" };
