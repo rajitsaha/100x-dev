@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>100xPrism — Token &amp; value economics for AI coding: cost vs value, fully offline</title>
-  <meta name="description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing cost vs value. One config, 4 tools, quality gates. MIT, fully offline." />
-  <meta name="keywords" content="100xprism, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Pi, cost vs value AI, one config for AI coding tools, cross-tool AI workflows, quality gates, agentic coding, offline AI dashboard" />
+  <title>100xPrism — Documentation · one config for Claude Code, Cursor, Codex &amp; Pi</title>
+  <meta name="description" content="The complete 100xPrism documentation hub: install, 28 slash commands, 40 auto-trigger skills, the full supported/unsupported matrix, context economics, and the offline token &amp; value dashboard." />
+  <meta name="keywords" content="100xprism, documentation, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Pi, one config for AI coding tools, quality gates, agentic coding, offline AI dashboard, supported features" />
   <link rel="canonical" href="https://rajitsaha.github.io/100xprism/" />
-  <meta property="og:title" content="100xPrism" />
-  <meta property="og:description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing what each session cost in tokens next to what it shipped. Fully offline." />
+  <meta property="og:title" content="100xPrism — Documentation" />
+  <meta property="og:description" content="One source of truth. 68 modules generate native config for Claude Code, Cursor, Codex and Pi. Quality gates run on every commit. Complete docs, including exactly what is and isn't supported." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://rajitsaha.github.io/100xprism/" />
   <meta property="og:image" content="https://raw.githubusercontent.com/rajitsaha/100xprism/main/assets/100xprism-hero.svg" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#ffffff" />
 
   <script type="application/ld+json">
   {
@@ -22,7 +23,7 @@
     "alternateName": "100xPrism",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "macOS, Linux, Windows (WSL)",
-    "description": "100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing what each session cost in tokens next to what it shipped. One config, 4 tools, quality gates. Fully offline.",
+    "description": "100xPrism keeps one source of truth for AI coding workflows and emits native config for Claude Code, Cursor, Codex and Pi. It enforces quality gates on every commit and measures token cost against observable delivery, fully offline.",
     "url": "https://rajitsaha.github.io/100xprism/",
     "downloadUrl": "https://www.npmjs.com/package/100xprism",
     "codeRepository": "https://github.com/rajitsaha/100xprism",
@@ -39,618 +40,1428 @@
       {
         "@type": "Question",
         "name": "What is 100xPrism?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, and Pi. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side."
-        }
+        "acceptedAnswer": { "@type": "Answer", "text": "100xPrism keeps one source of truth — 68 modules — and generates native configuration for Claude Code, Cursor, Codex and Pi. It enforces a five-point quality gate on every commit and ships a fully offline dashboard that measures token cost against observable engineering delivery." }
       },
       {
         "@type": "Question",
-        "name": "How does 100xPrism measure cost?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "It reads Claude Code transcript files (and equivalent agent logs for other tools) from your local machine. It counts input tokens, output tokens, and cache tokens, then maps them to estimated dollar cost using published model pricing. All computation is local — no data is uploaded anywhere."
-        }
+        "name": "Which AI coding tools does 100xPrism support?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Four tools receive generated configuration: Claude Code, Cursor, Codex and Pi. Windsurf, GitHub Copilot, Gemini and Antigravity adapters were removed in v3.0.0 because they emitted a single concatenated file that sat in context on every turn. Antigravity is still read by the token dashboard as an activity-only source." }
       },
       {
         "@type": "Question",
-        "name": "How does 100xPrism measure value?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "It reads your git history for each discovered project directory — commits landed, pull requests merged, and files changed. If git is not available for a directory, it falls back to filesystem metrics. The result is a per-project value score you can compare against cost."
-        }
+        "name": "Does 100xPrism work on Windows?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Partially. The npm launcher and Claude Code plugin sync work on native Windows, but native Windows module emit is being reworked under issue #54. For full module support today, install under WSL. macOS and Linux are fully supported." }
       },
       {
         "@type": "Question",
-        "name": "Which AI coding tools does it support?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Claude Code, Cursor, Codex, and Pi — 4 tools in total. The one-config system keeps all of them in sync from a single source of truth."
-        }
+        "name": "Which databases does the /db command support?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Seven engines have executable engine files: Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto and Oracle. MySQL, SQLite and BigQuery are not supported by /db and will fail with 'No engine file found' — use the /query command for those instead." }
+      },
+      {
+        "@type": "Question",
+        "name": "How does 100xPrism measure token cost?",
+        "acceptedAnswer": { "@type": "Answer", "text": "It reads local transcript files. Claude Code and Codex expose exact provider token counters. Cursor and Antigravity local formats expose no counters, so they contribute activity coverage but are never assigned an invented dollar cost. Pi is metered best-effort from rows that carry native usage fields. All computation is local — nothing is uploaded." }
       },
       {
         "@type": "Question",
         "name": "Does 100xPrism send my data anywhere?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "No. 100xPrism is fully local and offline. It reads transcript files and git history on your own machine and opens a local dashboard in your browser. Nothing is uploaded to any server."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "How is this different from my AI provider's billing page?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Your provider's billing page shows aggregate spend. 100xPrism breaks it down per project directory, per day, and per session — and crucially, shows what was delivered for each unit of spend. It is the only view that connects cost to value."
-        }
+        "acceptedAnswer": { "@type": "Answer", "text": "No. The token and value dashboards are fully offline. They read local files on your machine and serve a local URL. Optional GitHub CLI integration can fetch pull request metadata, but only if you enable it." }
       },
       {
         "@type": "Question",
         "name": "Is 100xPrism free?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes. 100xPrism is MIT-licensed and free to use, modify, and distribute. There is no paid tier, no telemetry, and no account required."
-        }
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. 100xPrism is MIT licensed and free to use." }
       },
       {
         "@type": "Question",
         "name": "How do I install 100xPrism?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Run npm install -g 100xprism && 100xprism install (macOS, Linux, Windows). Or use the curl installer: curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash. Then cd your-project && 100xprism init."
-        }
+        "acceptedAnswer": { "@type": "Answer", "text": "Run 'npm install -g 100xprism && 100xprism install' on any platform, or 'curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash' on macOS and Linux. Then run '100xprism init' inside any project." }
       }
     ]
   }
   </script>
 
   <style>
-    :root {
-      --ink: #0E1116;
-      --surface: #171B22;
-      --line: #262C36;
-      --text: #E6E9EF;
-      --muted: #8A93A2;
-      --cost: #E8B24A;
-      --value: #5BD0A6;
-      --warn: #E5704B;
+    /* ============================================================
+       100xPrism docs — white base, green + blue tints, glass finish
+       ============================================================ */
+    :root{
+      --white:#ffffff;
+      --ink:#0b1220;
+      --ink-2:#1e293b;
+      --muted:#5b6b80;
+      --faint:#8496aa;
+
+      --green:#059669;
+      --green-lt:#10b981;
+      --green-glow:#34d399;
+      --blue:#0284c7;
+      --blue-lt:#38bdf8;
+      --blue-deep:#0369a1;
+
+      --amber:#b45309;
+      --amber-lt:#f59e0b;
+      --rose:#be123c;
+      --rose-lt:#fb7185;
+
+      --glass:rgba(255,255,255,.55);
+      --glass-strong:rgba(255,255,255,.74);
+      --glass-brd:rgba(255,255,255,.85);
+      --hair:rgba(15,40,70,.09);
+      --hair-2:rgba(15,40,70,.055);
+
+      --shadow-sm:0 1px 2px rgba(9,30,60,.05), 0 4px 14px rgba(9,30,60,.045);
+      --shadow:0 2px 4px rgba(9,30,60,.045), 0 10px 34px rgba(9,30,60,.075);
+      --shadow-lg:0 4px 8px rgba(9,30,60,.05), 0 24px 64px rgba(9,30,60,.11);
+
+      --r-sm:10px; --r:16px; --r-lg:22px; --r-xl:28px;
+
+      --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+      --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+
+      --nav-h:60px;
     }
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--ink);
-      color: var(--text);
-      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      -webkit-font-smoothing: antialiased;
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth; scroll-padding-top:calc(var(--nav-h) + 18px); overflow-x:clip;}
+    body{
+      margin:0; font-family:var(--sans); color:var(--ink);
+      background:var(--white);
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      line-height:1.62; font-size:16.5px;
+      overflow-x:clip; max-width:100vw;
     }
 
-    .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    /* ---- ambient green/blue mesh on white ---- */
+    .mesh{position:fixed; inset:0; z-index:-2; pointer-events:none; background:var(--white);}
+    .mesh::before,.mesh::after{content:""; position:absolute; inset:-30%; }
+    .mesh::before{
+      background:
+        radial-gradient(48rem 34rem at 12% 4%,  rgba(16,185,129,.13), transparent 62%),
+        radial-gradient(44rem 32rem at 88% 12%, rgba(56,189,248,.14), transparent 62%),
+        radial-gradient(52rem 40rem at 50% 52%, rgba(45,212,191,.075), transparent 66%),
+        radial-gradient(40rem 34rem at 8% 88%,  rgba(56,189,248,.10), transparent 64%),
+        radial-gradient(40rem 30rem at 92% 82%, rgba(16,185,129,.10), transparent 64%);
+      animation:drift 34s ease-in-out infinite alternate;
+    }
+    .mesh::after{
+      background:radial-gradient(60rem 44rem at 68% 30%, rgba(2,132,199,.05), transparent 60%);
+      animation:drift 46s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes drift{ from{transform:translate3d(-1.5%,-1%,0) scale(1)} to{transform:translate3d(2%,1.5%,0) scale(1.06)} }
 
-    /* ── Focus states ── */
-    a:focus-visible,
-    button:focus-visible {
-      outline: 2px solid var(--value);
-      outline-offset: 3px;
-      border-radius: 4px;
+    .grain{
+      position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.5;
+      background-image:linear-gradient(rgba(15,40,70,.028) 1px, transparent 1px),
+                       linear-gradient(90deg, rgba(15,40,70,.028) 1px, transparent 1px);
+      background-size:56px 56px;
+      -webkit-mask-image:radial-gradient(ellipse 100% 62% at 50% 32%, #000 20%, transparent 78%);
+              mask-image:radial-gradient(ellipse 100% 62% at 50% 32%, #000 20%, transparent 78%);
     }
 
-    /* ── Typography ── */
-    h1 {
-      font-size: 52px;
-      margin: 20px 0 16px;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+    /* ---- layout ---- */
+    .wrap{max-width:1180px; margin:0 auto; padding:0 26px;}
+    /* grid/flex children default to min-width:auto and refuse to shrink below their
+       content — which pushes wide diagrams and code past the viewport. Opt out. */
+    .hero-grid>*, .cards>*, .glass>*, figure, .svgbox, .tbl-wrap{min-width:0}
+    @media(max-width:560px){ .wrap{padding:0 16px} }
+    section{padding:72px 0 8px; scroll-margin-top:calc(var(--nav-h) + 18px);}
+    section:last-of-type{padding-bottom:40px}
+
+    h1,h2,h3,h4{line-height:1.18; letter-spacing:-.021em; margin:0;}
+    h1{font-size:clamp(2.3rem,5.4vw,3.85rem); font-weight:800; letter-spacing:-.036em;}
+    h2{font-size:clamp(1.62rem,3vw,2.2rem); font-weight:760; letter-spacing:-.028em;}
+    h3{font-size:1.09rem; font-weight:700;}
+    p{margin:.85em 0}
+    a{color:var(--blue); text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    .grad{background:linear-gradient(104deg,var(--green) 0%, #0d9488 42%, var(--blue) 100%);
+          -webkit-background-clip:text; background-clip:text; color:transparent;}
+
+    .eyebrow{
+      display:inline-flex; align-items:center; gap:8px;
+      font-family:var(--mono); font-size:.685rem; font-weight:650;
+      letter-spacing:.15em; text-transform:uppercase; color:var(--green);
+      margin-bottom:14px;
     }
+    .eyebrow::before{content:""; width:22px; height:2px; border-radius:2px;
+      background:linear-gradient(90deg,var(--green-lt),var(--blue-lt));}
 
-    h2 {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin: 0 0 16px;
-      color: var(--text);
+    .lede{font-size:1.045rem; color:var(--muted); max-width:74ch; margin:.7em 0 0;}
+    .sec-head{margin-bottom:30px}
+
+    /* ---- glass ---- */
+    .glass{
+      background:var(--glass);
+      -webkit-backdrop-filter:blur(20px) saturate(180%);
+              backdrop-filter:blur(20px) saturate(180%);
+      border:1px solid var(--glass-brd);
+      border-radius:var(--r-lg);
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.95);
+      position:relative; overflow:hidden;
     }
-
-    h3 {
-      font-size: 17px;
-      font-weight: 600;
-      margin: 0 0 8px;
-      color: var(--text);
+    .glass::after{
+      content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+      background:linear-gradient(150deg, rgba(255,255,255,.55) 0%, transparent 34%, transparent 66%, rgba(255,255,255,.24) 100%);
+      opacity:.8;
     }
+    .glass>*{position:relative; z-index:1}
+    .pad{padding:26px 28px}
 
-    a { color: var(--value); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    /* ── Layout ── */
-    section { padding: 56px 0; border-top: 1px solid var(--line); }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 22px 24px;
-      margin: 16px 0;
+    /* ---- nav ---- */
+    nav.top{
+      position:sticky; top:0; z-index:60; height:var(--nav-h);
+      background:rgba(255,255,255,.7);
+      -webkit-backdrop-filter:blur(22px) saturate(180%);
+              backdrop-filter:blur(22px) saturate(180%);
+      border-bottom:1px solid var(--hair);
     }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-top: 24px;
+    nav.top .wrap{height:100%; display:flex; align-items:center; gap:20px;}
+    .brand{display:flex; align-items:center; gap:9px; font-weight:800; letter-spacing:-.03em;
+           font-size:1.02rem; color:var(--ink); flex:0 0 auto;}
+    .brand:hover{text-decoration:none}
+    .brand .dot{width:9px;height:9px;border-radius:50%;
+      background:linear-gradient(135deg,var(--green-glow),var(--blue-lt));
+      box-shadow:0 0 0 3px rgba(16,185,129,.16);}
+    .navlinks{
+      display:flex; gap:2px; overflow-x:auto; flex:1 1 auto;
+      scrollbar-width:none; -ms-overflow-style:none; mask-image:linear-gradient(90deg,#000 92%,transparent);
     }
-
-    .grid .card { margin: 0; }
-    .grid .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
-
-    /* ── Hero ── */
-    header {
-      text-align: center;
-      padding: 80px 0 56px;
+    .navlinks::-webkit-scrollbar{display:none}
+    .navlinks a{
+      font-size:.822rem; font-weight:560; color:var(--muted);
+      padding:6px 10px; border-radius:8px; white-space:nowrap; transition:.16s;
     }
-
-    header img.logo { width: 88px; height: 88px; }
-
-    .subhead {
-      font-size: 18px;
-      color: var(--muted);
-      margin: 0 auto 28px;
-      max-width: 640px;
-      line-height: 1.55;
+    .navlinks a:hover{color:var(--ink); background:rgba(16,185,129,.09); text-decoration:none}
+    .navlinks a.on{color:var(--green); background:rgba(16,185,129,.115); font-weight:660}
+    @media(max-width:860px){ .navlinks a{font-size:.79rem; padding:6px 8px} }
+    .nav-cta{
+      flex:0 0 auto; font-size:.79rem; font-weight:680; padding:7px 14px; border-radius:9px;
+      background:linear-gradient(135deg,var(--green) 0%,var(--blue-deep) 100%); color:#fff;
+      box-shadow:0 2px 10px rgba(5,150,105,.28);
     }
+    .nav-cta:hover{text-decoration:none; filter:brightness(1.07)}
+    @media(max-width:620px){ .nav-cta{display:none} }
 
-    .badges {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 28px;
+    /* ---- hero ---- */
+    header.hero{padding:64px 0 8px; position:relative;}
+    .hero-grid{display:grid; grid-template-columns:1.04fr .96fr; gap:48px; align-items:center;}
+    @media(max-width:940px){ .hero-grid{grid-template-columns:1fr; gap:34px} }
+
+    .pill{
+      display:inline-flex; align-items:center; gap:9px; padding:6px 13px 6px 8px;
+      border-radius:999px; font-size:.775rem; font-weight:600; color:var(--ink-2);
+      background:var(--glass-strong); border:1px solid var(--glass-brd);
+      -webkit-backdrop-filter:blur(14px) saturate(170%); backdrop-filter:blur(14px) saturate(170%);
+      box-shadow:var(--shadow-sm); margin-bottom:20px;
     }
-
-    .badges img { height: 22px; }
-
-    .cta {
-      display: inline-flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin-bottom: 48px;
+    .pill b{
+      font-family:var(--mono); font-size:.72rem; font-weight:700; padding:2px 8px; border-radius:999px;
+      background:linear-gradient(135deg,rgba(16,185,129,.17),rgba(56,189,248,.17));
+      color:var(--green); border:1px solid rgba(16,185,129,.24);
     }
+    .hero p.sub{font-size:1.1rem; color:var(--muted); max-width:56ch; margin-top:18px}
 
-    .btn {
-      display: inline-block;
-      padding: 12px 24px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 15px;
-      border: 1px solid var(--line);
-      transition: opacity 0.15s ease;
+    .cta-row{display:flex; flex-wrap:wrap; gap:11px; margin-top:26px; align-items:center}
+    .btn{
+      display:inline-flex; align-items:center; gap:8px; font-weight:680; font-size:.9rem;
+      padding:11px 19px; border-radius:12px; transition:.18s; border:1px solid transparent;
     }
+    .btn-p{background:linear-gradient(135deg,var(--green) 0%,var(--blue-deep) 100%); color:#fff;
+           box-shadow:0 3px 16px rgba(5,150,105,.3);}
+    .btn-p:hover{text-decoration:none; transform:translateY(-1px); box-shadow:0 6px 22px rgba(5,150,105,.38)}
+    .btn-g{background:var(--glass-strong); border-color:var(--glass-brd); color:var(--ink-2);
+      -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); box-shadow:var(--shadow-sm);}
+    .btn-g:hover{text-decoration:none; transform:translateY(-1px); box-shadow:var(--shadow)}
 
-    @media (prefers-reduced-motion: reduce) {
-      .btn { transition: none; }
+    /* ---- code ---- */
+    code{font-family:var(--mono); font-size:.855em; background:rgba(2,132,199,.075);
+      color:var(--blue-deep); padding:.14em .42em; border-radius:5px;
+      border:1px solid rgba(2,132,199,.11);
+      overflow-wrap:anywhere; word-break:break-word;}
+    pre{
+      margin:16px 0; padding:16px 18px; overflow-x:auto; border-radius:var(--r);
+      background:rgba(248,252,255,.72); border:1px solid var(--hair);
+      -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+      font-family:var(--mono); font-size:.828rem; line-height:1.72; color:var(--ink-2);
     }
+    pre code{background:none; border:none; padding:0; color:inherit; white-space:pre;}
+    .c-cmt{color:var(--faint)}
+    .c-fn{color:var(--green); font-weight:600}
+    .c-str{color:var(--blue-deep)}
 
-    .btn:hover { opacity: 0.85; text-decoration: none; }
-    .btn-primary { background: var(--cost); color: #1a0f00; border-color: var(--cost); }
-    .btn-ghost { color: var(--text); background: var(--surface); }
-
-    /* ── Dashboard mock ── */
-    .dash-mock {
-      margin: 0 auto;
-      max-width: 820px;
+    /* ---- tables ---- */
+    .tbl-wrap{overflow-x:auto; border-radius:var(--r); border:1px solid var(--hair);
+      background:rgba(255,255,255,.5); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+      box-shadow:var(--shadow-sm); margin:18px 0;}
+    table{width:100%; border-collapse:collapse; font-size:.885rem; min-width:520px;}
+    th{
+      text-align:left; font-weight:680; font-size:.712rem; letter-spacing:.09em; text-transform:uppercase;
+      color:var(--muted); padding:12px 16px; border-bottom:1px solid var(--hair);
+      background:rgba(240,250,252,.6); white-space:nowrap;
     }
+    td{padding:11px 16px; border-bottom:1px solid var(--hair-2); vertical-align:top; color:var(--ink-2);}
+    tr:last-child td{border-bottom:none}
+    tbody tr{transition:background .15s}
+    tbody tr:hover{background:rgba(16,185,129,.045)}
+    td code{white-space:nowrap}
+    .num{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums;}
 
-    .dash-mock-inner {
-      display: grid;
-      grid-template-columns: 1fr 1.6fr;
-      gap: 16px;
-      align-items: start;
+    /* ---- status chips ---- */
+    .st{display:inline-flex; align-items:center; gap:5px; font-size:.755rem; font-weight:680;
+        padding:3px 9px; border-radius:999px; white-space:nowrap; font-family:var(--sans);}
+    .st-y{background:rgba(16,185,129,.13); color:var(--green); border:1px solid rgba(16,185,129,.24)}
+    .st-p{background:rgba(245,158,11,.15); color:var(--amber); border:1px solid rgba(245,158,11,.28)}
+    .st-n{background:rgba(190,18,60,.10); color:var(--rose); border:1px solid rgba(190,18,60,.2)}
+    .st-i{background:rgba(2,132,199,.11); color:var(--blue-deep); border:1px solid rgba(2,132,199,.2)}
+    tr.drift{background:repeating-linear-gradient(135deg,rgba(190,18,60,.04) 0 9px,transparent 9px 18px)}
+    tr.drift:hover{background:repeating-linear-gradient(135deg,rgba(190,18,60,.075) 0 9px,transparent 9px 18px)}
+    tr.drift td:first-child{box-shadow:inset 3px 0 0 var(--rose-lt)}
+
+    /* ---- cards ---- */
+    .cards{display:grid; gap:16px; margin-top:22px}
+    .g2{grid-template-columns:repeat(2,1fr)}
+    .g3{grid-template-columns:repeat(3,1fr)}
+    .g4{grid-template-columns:repeat(4,1fr)}
+    @media(max-width:900px){ .g3,.g4{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:620px){ .g2,.g3,.g4{grid-template-columns:1fr} }
+    .card{padding:20px 22px}
+    .card h3{margin-bottom:7px; display:flex; align-items:center; gap:8px}
+    .card p{margin:0; font-size:.878rem; color:var(--muted); line-height:1.62}
+    .card .big{font-family:var(--mono); font-size:1.72rem; font-weight:750; letter-spacing:-.03em;
+      background:linear-gradient(120deg,var(--green),var(--blue)); -webkit-background-clip:text;
+      background-clip:text; color:transparent; display:block; margin-bottom:2px;}
+
+    .note{
+      border-radius:var(--r); padding:15px 18px; margin:18px 0; font-size:.888rem;
+      background:rgba(255,255,255,.56); border:1px solid var(--glass-brd);
+      -webkit-backdrop-filter:blur(16px) saturate(170%); backdrop-filter:blur(16px) saturate(170%);
+      box-shadow:var(--shadow-sm); color:var(--ink-2);
     }
+    .note strong{color:var(--ink)}
+    .note.warn{border-left:3px solid var(--amber-lt); background:rgba(255,251,240,.66)}
+    .note.bad{border-left:3px solid var(--rose-lt);  background:rgba(255,245,247,.66)}
+    .note.good{border-left:3px solid var(--green-lt); background:rgba(240,253,248,.66)}
+    .note p:first-child{margin-top:0} .note p:last-child{margin-bottom:0}
 
-    .dash-panel {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px;
-    }
+    /* ---- figure / diagram ---- */
+    figure{margin:26px 0; padding:24px; border-radius:var(--r-lg);
+      background:var(--glass); border:1px solid var(--glass-brd);
+      -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.95);}
+    /* keep diagram text legible: never upscale past natural size, scroll instead of shrinking */
+    .svgbox{overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
+    .svgbox::-webkit-scrollbar{height:6px}
+    .svgbox::-webkit-scrollbar-thumb{background:rgba(15,40,70,.16); border-radius:99px}
+    figure svg{display:block; width:100%; height:auto; margin:0 auto;}
+    figure.wide svg{max-width:900px; min-width:660px;}
+    figure.narrow svg{max-width:470px; min-width:400px;}
+    figcaption{margin-top:14px; font-size:.808rem; color:var(--muted); text-align:center;
+      font-family:var(--mono); letter-spacing:.005em;}
+    @media(max-width:560px){ figure{padding:16px} figcaption{font-size:.76rem} }
 
-    .dash-panel-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin: 0 0 10px;
-    }
+    /* ---- module chips ---- */
+    .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px}
+    .chip{font-family:var(--mono); font-size:.756rem; padding:3.5px 9px; border-radius:7px;
+      background:rgba(255,255,255,.66); border:1px solid var(--hair); color:var(--ink-2);
+      transition:.15s; box-shadow:0 1px 2px rgba(9,30,60,.03);}
+    .chip:hover{border-color:rgba(16,185,129,.4); background:rgba(16,185,129,.09); color:var(--green);
+      transform:translateY(-1px);}
 
-    .dash-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
+    /* ---- footer ---- */
+    footer{margin-top:60px; padding:38px 0 44px; border-top:1px solid var(--hair);
+      background:rgba(255,255,255,.5); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);}
+    footer .wrap{display:flex; justify-content:space-between; gap:22px; flex-wrap:wrap; align-items:center}
+    footer p{margin:0; font-size:.858rem; color:var(--muted)}
+    .flinks{display:flex; gap:16px; flex-wrap:wrap; font-size:.858rem}
 
-    .dash-table th {
-      text-align: left;
-      color: var(--muted);
-      font-weight: 500;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      padding: 4px 8px 8px;
-      border-bottom: 1px solid var(--line);
-    }
+    /* ---- scroll reveal ---- */
+    .rv{opacity:0; transform:translateY(16px); transition:opacity .62s cubic-bezier(.22,.9,.3,1), transform .62s cubic-bezier(.22,.9,.3,1);}
+    .rv.in{opacity:1; transform:none}
 
-    .dash-table td {
-      padding: 7px 8px;
-      border-bottom: 1px solid var(--line);
-      vertical-align: top;
-      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-    }
+    /* ============ diagram animation keyframes ============ */
+    .anim path.flow{stroke-dasharray:5 7; animation:dash 1.9s linear infinite; }
+    @keyframes dash{ to{ stroke-dashoffset:-24 } }
 
-    .dash-table tr:last-child td { border-bottom: none; }
+    .anim .pkt{opacity:0}
+    .lit .pkt{animation:pkt 3.1s cubic-bezier(.5,.05,.5,.95) infinite}
+    @keyframes pkt{ 0%{opacity:0} 6%{opacity:1} 88%{opacity:1} 100%{opacity:0} }
 
-    .dash-table td:first-child {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: var(--text);
-    }
+    .lit .ring{animation:ring 2.35s ease-out infinite}
+    @keyframes ring{ 0%{r:22; opacity:.75; stroke-width:2.4} 100%{r:44; opacity:0; stroke-width:.4} }
 
-    .col-cost { color: var(--cost); }
-    .col-value { color: var(--value); }
-    .col-note { color: var(--muted); font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .lit .tick{animation:tick .5s ease-out both}
+    @keyframes tick{ from{stroke-dashoffset:26; opacity:0} to{stroke-dashoffset:0; opacity:1} }
 
-    .dash-caption {
-      font-size: 12px;
-      color: var(--muted);
-      text-align: center;
-      margin: 10px 0 0;
-      font-style: italic;
-    }
+    .lit .fail{animation:fail 3.1s ease-in-out infinite}
+    @keyframes fail{ 0%,58%{opacity:0} 66%,84%{opacity:1} 100%{opacity:0} }
 
-    /* ── Code blocks ── */
-    pre {
-      background: #0d1116;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px 18px;
-      overflow-x: auto;
-      margin: 0 0 12px;
-    }
+    .bar-fill{transform-box:fill-box; transform-origin:left center; transform:scaleX(0);
+              transition:transform 1.5s cubic-bezier(.22,.9,.3,1)}
+    .lit .bar-fill{transform:scaleX(1)}
 
-    code {
-      font: 13.5px/1.55 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-      color: #cfe8d8;
-    }
+    .peel{opacity:.62}
+    .lit .peel{animation:peel 5.4s ease-in-out infinite}
+    @keyframes peel{ 0%,42%{opacity:.72; transform:translateX(0)} 74%,100%{opacity:.34; transform:translateX(11px)} }
 
-    pre code { font-size: 13px; }
+    .cnt{font-family:var(--mono); font-variant-numeric:tabular-nums}
 
-    .inline-code {
-      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 13px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 1px 5px;
-      color: var(--text);
-    }
-
-    .note { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
-
-    /* ── Bullets ── */
-    ul {
-      padding-left: 20px;
-      margin: 12px 0 0;
-    }
-
-    ul li {
-      color: var(--muted);
-      font-size: 15px;
-      margin-bottom: 8px;
-    }
-
-    ul li b { color: var(--text); }
-
-    /* ── Install section ── */
-    .install-group { margin-bottom: 20px; }
-    .install-label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin: 0 0 6px;
-      font-weight: 600;
-    }
-
-    /* ── FAQ ── */
-    .faq-item { margin-bottom: 32px; }
-    .faq-item h3 { color: var(--text); font-size: 18px; margin: 0 0 8px; }
-    .faq-item p { color: var(--muted); margin: 0; font-size: 15px; line-height: 1.65; }
-
-    /* ── Section intro text ── */
-    .section-intro {
-      font-size: 16px;
-      color: var(--muted);
-      margin: 0 0 24px;
-      max-width: 680px;
-      line-height: 1.6;
-    }
-
-    .quote-line {
-      font-size: 17px;
-      font-style: italic;
-      color: var(--muted);
-      border-left: 3px solid var(--line);
-      padding-left: 16px;
-      margin: 16px 0 0;
-    }
-
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      color: var(--muted);
-      padding: 48px 0 64px;
-      font-size: 14px;
-      border-top: 1px solid var(--line);
-    }
-
-    footer a { color: var(--value); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-
-    /* ── Color semantics helpers ── */
-    .cost-label { color: var(--cost); }
-    .value-label { color: var(--value); }
-
-    /* ── Responsive ── */
-    @media (max-width: 680px) {
-      h1 { font-size: 36px; }
-      h2 { font-size: 22px; }
-      .dash-mock-inner { grid-template-columns: 1fr; }
-      header { padding: 48px 0 40px; }
-      section { padding: 40px 0; }
+    @media (prefers-reduced-motion: reduce){
+      html{scroll-behavior:auto}
+      .mesh::before,.mesh::after{animation:none}
+      .anim path.flow{animation:none; stroke-dasharray:none}
+      .lit .pkt,.lit .ring,.lit .fail,.lit .peel,.lit .tick{animation:none}
+      .pkt{opacity:1} .ring{opacity:0} .fail{opacity:.85} .peel{opacity:.62}
+      .rv{opacity:1; transform:none; transition:none}
+      .bar-fill{transition:none; transform:scaleX(1)}
     }
   </style>
 </head>
 <body>
+<div class="mesh"></div><div class="grain"></div>
+
+<nav class="top">
   <div class="wrap">
-
-    <!-- ══════════════════════════════════════════ HERO ══════════════════════════════════════════ -->
-    <header>
-      <img class="logo" src="https://raw.githubusercontent.com/rajitsaha/100xprism/main/assets/100xprism-logo.svg" alt="100xPrism logo" />
-      <h1>Know what AI costs.<br>Know what it's worth.</h1>
-      <p class="subhead">100xPrism auto-discovers every project you build across every AI coding tool and shows what each session cost in tokens next to what it actually shipped — cost and value, automatically, fully offline.</p>
-
-      <div class="badges">
-        <img src="https://img.shields.io/github/v/release/rajitsaha/100xprism?style=flat-square&label=version&color=brightgreen" alt="version" />
-        <img src="https://img.shields.io/npm/v/100xprism?style=flat-square&color=red" alt="npm" />
-        <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="MIT license" />
-      </div>
-
-      <div class="cta">
-        <a class="btn btn-primary" href="#install">Install ↓</a>
-        <a class="btn btn-ghost" href="https://github.com/rajitsaha/100xprism">GitHub</a>
-      </div>
-
-      <!-- Dashboard mock illustration -->
-      <figure class="dash-mock" aria-label="Illustration of 100xPrism dashboard">
-        <div class="dash-mock-inner">
-
-          <!-- Part A: Leverage scatter SVG -->
-          <div class="dash-panel">
-            <p class="dash-panel-label">Leverage scatter — value vs cost</p>
-            <svg viewBox="0 0 220 140" width="100%" role="img" aria-label="Scatter plot showing project value versus cost with a break-even diagonal line">
-              <title>Leverage scatter: value vs cost</title>
-              <!-- Axes -->
-              <line x1="28" y1="8" x2="28" y2="118" stroke="#262C36" stroke-width="1.5"/>
-              <line x1="28" y1="118" x2="212" y2="118" stroke="#262C36" stroke-width="1.5"/>
-              <!-- Break-even dashed diagonal -->
-              <line x1="28" y1="118" x2="212" y2="8" stroke="#8A93A2" stroke-width="1" stroke-dasharray="5,4" opacity="0.5"/>
-              <!-- Axis labels -->
-              <text x="14" y="64" fill="#5BD0A6" font-size="9" font-family="-apple-system,sans-serif" transform="rotate(-90,14,64)" text-anchor="middle">value ↑</text>
-              <text x="120" y="132" fill="#E8B24A" font-size="9" font-family="-apple-system,sans-serif" text-anchor="middle">cost →</text>
-              <!-- Green dots: high-value projects (above the line) -->
-              <circle cx="60" cy="42" r="6" fill="#5BD0A6" opacity="0.9"/>
-              <circle cx="100" cy="30" r="6" fill="#5BD0A6" opacity="0.9"/>
-              <circle cx="160" cy="28" r="6" fill="#5BD0A6" opacity="0.9"/>
-              <!-- Amber/warn dot: low-value project (below the line) -->
-              <circle cx="180" cy="100" r="6" fill="#E8B24A" opacity="0.85"/>
-              <!-- Subtle grid lines -->
-              <line x1="28" y1="88" x2="212" y2="88" stroke="#262C36" stroke-width="0.75" stroke-dasharray="2,4"/>
-              <line x1="28" y1="58" x2="212" y2="58" stroke="#262C36" stroke-width="0.75" stroke-dasharray="2,4"/>
-              <line x1="88" y1="8" x2="88" y2="118" stroke="#262C36" stroke-width="0.75" stroke-dasharray="2,4"/>
-              <line x1="148" y1="8" x2="148" y2="118" stroke="#262C36" stroke-width="0.75" stroke-dasharray="2,4"/>
-            </svg>
-          </div>
-
-          <!-- Part B: All directories mini-table -->
-          <div class="dash-panel">
-            <p class="dash-panel-label">All directories</p>
-            <table class="dash-table" aria-label="Project cost and value breakdown by directory">
-              <thead>
-                <tr>
-                  <th>Directory</th>
-                  <th class="col-cost">Cost</th>
-                  <th class="col-value">Value</th>
-                  <th>AI note</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>acme-api</td>
-                  <td class="col-cost">$0.42</td>
-                  <td class="col-value">12 commits · 3 PRs</td>
-                  <td class="col-note">Feature-dense sprint</td>
-                </tr>
-                <tr>
-                  <td>web-app</td>
-                  <td class="col-cost">$1.18</td>
-                  <td class="col-value">8 commits · 1 PR</td>
-                  <td class="col-note">High token use</td>
-                </tr>
-                <tr>
-                  <td>billing-service</td>
-                  <td class="col-cost">$0.08</td>
-                  <td class="col-value">4 commits · 0 PRs</td>
-                  <td class="col-note">Exploratory</td>
-                </tr>
-                <tr>
-                  <td>data-pipeline</td>
-                  <td class="col-cost">$2.31</td>
-                  <td class="col-value">18 commits · 5 PRs</td>
-                  <td class="col-note">Strong leverage</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-        <figcaption class="dash-caption">Illustration — not real data</figcaption>
-      </figure>
-
-    </header>
-
-    <!-- ══════════════════════════════════════ WHAT IS 100xPRISM ════════════════════════════════ -->
-    <section>
-      <h2>What is 100xPrism?</h2>
-      <p class="section-intro">100xPrism is a fully-offline, machine-wide developer toolkit that auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi. It measures what each session cost in tokens and what it actually delivered — commits, pull requests, files changed — so you can see <span class="cost-label">cost</span> and <span class="value-label">value</span> side by side, automatically, without uploading anything to any server.</p>
-      <p class="quote-line">"Not 'can it ship', but 'what did it cost, and what was it worth' — and that's everybody's responsibility, not one person's job."</p>
-    </section>
-
-    <!-- ══════════════════════════════════════ THE DASHBOARD ════════════════════════════════════ -->
-    <section>
-      <h2>The Token &amp; Value Dashboard</h2>
-      <p class="section-intro">Run <code class="inline-code">100x-tokens</code> or <code class="inline-code">100x-value</code>. A daemon auto-starts and the dashboard opens in your browser — no setup required.</p>
-      <ul>
-        <li><b>Auto-discovery</b> — reads Claude Code transcripts and does a machine-wide scan for agent files (<code class="inline-code">CLAUDE.md</code>, <code class="inline-code">AGENTS.md</code>, <code class="inline-code">.cursorrules</code>) to find every directory you build in.</li>
-        <li><b>Tool-agnostic value measurement</b> — reads git history for commits, PRs, and files changed, with a filesystem fallback for directories not in git.</li>
-        <li><b>Four charts</b> — leverage scatter (<span class="value-label">value</span> vs <span class="cost-label">cost</span>), cost over time, token-purpose split (input/output/cache), cost by directory.</li>
-        <li><b>AI one-line summaries</b> per project — a quick characterisation of what the session delivered.</li>
-        <li><b>Fully offline</b> — no data leaves your machine. Everything is computed locally and displayed in your browser.</li>
-        <li><b>Two commands:</b> <code class="inline-code">100x-tokens</code> for the <span class="cost-label">cost dashboard</span> and <code class="inline-code">100x-value</code> for the <span class="value-label">value report</span> — both auto-start the daemon.</li>
-      </ul>
-    </section>
-
-    <!-- ══════════════════════════════════════ ONE CONFIG ═══════════════════════════════════════ -->
-    <section>
-      <h2>One Config, Every Tool</h2>
-      <p class="section-intro">The quality-gates and configuration story: 68 modules authored once, emitted natively for 4 tools.</p>
-      <div class="grid">
-        <div class="card">
-          <h3>68 modules</h3>
-          <p>Skills, hooks, and rules authored once, emitted natively for every AI coding tool you use.</p>
-        </div>
-        <div class="card">
-          <h3>Quality gates</h3>
-          <p>Lint, test, security, and Docker checks gate every commit and push automatically.</p>
-        </div>
-        <div class="card">
-          <h3>4 tools, one config</h3>
-          <p>Claude Code, Cursor, Codex, Pi — stay in sync.</p>
-        </div>
-        <div class="card">
-          <h3>Stays current</h3>
-          <p><code class="inline-code">100xprism update</code> keeps your local toolkit, hooks, and plugins up to date.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════════════════════════════ INSTALL ══════════════════════════════════════════ -->
-    <section id="install">
-      <h2>Install</h2>
-
-      <div class="install-group">
-        <p class="install-label">npm — macOS · Linux · Windows</p>
-        <pre><code>npm install -g 100xprism &amp;&amp; 100xprism install</code></pre>
-      </div>
-
-      <div class="install-group">
-        <p class="install-label">curl — macOS / Linux</p>
-        <pre><code>curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash
-source ~/.zshrc   # or ~/.bashrc</code></pre>
-      </div>
-
-      <p class="note">Then set up a project: <code class="inline-code">cd your-project &amp;&amp; 100xprism init</code></p>
-    </section>
-
-    <!-- ══════════════════════════════════════ FAQ ══════════════════════════════════════════════ -->
-    <section>
-      <h2>Frequently Asked Questions</h2>
-
-      <div class="faq-item">
-        <h3>What is 100xPrism?</h3>
-        <p>100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, and Pi. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>How does 100xPrism measure cost?</h3>
-        <p>It reads Claude Code transcript files (and equivalent agent logs for other tools) from your local machine. It counts input tokens, output tokens, and cache tokens, then maps them to estimated dollar cost using published model pricing. All computation is local — no data is uploaded anywhere.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>How does 100xPrism measure value?</h3>
-        <p>It reads your git history for each discovered project directory — commits landed, pull requests merged, and files changed. If git is not available for a directory, it falls back to filesystem metrics. The result is a per-project value score you can compare against cost.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>Which AI coding tools does it support?</h3>
-        <p>Claude Code, Cursor, Codex, and Pi — 4 tools in total. The one-config system keeps all of them in sync from a single source of truth.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>Does 100xPrism send my data anywhere?</h3>
-        <p>No. 100xPrism is fully local and offline. It reads transcript files and git history on your own machine and opens a local dashboard in your browser. Nothing is uploaded to any server.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>How is this different from my AI provider's billing page?</h3>
-        <p>Your provider's billing page shows aggregate spend. 100xPrism breaks it down per project directory, per day, and per session — and crucially, shows what was delivered for each unit of spend. It is the only view that connects cost to value.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>Is 100xPrism free?</h3>
-        <p>Yes. 100xPrism is MIT-licensed and free to use, modify, and distribute. There is no paid tier, no telemetry, and no account required.</p>
-      </div>
-
-      <div class="faq-item">
-        <h3>How do I install 100xPrism?</h3>
-        <p>Run <code class="inline-code">npm install -g 100xprism &amp;&amp; 100xprism install</code> (macOS, Linux, Windows). Or use the curl installer: <code class="inline-code">curl -fsSL https://raw.githubusercontent.com/rajitsaha/100xprism/main/get.sh | bash</code>. Then <code class="inline-code">cd your-project &amp;&amp; 100xprism init</code>.</p>
-      </div>
-
-    </section>
-
-    <!-- ══════════════════════════════════════ DOCS ═════════════════════════════════════════════ -->
-    <section>
-      <h2>Docs</h2>
-      <div class="grid">
-        <div class="card">
-          <h3><a href="https://github.com/rajitsaha/100xprism#readme">README</a></h3>
-          <p>Overview, install, and the full module &amp; slash-command reference.</p>
-        </div>
-        <div class="card">
-          <h3><a href="https://github.com/rajitsaha/100xprism/blob/main/docs/USAGE.md">Usage guide</a></h3>
-          <p>Install, per-project setup, keeping up to date, custom install locations.</p>
-        </div>
-        <div class="card">
-          <h3><a href="https://github.com/rajitsaha/100xprism/blob/main/docs/token-optimization.md">Token &amp; value economics</a></h3>
-          <p>Footprint audit, the cost dashboard, and the value report — in depth.</p>
-        </div>
-        <div class="card">
-          <h3><a href="https://github.com/rajitsaha/100xprism/blob/main/docs/MIGRATION.md">Migration</a></h3>
-          <p>The 100x-dev → 100xPrism rename + transparent self-migration plan.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════════════════════════════ FOOTER ═══════════════════════════════════════════ -->
-    <footer>
-      <p>
-        <a href="https://github.com/rajitsaha/100xprism">GitHub</a> ·
-        <a href="https://www.npmjs.com/package/100xprism">npm</a> ·
-        <a href="https://github.com/rajitsaha/100xprism/releases/latest">Releases</a> ·
-        <a href="https://github.com/rajitsaha/100xprism/blob/main/LICENSE">MIT License</a>
-      </p>
-      <p>© 100xPrism</p>
-    </footer>
-
+    <a class="brand" href="#top"><span class="dot"></span>100xPrism</a>
+    <div class="navlinks">
+      <a href="#install">Install</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#support">Support matrix</a>
+      <a href="#commands">Commands</a>
+      <a href="#skills">Skills</a>
+      <a href="#context">Context</a>
+      <a href="#economics">Value economics</a>
+      <a href="#packs">Packs</a>
+      <a href="#changes">Removals</a>
+      <a href="#traps">CI traps</a>
+      <a href="#help">Help</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/rajitsaha/100xprism">GitHub ↗</a>
   </div>
+</nav>
+
+<a id="top"></a>
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="pill"><b>v3.2</b> One source of truth · MIT · fully offline</div>
+      <h1>Stop vibe coding.<br><span class="grad">Ship production-grade software.</span></h1>
+      <p class="sub"><strong>68 modules</strong> generate native config for Claude&nbsp;Code, Cursor, Codex and Pi. A five-point quality gate runs on every commit. An offline dashboard shows what each session cost next to what it shipped.</p>
+      <div class="cta-row">
+        <a class="btn btn-p" href="#install">Install →</a>
+        <a class="btn btn-g" href="#support">What's supported?</a>
+      </div>
+      <p style="font-size:.82rem;color:var(--faint);margin-top:16px;font-family:var(--mono)">
+        This page is the complete documentation. The repo keeps only a README.
+      </p>
+    </div>
+
+    <!-- ============ DIAGRAM 1 · FAN-OUT ============ -->
+    <figure class="anim narrow" data-anim style="margin:0">
+      <div class="svgbox">
+      <svg viewBox="0 22 460 268" role="img" aria-label="One source of 68 modules fans out to four supported tools: Claude Code, Cursor, Codex and Pi. Four removed adapters peel away.">
+        <defs>
+          <linearGradient id="gb" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#38bdf8"/>
+          </linearGradient>
+          <filter id="sft" x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0b3a5c" flood-opacity=".13"/>
+          </filter>
+        </defs>
+
+        <!-- source -->
+        <g filter="url(#sft)">
+          <rect x="12" y="112" width="122" height="86" rx="16" fill="rgba(255,255,255,.86)" stroke="url(#gb)" stroke-width="1.6"/>
+        </g>
+        <text x="73" y="141" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" fill="#5b6b80" letter-spacing="1.4">ONE SOURCE</text>
+        <text x="73" y="169" text-anchor="middle" font-family="ui-monospace,monospace" font-size="25" font-weight="700" fill="#059669">68</text>
+        <text x="73" y="186" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" fill="#8496aa" letter-spacing=".8">modules</text>
+
+        <!-- branches -->
+        <g fill="none" stroke-width="1.7" stroke-linecap="round">
+          <path class="flow" d="M134 140 C 190 140, 200 48, 268 48"  stroke="#10b981"/>
+          <path class="flow" d="M134 150 C 195 150, 205 105, 268 105" stroke="#14b8a6"/>
+          <path class="flow" d="M134 160 C 195 160, 205 162, 268 162" stroke="#0ea5e9"/>
+          <path class="flow" d="M134 170 C 190 170, 200 219, 268 219" stroke="#38bdf8"/>
+        </g>
+
+        <!-- travelling packets -->
+        <g class="pkt">
+          <circle r="4" fill="#10b981"><animateMotion dur="3.1s" repeatCount="indefinite" path="M134 140 C 190 140, 200 48, 268 48"/></circle>
+          <circle r="4" fill="#14b8a6"><animateMotion dur="3.1s" begin=".28s" repeatCount="indefinite" path="M134 150 C 195 150, 205 105, 268 105"/></circle>
+          <circle r="4" fill="#0ea5e9"><animateMotion dur="3.1s" begin=".56s" repeatCount="indefinite" path="M134 160 C 195 160, 205 162, 268 162"/></circle>
+          <circle r="4" fill="#38bdf8"><animateMotion dur="3.1s" begin=".84s" repeatCount="indefinite" path="M134 170 C 190 170, 200 219, 268 219"/></circle>
+        </g>
+
+        <!-- targets -->
+        <g font-family="-apple-system,sans-serif" font-size="11.5" font-weight="600" fill="#1e293b">
+          <g filter="url(#sft)">
+            <rect x="268" y="31" width="150" height="34" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(16,185,129,.4)"/>
+            <rect x="268" y="88" width="150" height="34" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(20,184,166,.4)"/>
+            <rect x="268" y="145" width="150" height="34" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(14,165,233,.4)"/>
+            <rect x="268" y="202" width="150" height="34" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(56,189,248,.4)"/>
+          </g>
+          <text x="285" y="52">Claude Code</text>
+          <text x="285" y="109">Cursor</text>
+          <text x="285" y="166">Codex</text>
+          <text x="285" y="223">Pi</text>
+          <g fill="none" stroke="#059669" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="26" class="tick">
+            <path d="M396 47 l4 4 l7-9"/><path d="M396 104 l4 4 l7-9"/>
+            <path d="M396 161 l4 4 l7-9"/><path d="M396 218 l4 4 l7-9"/>
+          </g>
+        </g>
+
+        <!-- removed adapters peeling away -->
+        <g class="peel">
+          <path d="M112 198 C 116 232, 128 244, 150 250" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 4"/>
+          <rect x="150" y="230" width="200" height="46" rx="11" fill="rgba(248,250,252,.92)" stroke="rgba(203,213,225,.95)"/>
+          <g font-family="ui-monospace,monospace" font-size="9" fill="#94a3b8">
+            <text x="163" y="247">Windsurf · Copilot</text>
+            <text x="163" y="259">Gemini · Antigravity</text>
+          </g>
+          <text x="163" y="271" font-family="ui-monospace,monospace" font-size="8" fill="#be123c" font-weight="650">removed in v3.0.0</text>
+        </g>
+      </svg>
+      </div>
+      <figcaption>One source of truth → four native emit targets. Four adapters were removed in v3.0.0.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ==================== INSTALL ==================== -->
+<section id="install" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Getting started</div>
+    <h2>Install</h2>
+    <p class="lede">Works on macOS, Linux and WSL. Native Windows is partially supported — see the <a href="#support">support matrix</a>.</p>
+  </div>
+
+  <div class="cards g2">
+    <div class="glass card">
+      <h3>npm — any platform</h3>
+      <pre><code>npm install -g 100xprism &amp;&amp; 100xprism install</code></pre>
+    </div>
+    <div class="glass card">
+      <h3>curl — macOS / Linux</h3>
+      <pre><code>curl -fsSL https://raw.githubusercontent.com/\
+rajitsaha/100xprism/main/get.sh | bash</code></pre>
+    </div>
+  </div>
+
+  <p>Either way, <code>100xprism install</code> clones the toolkit to <code>~/100xprism</code> and provisions your AI tools. The npm package is a thin launcher — modules, hooks and plugins live in that clone, which <code>100xprism update</code> keeps current.</p>
+
+  <div class="note good">
+    <p><strong>Install does not edit your shell rc files.</strong> It never touches <code>~/.zshrc</code>, <code>~/.bashrc</code> or <code>~/.bash_profile</code>. Before installing, it cleans legacy startup hooks, stale command links, and any old owned dashboard process. For optional aliases in the current terminal only, run <code>source ~/100xprism/shell/aliases.sh</code>.</p>
+  </div>
+
+  <h3 style="margin-top:30px">Set up a project</h3>
+  <pre><code>cd your-project &amp;&amp; 100xprism init</code></pre>
+
+  <h3 style="margin-top:26px">The full CLI</h3>
+  <p>These are every subcommand <code>bin/100xprism.js</code> dispatches.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>100xprism install</code></td><td>Clone the toolkit and provision every detected AI tool</td></tr>
+        <tr><td><code>100xprism init</code></td><td>Set up the current project — scaffolds config and emits per-tool artifacts</td></tr>
+        <tr><td><code>100xprism update</code></td><td>Pull latest, then add / update / remove skills and plugins</td></tr>
+        <tr><td><code>100xprism check</code></td><td>Report what an update would change, without changing anything</td></tr>
+        <tr><td><code>100xprism optimize</code></td><td>Narrow the always-on skill index (see <a href="#context">context economics</a>)</td></tr>
+        <tr><td><code>100xprism slim</code></td><td>Compatibility alias for <code>optimize</code></td></tr>
+        <tr><td><code>100xprism audit</code></td><td>Standing-context estimate plus an inventory of skills, plugins and hooks</td></tr>
+        <tr><td><code>100xprism tokens</code></td><td>Start the offline token dashboard</td></tr>
+        <tr><td><code>100xprism dashboard</code></td><td>Alias for <code>tokens</code></td></tr>
+        <tr><td><code>100xprism value</code></td><td>Delivery economics — cost joined to observable delivery</td></tr>
+        <tr><td><code>100xprism uninstall</code></td><td>Stop the dashboard, remove legacy shell entries and symlinks</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note bad">
+    <p><strong>There is no <code>100xprism pack</code> subcommand.</strong> Packs are installed through the <code>/pack</code> skill inside your AI tool, using <code>add</code> and <code>remove</code> — not through the CLI. See <a href="#packs">Skill packs</a>.</p>
+  </div>
+
+  <h3 style="margin-top:30px">Keeping up to date</h3>
+  <pre><code>100xprism update                    <span class="c-cmt"># pull latest, then reconcile skills + plugins</span>
+100xprism update --plugins-only     <span class="c-cmt"># refresh plugins only</span>
+100xprism update --no-slim          <span class="c-cmt"># skip the one-time always-on index slim</span>
+100xprism slim --dry-run            <span class="c-cmt"># preview what slimming would change</span>
+npm install -g 100xprism@latest     <span class="c-cmt"># upgrade the launcher itself</span></code></pre>
+
+  <p><code>install</code> and <code>update</code> are <strong>fully reconciling</strong>, not append-only. Every run <strong>adds</strong> newly shipped skills, slash commands and curated plugins; <strong>updates</strong> changed ones in place; and <strong>removes</strong> those deleted or merged upstream. Your own hand-authored skills and commands, and any plugins you enabled yourself, are never touched.</p>
+
+  <h3 style="margin-top:26px">Multi-project setup</h3>
+  <pre><code><span class="c-cmt"># every repo under ~/projects</span>
+for dir in ~/projects/*/; do
+  [ -d "$dir/.git" ] &amp;&amp; (cd "$dir" &amp;&amp; 100xprism init)
+done</code></pre>
+
+  <p>To apply on every future clone, install a git template hook:</p>
+  <pre><code>mkdir -p ~/.git-templates/hooks
+cat &gt; ~/.git-templates/hooks/post-checkout &lt;&lt; 'HOOK'
+#!/usr/bin/env bash
+[ "$3" = "1" ] || exit 0                          <span class="c-cmt"># branch checkout only</span>
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+[ -f "$PROJECT_ROOT/.cursorrules" ] &amp;&amp; exit 0     <span class="c-cmt"># already set up</span>
+command -v 100xprism &gt;/dev/null &amp;&amp; (cd "$PROJECT_ROOT" &amp;&amp; 100xprism init)
+HOOK
+chmod +x ~/.git-templates/hooks/post-checkout
+git config --global init.templateDir ~/.git-templates</code></pre>
+
+  <h3 style="margin-top:26px">GitHub Actions templates</h3>
+  <pre><code>mkdir -p .github/workflows
+cp ~/100xprism/github-actions/ci.yml      .github/workflows/ci.yml
+cp ~/100xprism/github-actions/release.yml .github/workflows/release.yml</code></pre>
+  <p><code>ci.yml</code> runs on every push and PR — lint, real-database tests and E2E. <code>release.yml</code> runs on <code>v*.*.*</code> tags and drives semantic release.</p>
+</section>
+
+<!-- ==================== PIPELINE ==================== -->
+<section id="pipeline" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">How it works</div>
+    <h2>The pipeline</h2>
+    <p class="lede">Every <code>/commit</code> and <code>/push</code> runs a five-point gate — tests, security, build, Docker, cloud. Enforcement is a <code>PreToolUse</code> hook, not a reminder, so broken work cannot reach <code>main</code>.</p>
+  </div>
+
+  <!-- ============ DIAGRAM 2 · GATE ============ -->
+  <figure class="anim wide" data-anim>
+    <div class="svgbox">
+    <svg viewBox="0 12 900 186" role="img" aria-label="Pipeline diagram: spec, fix and commit flow into a five-point gate. Passing work continues to push and release; failing work loops back to fix.">
+      <defs>
+        <linearGradient id="gl" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#0ea5e9"/>
+        </linearGradient>
+        <filter id="sf2" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0b3a5c" flood-opacity=".12"/>
+        </filter>
+      </defs>
+
+      <!-- upstream nodes -->
+      <g filter="url(#sf2)" font-family="ui-monospace,monospace" font-size="12" font-weight="600">
+        <rect x="14"  y="86" width="84" height="36" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(16,185,129,.36)"/>
+        <rect x="126" y="86" width="72" height="36" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(16,185,129,.36)"/>
+        <rect x="226" y="86" width="96" height="36" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(16,185,129,.36)"/>
+        <rect x="612" y="86" width="80" height="36" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(14,165,233,.4)"/>
+        <rect x="720" y="86" width="104" height="36" rx="10" fill="rgba(255,255,255,.9)" stroke="rgba(14,165,233,.4)"/>
+      </g>
+      <g font-family="ui-monospace,monospace" font-size="12" font-weight="600" fill="#0f766e" text-anchor="middle">
+        <text x="56"  y="109">/spec</text>
+        <text x="162" y="109">/fix</text>
+        <text x="274" y="109">/commit</text>
+      </g>
+      <g font-family="ui-monospace,monospace" font-size="12" font-weight="600" fill="#0369a1" text-anchor="middle">
+        <text x="652" y="109">/push</text>
+        <text x="772" y="109">/release</text>
+      </g>
+
+      <!-- connectors -->
+      <g fill="none" stroke-width="1.8" stroke-linecap="round">
+        <path class="flow" d="M98 104 H126"  stroke="#10b981"/>
+        <path class="flow" d="M198 104 H226" stroke="#10b981"/>
+        <path class="flow" d="M322 104 H408" stroke="#10b981"/>
+        <path class="flow" d="M512 104 H612" stroke="#0ea5e9"/>
+        <path class="flow" d="M692 104 H720" stroke="#0ea5e9"/>
+      </g>
+
+      <!-- the gate -->
+      <circle class="ring" cx="460" cy="104" r="22" fill="none" stroke="#10b981" stroke-width="2.4"/>
+      <g filter="url(#sf2)">
+        <rect x="408" y="78" width="104" height="52" rx="14" fill="rgba(255,255,255,.94)" stroke="url(#gl)" stroke-width="2"/>
+      </g>
+      <text x="460" y="99"  text-anchor="middle" font-family="ui-monospace,monospace" font-size="12.5" font-weight="750" fill="#047857">GATE</text>
+      <text x="460" y="117" text-anchor="middle" font-family="ui-monospace,monospace" font-size="8.6" fill="#5b6b80" letter-spacing=".6">5 checks</text>
+
+      <!-- the five checks -->
+      <g font-family="ui-monospace,monospace" font-size="9" fill="#5b6b80" text-anchor="middle">
+        <text x="460" y="26" fill="#047857" font-size="8.6" letter-spacing="1.2">TESTS · SECURITY · BUILD · DOCKER · CLOUD</text>
+        <line x1="352" y1="34" x2="568" y2="34" stroke="rgba(16,185,129,.3)" stroke-width="1"/>
+        <line x1="460" y1="34" x2="460" y2="76" stroke="rgba(16,185,129,.3)" stroke-width="1" stroke-dasharray="3 4"/>
+      </g>
+
+      <!-- travelling packet -->
+      <g class="pkt">
+        <circle r="4.6" fill="#10b981">
+          <animateMotion dur="3.1s" repeatCount="indefinite"
+            path="M98 104 H126 M198 104 H226 M322 104 H408 M512 104 H612 M692 104 H720"/>
+        </circle>
+      </g>
+
+      <!-- fail branch -->
+      <g class="fail">
+        <path d="M460 130 V168 H162 V122" fill="none" stroke="#fb7185" stroke-width="1.8"
+              stroke-dasharray="6 5" stroke-linecap="round"/>
+        <path d="M156 132 l6 -10 l6 10" fill="none" stroke="#fb7185" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="276" y="155" width="124" height="26" rx="9" fill="rgba(255,241,244,.96)" stroke="rgba(251,113,133,.55)"/>
+        <text x="338" y="172" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.6" font-weight="650" fill="#be123c">FAIL → blocked</text>
+      </g>
+
+      <text x="566" y="72" font-family="ui-monospace,monospace" font-size="9" fill="#059669" font-weight="650">PASS ↗</text>
+    </svg>
+    </div>
+    <figcaption>Nothing reaches <code>main</code> without passing. A failing gate blocks the tool call and routes back to <code>/fix</code>.</figcaption>
+  </figure>
+
+  <div class="cards g3">
+    <div class="glass card"><h3>Typical session</h3><p><code>/context</code> → <code>/spec</code> or <code>/fix</code> → <code>/test</code> → <code>/commit</code> → <code>/grill</code> → <code>/pr</code></p></div>
+    <div class="glass card"><h3>Pre-release</h3><p><code>/techdebt</code> → <code>/grill</code> → <code>/test</code> → <code>/gate</code> → <code>/pr</code> → <code>/launch</code> → <code>/release</code></p></div>
+    <div class="glass card"><h3>Quick bug fix</h3><p><code>/fix "login returns 403"</code> → <code>/test</code> → <code>/commit</code> → <code>/pr</code></p></div>
+  </div>
+</section>
+
+<!-- ==================== SUPPORT MATRIX ==================== -->
+<section id="support" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Source of truth</div>
+    <h2>Support matrix</h2>
+    <p class="lede">Every row below was verified against source, not against documentation. Rows marked <span class="st st-n">drift</span> are cases where documentation promised something the code does not ship — they are listed rather than hidden.</p>
+  </div>
+
+  <div class="cards g4" style="margin-bottom:8px">
+    <div class="glass card"><span class="big">68</span><p>modules — 28 slash commands, 40 auto-trigger skills</p></div>
+    <div class="glass card"><span class="big">4</span><p>tools receive generated config</p></div>
+    <div class="glass card"><span class="big">7</span><p>database engines behind <code>/db</code></p></div>
+    <div class="glass card"><span class="big">27</span><p>SaaS CLIs behind <code>/connect</code></p></div>
+  </div>
+
+  <h3 style="margin-top:34px">AI tools — configuration emit</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">What each tool receives when you run <code>100xprism init</code>.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Tool</th><th>Status</th><th>Generated artifact</th><th>Auto-trigger</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Claude Code</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>~/.claude/skills/&lt;slug&gt;/</code> + slash-command aliases + plugins + hooks</td><td>Yes — per description</td></tr>
+        <tr><td><strong>Cursor</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>.cursor/rules/&lt;slug&gt;.mdc</code>, one file per module</td><td>Yes — per description</td></tr>
+        <tr><td><strong>Codex</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>AGENTS.md</code> + <code>.agents/skills/&lt;slug&gt;/</code> + <code>.codex/hooks.json</code></td><td>Yes — repo skills</td></tr>
+        <tr><td><strong>Pi</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>pi/skills/</code> + the <code>100xprism-catalog</code> package</td><td>Yes — per description</td></tr>
+        <tr><td>Windsurf</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
+        <tr><td>GitHub Copilot</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
+        <tr><td>Gemini</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
+        <tr><td>Antigravity</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0 — but still read by the token dashboard, below</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <p><strong>Why those four went.</strong> Each emitted a single concatenated file of roughly 60,000 characters that sat in context on every turn — the opposite of progressive disclosure. Every supported tool now loads module bodies on demand.</p>
+  </div>
+
+  <h3 style="margin-top:34px">Token observability — a separate axis</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">Emit support and measurement support are <em>not</em> the same list. Measurement capability is declared per collector in <code>scripts/adapters/registry.py</code> and is deliberately kept separate from adapter implementation, so activity can never be silently treated as billable usage.</p>
+
+  <!-- ============ DIAGRAM 3 · MEASUREMENT TIERS ============ -->
+  <figure class="anim wide" data-anim>
+    <div class="svgbox">
+    <svg viewBox="0 6 900 204" role="img" aria-label="Three measurement tiers. Exact sources emit dollar cost. Activity-only sources emit coverage but explicitly refuse dollar cost. Best-effort sources meter only rows carrying native usage fields.">
+      <defs>
+        <filter id="sf3" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0b3a5c" flood-opacity=".11"/>
+        </filter>
+      </defs>
+
+      <!-- lane 1 : exact -->
+      <g filter="url(#sf3)"><rect x="10" y="14" width="182" height="46" rx="12" fill="rgba(240,253,248,.95)" stroke="rgba(16,185,129,.45)"/></g>
+      <text x="26" y="35" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="#047857">EXACT</text>
+      <text x="26" y="50" font-family="ui-monospace,monospace" font-size="9" fill="#5b6b80">Claude Code · Codex</text>
+      <path class="flow" d="M192 37 H700" fill="none" stroke="#10b981" stroke-width="1.9" stroke-linecap="round"/>
+      <g class="pkt"><circle r="4.4" fill="#10b981"><animateMotion dur="3.1s" repeatCount="indefinite" path="M192 37 H700"/></circle></g>
+      <g filter="url(#sf3)"><rect x="700" y="16" width="190" height="42" rx="12" fill="rgba(255,255,255,.95)" stroke="rgba(16,185,129,.5)"/></g>
+      <text x="795" y="42" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" font-weight="750" fill="#047857">$ cost assigned</text>
+
+      <!-- lane 2 : activity only -->
+      <g filter="url(#sf3)"><rect x="10" y="86" width="182" height="46" rx="12" fill="rgba(255,251,240,.95)" stroke="rgba(245,158,11,.45)"/></g>
+      <text x="26" y="107" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="#b45309">ACTIVITY ONLY</text>
+      <text x="26" y="122" font-family="ui-monospace,monospace" font-size="9" fill="#5b6b80">Cursor · Antigravity</text>
+      <path class="flow" d="M192 109 H560" fill="none" stroke="#f59e0b" stroke-width="1.9" stroke-linecap="round"/>
+      <g class="pkt"><circle r="4.4" fill="#f59e0b"><animateMotion dur="3.1s" begin=".4s" repeatCount="indefinite" path="M192 109 H560"/></circle></g>
+      <g stroke="#be123c" stroke-width="2.2" stroke-linecap="round">
+        <line x1="566" y1="101" x2="582" y2="117"/><line x1="582" y1="101" x2="566" y2="117"/>
+      </g>
+      <text x="596" y="106" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="#be123c">no $ invented</text>
+      <text x="596" y="120" font-family="ui-monospace,monospace" font-size="8.6" fill="#8496aa">shown as “—”, never $0</text>
+
+      <!-- lane 3 : best effort -->
+      <g filter="url(#sf3)"><rect x="10" y="158" width="182" height="46" rx="12" fill="rgba(240,249,255,.95)" stroke="rgba(56,189,248,.5)"/></g>
+      <text x="26" y="179" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="#0369a1">BEST EFFORT</text>
+      <text x="26" y="194" font-family="ui-monospace,monospace" font-size="9" fill="#5b6b80">Pi</text>
+      <path class="flow" d="M192 181 H700" fill="none" stroke="#38bdf8" stroke-width="1.9" stroke-linecap="round" stroke-opacity=".8"/>
+      <g class="pkt"><circle r="4.4" fill="#38bdf8"><animateMotion dur="3.1s" begin=".8s" repeatCount="indefinite" path="M192 181 H700"/></circle></g>
+      <g filter="url(#sf3)"><rect x="700" y="160" width="190" height="42" rx="12" fill="rgba(255,255,255,.95)" stroke="rgba(56,189,248,.5)"/></g>
+      <text x="795" y="180" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="#0369a1">partial $ cost</text>
+      <text x="795" y="193" text-anchor="middle" font-family="ui-monospace,monospace" font-size="8.4" fill="#8496aa">rows with usage fields only</text>
+    </svg>
+    </div>
+    <figcaption>Three measurement tiers. A source without provider counters is never assigned an invented cost.</figcaption>
+  </figure>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Source</th><th>Measurement</th><th>Read from</th><th>Known limitation</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Claude Code</strong></td><td><span class="st st-y">exact</span></td><td><code>~/.claude/projects/**/*.jsonl</code></td><td>None</td></tr>
+        <tr><td><strong>Codex</strong></td><td><span class="st st-y">exact</span></td><td><code>~/.codex/sessions/**/rollout-*.jsonl</code></td><td>Cache-write counters unavailable</td></tr>
+        <tr><td><strong>Cursor</strong></td><td><span class="st st-p">activity only</span></td><td><code>~/.cursor/projects/*/agent-transcripts/**/*.jsonl</code></td><td>Local transcripts expose no provider token counters</td></tr>
+        <tr><td><strong>Antigravity</strong></td><td><span class="st st-p">activity only</span></td><td><code>~/.gemini/antigravity</code></td><td>Local protobuf schema exposes no provider token counters</td></tr>
+        <tr><td><strong>Pi</strong></td><td><span class="st st-i">best effort</span></td><td><code>~/.pi/agent/sessions/**/*.jsonl</code></td><td>Session formats vary; only rows carrying native usage fields are metered</td></tr>
+        <tr><td>Cursor chats · <code>state.vscdb</code></td><td><span class="st st-n">✗ Out of scope</span></td><td>—</td><td>Outside the collector's scope by design</td></tr>
+        <tr><td>Legacy transcript <code>.txt</code></td><td><span class="st st-n">✗ Out of scope</span></td><td>—</td><td>Outside the collector's scope by design</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px">Operating systems</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Platform</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td><strong>macOS</strong></td><td><span class="st st-y">✓ Full</span></td><td>Both install methods; all adapters</td></tr>
+        <tr><td><strong>Linux</strong></td><td><span class="st st-y">✓ Full</span></td><td>Both install methods; all adapters</td></tr>
+        <tr><td><strong>Windows — WSL</strong></td><td><span class="st st-y">✓ Full</span></td><td>Recommended path for Windows users</td></tr>
+        <tr><td><strong>Windows — native</strong></td><td><span class="st st-p">⚠ Partial</span></td><td>npm launcher and Claude Code plugin sync work. Native module emit is being reworked under <a href="https://github.com/rajitsaha/100xprism/issues/54">issue&nbsp;#54</a>. Use WSL for full module support.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px">Database engines</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px"><code>/db</code> executes SQL and migrations against a named connection. <code>/query</code> answers plain-English analytics questions and reaches a wider set of engines through their own CLIs.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Engine</th><th><code>/db</code></th><th><code>/query</code></th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>PostgreSQL</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Cloud SQL</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Snowflake</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Databricks</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Athena</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Presto</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr><td><strong>Oracle</strong></td><td><span class="st st-y">✓</span></td><td><span class="st st-y">✓</span></td><td>Engine file ships</td></tr>
+        <tr class="drift"><td><strong>MySQL</strong></td><td><span class="st st-n">✗</span></td><td><span class="st st-y">✓</span></td><td><strong>Drift.</strong> The scaffolded <code>CLAUDE.md</code> lists it as an <code>engine:</code> option, but no engine file exists — <code>/db</code> fails with “No engine file found”. Use <code>/query</code>.</td></tr>
+        <tr class="drift"><td><strong>SQLite</strong></td><td><span class="st st-n">✗</span></td><td><span class="st st-y">✓</span></td><td><strong>Drift.</strong> Same as MySQL — listed in the scaffold, no engine file. Use <code>/query</code>.</td></tr>
+        <tr class="drift"><td><strong>BigQuery</strong></td><td><span class="st st-n">✗</span></td><td><span class="st st-y">✓</span></td><td><strong>Drift.</strong> Same as MySQL — listed in the scaffold, no engine file. Use <code>/query</code> with the <code>bq</code> CLI.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px">Known documentation drift</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">Found by auditing every documented feature against its implementation. Listed here so nobody has to rediscover them.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>What was documented</th><th>What actually ships</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr class="drift">
+          <td><code>100xprism pack install&nbsp;&lt;name&gt;</code>, <code>pack uninstall</code>, <code>pack detect</code> as CLI subcommands</td>
+          <td>No <code>pack</code> case exists in the CLI dispatcher. Packs run through the <code>/pack</code> skill with <strong><code>add</code></strong> and <strong><code>remove</code></strong> verbs.</td>
+          <td><span class="st st-y">Docs corrected</span></td>
+        </tr>
+        <tr class="drift">
+          <td>Scaffolded <code>CLAUDE.md</code> offers <code>mysql</code>, <code>sqlite</code>, <code>bigquery</code> as <code>engine:</code> values</td>
+          <td><code>/db</code> ships seven engine files; those three are not among them and fail at dispatch. They remain reachable through <code>/query</code>.</td>
+          <td><span class="st st-p">Documented, scaffold unchanged</span></td>
+        </tr>
+        <tr class="drift">
+          <td>README slash-command tables listed 26 commands</td>
+          <td>28 modules declare a <code>slash_command</code>. <code>/pack</code> and <code>/pair-loop</code> were missing from the tables.</td>
+          <td><span class="st st-y">Docs corrected</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px">Everything else</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code core plugins</td><td><span class="st st-y">✓ 2 auto</span></td><td><code>github</code> and <code>security-guidance</code> install by default</td></tr>
+        <tr><td>Profile-recommended plugins</td><td><span class="st st-i">5 suggested</span></td><td>Web and design profiles — suggested, never forced</td></tr>
+        <tr><td>Manual opt-in plugins</td><td><span class="st st-i">7 available</span></td><td>Including <code>superpowers</code>, <code>skill-creator</code>, <code>hookify</code></td></tr>
+        <tr><td>Codex-native plugins</td><td><span class="st st-p">⚠ Manual</span></td><td>Claude Code plugins are Claude-specific. Use Codex <code>/plugins</code>.</td></tr>
+        <tr><td>Skill packs</td><td><span class="st st-y">✓ 1 pack</span></td><td>Databricks only — see <a href="#packs">Skill packs</a></td></tr>
+        <tr><td>Project templates</td><td><span class="st st-y">✓ 4</span></td><td><code>node-fullstack</code> · <code>node-frontend</code> · <code>python-api</code> · <code>docker-compose</code></td></tr>
+        <tr><td>Cloud security scanning</td><td><span class="st st-p">⚠ GCP only</span></td><td><code>/cloud-security</code> covers GCP IAM, networking, PII and compliance. AWS and Azure are reachable through <code>/connect</code> for authentication only.</td></tr>
+        <tr><td>Gate enforcement hook</td><td><span class="st st-y">✓ Claude Code + Codex</span></td><td><code>gate-on-commit</code> <code>PreToolUse</code> hook blocks <code>git commit</code> and <code>git push</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== COMMANDS ==================== -->
+<section id="commands" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Reference</div>
+    <h2>Slash commands <span style="font-weight:500;color:var(--faint);font-size:.62em">28</span></h2>
+    <p class="lede">Run these inside Claude Code. In Codex, invoke the generated repo skill by name instead — <code>$gate</code>, <code>$commit</code>, or <code>/skills</code> to browse.</p>
+  </div>
+
+  <h3>Lifecycle</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/branch</code></td><td>Create a conventional feature branch — <code>feat/</code>, <code>fix/</code>, <code>chore/</code></td></tr>
+      <tr><td><code>/commit</code></td><td>Gate → stage → conventional commit</td></tr>
+      <tr><td><code>/grill</code></td><td>Adversarial code review before opening a PR</td></tr>
+      <tr><td><code>/pr</code></td><td>Gate → push branch → create pull request</td></tr>
+      <tr><td><code>/push</code></td><td>Gate → push → monitor CI → verify production health</td></tr>
+      <tr><td><code>/release patch|minor|major</code></td><td>Semantic versioning, then publish to PyPI, npm or Docker Hub</td></tr>
+      <tr><td><code>/launch</code></td><td>Full deploy pipeline in one command</td></tr>
+      <tr><td><code>/pair-loop</code></td><td>Structured pair-programming handoff protocol between agents</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:26px">Quality</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/gate</code></td><td><strong>Mandatory</strong> five-point gate — tests, security, build, Docker, cloud</td></tr>
+      <tr><td><code>/test</code></td><td>Every test layer — unit, integration, E2E — looping until coverage clears threshold</td></tr>
+      <tr><td><code>/lint</code></td><td>Auto-detect and fix lint errors: ESLint, TypeScript, ruff</td></tr>
+      <tr><td><code>/security</code></td><td>Vulnerability and secret scan, auto-fixing what it can</td></tr>
+      <tr><td><code>/cloud-security</code></td><td>GCP IAM, networking, PII and compliance scan</td></tr>
+      <tr><td><code>/eval</code></td><td>Run module evals — check triggering and output quality</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:26px">Engineering</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/spec</code></td><td>Turn a vague request into an implementation-ready spec</td></tr>
+      <tr><td><code>/fix</code></td><td>Autonomous bug fixer — CI failures, Docker logs, pasted stack traces</td></tr>
+      <tr><td><code>/orchestrate</code></td><td>Plan-first methodology for complex multi-step tasks</td></tr>
+      <tr><td><code>/techdebt</code></td><td>Dead code, duplication, stale TODOs</td></tr>
+      <tr><td><code>/context</code></td><td>Seven-day git and GitHub activity dump — orient before coding</td></tr>
+      <tr><td><code>/update-claude</code></td><td>Write a <code>CLAUDE.md</code> rule after any correction</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:26px">Data &amp; infrastructure</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/db</code></td><td>Execute SQL or migrations against any of seven engines from one interface</td></tr>
+      <tr><td><code>/query</code></td><td>Plain-English analytics — describe what you want, get SQL</td></tr>
+      <tr><td><code>/connect</code></td><td>Install and authenticate 27 SaaS CLIs from <code>.env</code></td></tr>
+      <tr><td><code>/pack</code></td><td>List, detect, add or remove optional vendor skill packs</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:26px">Documentation &amp; architecture</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/docs</code></td><td>Detect code changes and update documentation to match</td></tr>
+      <tr><td><code>/issue</code></td><td>Investigate a bug and open a root-caused GitHub issue</td></tr>
+      <tr><td><code>/architect</code></td><td>Architectural Q&amp;A and decision matrices</td></tr>
+      <tr><td><code>/enterprise-design</code></td><td>Full technical blueprint — IA, API, data model, stack</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ==================== SKILLS ==================== -->
+<section id="skills" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Reference</div>
+    <h2>Auto-trigger skills <span style="font-weight:500;color:var(--faint);font-size:.62em">40</span></h2>
+    <p class="lede">These activate on their own when you describe a relevant task — no slash command needed. After <code>100xprism optimize</code>, most load through the generated <code>100x-resolver</code> catalog rather than sitting in your always-on context.</p>
+  </div>
+
+  <div class="cards g2">
+    <div class="glass card">
+      <h3>Marketing copy</h3>
+      <div class="chips"><span class="chip">copywriting</span><span class="chip">copy-editing</span><span class="chip">cold-email</span><span class="chip">email-sequence</span><span class="chip">ad-creative</span><span class="chip">social-content</span></div>
+    </div>
+    <div class="glass card">
+      <h3>SEO</h3>
+      <div class="chips"><span class="chip">seo-audit</span><span class="chip">ai-seo</span><span class="chip">programmatic-seo</span><span class="chip">schema-markup</span><span class="chip">site-architecture</span></div>
+    </div>
+    <div class="glass card">
+      <h3>CRO &amp; conversion</h3>
+      <div class="chips"><span class="chip">page-cro</span><span class="chip">signup-flow-cro</span><span class="chip">onboarding-cro</span><span class="chip">form-cro</span><span class="chip">popup-cro</span><span class="chip">paywall-upgrade-cro</span></div>
+    </div>
+    <div class="glass card">
+      <h3>Growth &amp; strategy</h3>
+      <div class="chips"><span class="chip">content-strategy</span><span class="chip">marketing-ideas</span><span class="chip">marketing-psychology</span><span class="chip">launch-strategy</span><span class="chip">referral-program</span><span class="chip">churn-prevention</span><span class="chip">free-tool-strategy</span><span class="chip">ab-test-setup</span><span class="chip">analytics-tracking</span><span class="chip">pricing-strategy</span></div>
+    </div>
+    <div class="glass card">
+      <h3>Sales</h3>
+      <div class="chips"><span class="chip">sales-enablement</span><span class="chip">competitor-alternatives</span><span class="chip">paid-ads</span><span class="chip">revops</span><span class="chip">product-marketing-context</span></div>
+    </div>
+    <div class="glass card">
+      <h3>Design &amp; UX</h3>
+      <div class="chips"><span class="chip">visual-system-architect</span><span class="chip">interaction-engineer</span><span class="chip">figma-translator</span><span class="chip">motion-designer</span><span class="chip">data-viz</span><span class="chip">a11y-auditor</span></div>
+    </div>
+    <div class="glass card">
+      <h3>Engineering</h3>
+      <div class="chips"><span class="chip">subagents</span><span class="chip">terminal-setup</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CONTEXT ECONOMICS ==================== -->
+<section id="context" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Paying only for what you use</div>
+    <h2>Context economics</h2>
+    <p class="lede">An installed module charges you for two different things. Its <strong>description</strong> may be re-sent on every turn, forever. Its <strong>body</strong> is free until the module is actually invoked. Separating those is where the saving comes from.</p>
+  </div>
+
+  <!-- ============ DIAGRAM 4 · SLIM BAR ============ -->
+  <figure class="anim wide" data-anim>
+    <div class="svgbox">
+    <svg viewBox="0 0 900 208" role="img" aria-label="Bar chart: Claude Code standing description footprint falls from 4816 tokens in all mode to 1667 in profile mode to 574 in must mode. Cursor falls from 1942 to 705 to 261.">
+      <text x="0" y="16" font-family="ui-monospace,monospace" font-size="10" fill="#5b6b80" letter-spacing="1.1">STANDING DESCRIPTION FOOTPRINT · ESTIMATED TOKENS (CHARS ÷ 4)</text>
+
+      <!-- Claude Code -->
+      <text x="0" y="46" font-family="-apple-system,sans-serif" font-size="11.5" font-weight="650" fill="#1e293b">Claude Code</text>
+      <g font-family="ui-monospace,monospace" font-size="10.5">
+        <rect class="bar-fill" x="96" y="34" width="664" height="17" rx="5" fill="rgba(190,18,60,.24)" style="transition-delay:.05s"/>
+        <text x="770" y="47" fill="#be123c" font-weight="650">4,816</text>
+        <text x="104" y="47" fill="#7f1d3a" font-size="9">all</text>
+
+        <rect class="bar-fill" x="96" y="57" width="230" height="17" rx="5" fill="rgba(245,158,11,.3)" style="transition-delay:.2s"/>
+        <text x="336" y="70" fill="#b45309" font-weight="650">1,667</text>
+        <text x="104" y="70" fill="#78350f" font-size="9">profile</text>
+
+        <rect class="bar-fill" x="96" y="80" width="79" height="17" rx="5" fill="rgba(16,185,129,.42)" style="transition-delay:.35s"/>
+        <text x="185" y="93" fill="#047857" font-weight="750">574</text>
+        <text x="104" y="93" fill="#065f46" font-size="9">must</text>
+      </g>
+
+      <!-- Cursor -->
+      <text x="0" y="130" font-family="-apple-system,sans-serif" font-size="11.5" font-weight="650" fill="#1e293b">Cursor</text>
+      <g font-family="ui-monospace,monospace" font-size="10.5">
+        <rect class="bar-fill" x="96" y="118" width="268" height="17" rx="5" fill="rgba(190,18,60,.24)" style="transition-delay:.5s"/>
+        <text x="374" y="131" fill="#be123c" font-weight="650">1,942</text>
+        <text x="104" y="131" fill="#7f1d3a" font-size="9">all</text>
+
+        <rect class="bar-fill" x="96" y="141" width="97" height="17" rx="5" fill="rgba(245,158,11,.3)" style="transition-delay:.65s"/>
+        <text x="203" y="154" fill="#b45309" font-weight="650">705</text>
+        <text x="104" y="154" fill="#78350f" font-size="9">profile</text>
+
+        <rect class="bar-fill" x="96" y="164" width="36" height="17" rx="5" fill="rgba(16,185,129,.42)" style="transition-delay:.8s"/>
+        <text x="142" y="177" fill="#047857" font-weight="750">261</text>
+        <text x="104" y="177" fill="#065f46" font-size="9">must</text>
+      </g>
+
+      <line x1="96" y1="26" x2="96" y2="190" stroke="rgba(15,40,70,.14)" stroke-width="1"/>
+      <text x="0" y="203" font-family="ui-monospace,monospace" font-size="8.6" fill="#8496aa">Deterministic estimate, not provider-billed usage. CI enforces the committed must-mode budgets.</text>
+    </svg>
+    </div>
+    <figcaption>Fresh installs default to <code>must</code>. Widening the index is explicit, and reversible.</figcaption>
+  </figure>
+
+  <h3>Retention classes</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">Every module derives one. A module can override it with <code>retention:</code> in frontmatter.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Class</th><th class="num">Count</th><th>Kept because</th></tr></thead>
+    <tbody>
+      <tr><td><code>must</code></td><td class="num">12</td><td>Deterministic machinery or house policy a model will not reproduce unprompted — the commands <code>gate</code> runs, the order <code>release</code> runs them in, the protocol <code>pair-loop</code> speaks</td></tr>
+      <tr><td><code>profile</code></td><td class="num">18</td><td>Earns its slot in repos of a matching kind. Also anything owning a slash command, so the generic resolver route keeps it reachable</td></tr>
+      <tr><td><code>resolver</code></td><td class="num">38</td><td>General expertise a capable model already has. One catalog row, read by path on demand — one description now stands in for 38</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:26px">Measured footprint by surface</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Surface</th><th class="num">all</th><th class="num">profile</th><th class="num">must</th><th>Indexed entries</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code user scope</td><td class="num">4,816</td><td class="num">1,667</td><td class="num"><strong>574</strong></td><td>68 → 31 → 13</td></tr>
+      <tr><td>Cursor project rules</td><td class="num">1,942</td><td class="num">705</td><td class="num"><strong>261</strong></td><td>68 → 31 → 13</td></tr>
+      <tr><td>Codex repo skills</td><td class="num">4,816</td><td class="num">1,648</td><td class="num"><strong>555</strong></td><td>Non-selected bodies move to the catalog</td></tr>
+      <tr><td>Pi package skills</td><td class="num">4,816</td><td class="num">1,667</td><td class="num"><strong>574</strong></td><td>Extensions remain available, opt-in</td></tr>
+      <tr><td>Consumer <code>CLAUDE.md</code> scaffold</td><td class="num">~350</td><td class="num">—</td><td class="num"><strong>~180</strong></td><td>Commented TODOs → router table</td></tr>
+    </tbody>
+  </table></div>
+
+  <pre><code>100xprism optimize                   <span class="c-cmt"># must-only for user scope + this repo</span>
+100xprism optimize --all-projects
+100xprism optimize --skills=profile  <span class="c-cmt"># widen to detected project profiles</span>
+100xprism optimize --skills=all      <span class="c-cmt"># restore every module</span>
+100xprism audit --json               <span class="c-cmt"># standing-context estimate + inventory</span></code></pre>
+
+  <div class="note">
+    <p><strong>Does a smarter model make this unnecessary?</strong> Partly — and the split is drawn on exactly that line. What a capable model already knows became the <code>resolver</code> class. What it cannot know is the other two: which commands <em>this</em> repo's gate runs, that <code>user_id</code> is TEXT-not-UUID here, that the Stripe webhook must register <code>express.raw()</code> before <code>express.json()</code>. Model capability retires <strong>procedure</strong>. It does not retire <strong>project facts</strong> or <strong>determinism</strong>.</p>
+  </div>
+</section>
+
+<!-- ==================== ECONOMICS ==================== -->
+<section id="economics" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Cost vs. value</div>
+    <h2>Value economics</h2>
+    <p class="lede">Every agent run spends real money in tokens. The dashboard measures token cost and observable engineering delivery separately, joins them, and then <strong>refuses to invent the third number</strong>. That refusal is the design, not a gap.</p>
+  </div>
+
+  <!-- ============ DIAGRAM 5 · THE MEASUREMENT CHAIN ============ -->
+  <figure class="anim wide" data-anim>
+    <div class="svgbox">
+    <svg viewBox="0 0 900 262" role="img" aria-label="The three-stage measurement chain. Stage one, token economics, computes list-price spend from local transcripts. Stage two, observable delivery, joins that spend to git commits, pull requests and releases, showing attribution coverage and unit cost per pull request. Stage three, business value, is explicitly not measured.">
+      <defs>
+        <filter id="sf5" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0b3a5c" flood-opacity=".11"/>
+        </filter>
+        <linearGradient id="joing" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#10b981"/>
+        </linearGradient>
+      </defs>
+
+      <!-- input chips -->
+      <g font-family="ui-monospace,monospace" font-size="8.6" fill="#8496aa">
+        <rect x="14" y="8" width="268" height="24" rx="8" fill="rgba(255,255,255,.75)" stroke="rgba(15,40,70,.11)"/>
+        <text x="27" y="24">~/.claude · ~/.codex · ~/.pi transcripts</text>
+        <path d="M148 32 V52" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+        <rect x="310" y="8" width="268" height="24" rx="8" fill="rgba(255,255,255,.75)" stroke="rgba(15,40,70,.11)"/>
+        <text x="323" y="24">git log · merges · tags · numstat</text>
+        <path d="M444 32 V52" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 3"/>
+      </g>
+
+      <!-- STAGE 1 — token economics -->
+      <g filter="url(#sf5)"><rect x="14" y="52" width="268" height="150" rx="14" fill="rgba(255,255,255,.94)" stroke="rgba(2,132,199,.4)" stroke-width="1.4"/></g>
+      <rect x="14" y="52" width="268" height="4" rx="2" fill="#0ea5e9"/>
+      <text x="30" y="76" font-family="ui-monospace,monospace" font-size="9.4" font-weight="700" fill="#0369a1" letter-spacing=".9">1 · TOKEN ECONOMICS</text>
+      <text x="30" y="108" font-family="ui-monospace,monospace" font-size="26" font-weight="750" fill="#0369a1">$ spend</text>
+      <g font-family="ui-monospace,monospace" font-size="8.8" fill="#5b6b80">
+        <text x="30" y="128">list-price estimate, by model</text>
+        <text x="30" y="144">input · output · cache read · cache write</text>
+        <text x="30" y="160">split by project · session · skill</text>
+      </g>
+      <g font-family="ui-monospace,monospace" font-size="8.2">
+        <rect x="30" y="170" width="128" height="18" rx="6" fill="rgba(2,132,199,.1)" stroke="rgba(2,132,199,.25)"/>
+        <text x="40" y="183" fill="#0369a1">pricing coverage %</text>
+      </g>
+
+      <!-- join arrow 1 -->
+      <path class="flow" d="M282 127 H310" fill="none" stroke="url(#joing)" stroke-width="2" stroke-linecap="round"/>
+      <g class="pkt"><circle r="4.2" fill="#0ea5e9"><animateMotion dur="3.1s" repeatCount="indefinite" path="M282 127 H310"/></circle></g>
+
+      <!-- STAGE 2 — observable delivery -->
+      <g filter="url(#sf5)"><rect x="310" y="52" width="268" height="150" rx="14" fill="rgba(255,255,255,.94)" stroke="rgba(16,185,129,.45)" stroke-width="1.4"/></g>
+      <rect x="310" y="52" width="268" height="4" rx="2" fill="#10b981"/>
+      <text x="326" y="76" font-family="ui-monospace,monospace" font-size="9.4" font-weight="700" fill="#047857" letter-spacing=".9">2 · OBSERVABLE DELIVERY</text>
+      <text x="326" y="106" font-family="ui-monospace,monospace" font-size="17" font-weight="750" fill="#047857">PRs · commits</text>
+      <text x="326" y="122" font-family="ui-monospace,monospace" font-size="10.5" font-weight="650" fill="#059669">releases · files · ± lines</text>
+
+      <!-- animated attribution coverage meter -->
+      <text x="326" y="142" font-family="ui-monospace,monospace" font-size="8.2" fill="#5b6b80">attribution coverage</text>
+      <rect x="326" y="147" width="236" height="9" rx="5" fill="rgba(15,40,70,.08)"/>
+      <rect class="bar-fill" x="326" y="147" width="164" height="9" rx="5" fill="#10b981" style="transition-delay:.35s"/>
+      <text x="326" y="176" font-family="ui-monospace,monospace" font-size="8.8" fill="#5b6b80">unit cost uses attributed spend only:</text>
+      <g font-family="ui-monospace,monospace" font-size="8.4" font-weight="650" fill="#047857">
+        <rect x="326" y="181" width="52" height="16" rx="5" fill="rgba(16,185,129,.11)" stroke="rgba(16,185,129,.28)"/>
+        <text x="335" y="193">$ / PR</text>
+        <rect x="384" y="181" width="74" height="16" rx="5" fill="rgba(16,185,129,.11)" stroke="rgba(16,185,129,.28)"/>
+        <text x="393" y="193">$ / commit</text>
+        <rect x="464" y="181" width="78" height="16" rx="5" fill="rgba(16,185,129,.11)" stroke="rgba(16,185,129,.28)"/>
+        <text x="473" y="193">$ / release</text>
+      </g>
+
+      <!-- join arrow 2 -->
+      <path class="flow" d="M578 127 H606" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+
+      <!-- STAGE 3 — business value, refused -->
+      <g filter="url(#sf5)">
+        <rect x="606" y="52" width="280" height="150" rx="14" fill="rgba(250,251,252,.92)"
+              stroke="#cbd5e1" stroke-width="1.6" stroke-dasharray="7 5"/>
+      </g>
+      <text x="622" y="76" font-family="ui-monospace,monospace" font-size="9.4" font-weight="700" fill="#8496aa" letter-spacing=".9">3 · BUSINESS VALUE</text>
+      <g stroke="#be123c" stroke-width="2.6" stroke-linecap="round">
+        <line x1="826" y1="88" x2="854" y2="116"/><line x1="854" y1="88" x2="826" y2="116"/>
+      </g>
+      <text x="622" y="110" font-family="ui-monospace,monospace" font-size="19" font-weight="750" fill="#64748b">Not measured</text>
+      <g font-family="ui-monospace,monospace" font-size="8.8" fill="#8496aa">
+        <text x="622" y="134">Git delivery signals do not</text>
+        <text x="622" y="148">establish business or human value.</text>
+        <text x="622" y="172" fill="#be123c" font-weight="650">No ROI score is invented here.</text>
+        <text x="622" y="188">Connect an outcome source to fill it.</text>
+      </g>
+
+      <text x="14" y="228" font-family="ui-monospace,monospace" font-size="8.6" fill="#8496aa">Stage 2 joins stage 1 only where spend can be attributed to a directory. Unattributed spend is excluded from unit costs rather than silently averaged in.</text>
+      <text x="14" y="244" font-family="ui-monospace,monospace" font-size="8.6" fill="#8496aa">Coverage bar is illustrative; the dashboard renders your measured percentage.</text>
+    </svg>
+    </div>
+    <figcaption>Cost → delivery → value. The third stage is deliberately, visibly empty.</figcaption>
+  </figure>
+
+  <h3 style="margin-top:30px">Run it</h3>
+  <pre><code>100xprism tokens                  <span class="c-cmt"># offline dashboard, auto-refreshes every 30s</span>
+100xprism value                   <span class="c-cmt"># delivery economics</span>
+100xprism tokens --json           <span class="c-cmt"># versioned provider-counter report</span>
+100xprism tokens --json --tool codex
+100xprism audit --json            <span class="c-cmt"># standing-context estimate</span></code></pre>
+
+  <h3 style="margin-top:30px">The four token purposes</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">Every observed token is classified into one of four purposes, then priced per model. Cache share matters because a high one means much of your context was served through prompt caching — it does <em>not</em> mean the work was free.</p>
+
+  <!-- ============ DIAGRAM 6 · TOKEN PURPOSES ============ -->
+  <figure class="anim wide" data-anim>
+    <div class="svgbox">
+    <svg viewBox="0 0 900 132" role="img" aria-label="Segmented bar showing the four token purposes the dashboard splits spend into: cache read, cache write, input and output.">
+      <text x="0" y="14" font-family="ui-monospace,monospace" font-size="9" fill="#8496aa" letter-spacing="1">TOKENS BY PURPOSE — PRICED SEPARATELY, PER MODEL</text>
+
+      <g class="bar-fill" style="transition-delay:.1s">
+        <rect x="0"   y="28" width="392" height="34" rx="7" fill="rgba(56,189,248,.42)"/>
+        <rect x="398" y="28" width="128" height="34" rx="7" fill="rgba(2,132,199,.4)"/>
+        <rect x="532" y="28" width="196" height="34" rx="7" fill="rgba(16,185,129,.42)"/>
+        <rect x="734" y="28" width="166" height="34" rx="7" fill="rgba(5,150,105,.5)"/>
+      </g>
+
+      <g font-family="ui-monospace,monospace" font-size="10" font-weight="700" fill="#0b3a5c">
+        <text x="14"  y="50">cache read</text>
+        <text x="410" y="50">cache write</text>
+        <text x="546" y="50">input</text>
+        <text x="748" y="50">output</text>
+      </g>
+
+      <g font-family="ui-monospace,monospace" font-size="8.6" fill="#5b6b80">
+        <text x="0"   y="82">context served from</text><text x="0"   y="94">the provider's cache</text>
+        <text x="398" y="82">context written</text><text x="398" y="94">into the cache</text>
+        <text x="532" y="82">prompt sent</text><text x="532" y="94">to the model</text>
+        <text x="734" y="82">what the model</text><text x="734" y="94">generated</text>
+      </g>
+
+      <text x="0" y="122" font-family="ui-monospace,monospace" font-size="8.4" fill="#8496aa">Proportions above are illustrative. The dashboard computes yours from local provider counters and renders the real split as a stacked bar and a share donut.</text>
+    </svg>
+    </div>
+    <figcaption>Four purposes, priced separately — because a cached token and a generated token do not cost the same.</figcaption>
+  </figure>
+
+  <h3 style="margin-top:30px">What the dashboard actually renders</h3>
+  <p style="font-size:.9rem;color:var(--muted);margin-top:4px">Every view below exists today in <code>100xprism tokens</code>.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>View</th><th>Shows</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Economics chain</strong></td><td>The three stages above — spend, delivery with coverage and unit cost, and the unmeasured value stage</td></tr>
+      <tr><td><strong>Headline cards</strong></td><td>Window spend · cache share · startup bloat vs a 200K reference window · pricing coverage</td></tr>
+      <tr><td><strong>Daily cost area chart</strong></td><td>Estimated list-price cost per day across the selected window</td></tr>
+      <tr><td><strong>Daily cost stacked by model</strong></td><td>Which model consumed which share of each day's spend, with a legend</td></tr>
+      <tr><td><strong>Token-purpose split</strong></td><td>Stacked bar plus a share donut across cache read, cache write, input and output</td></tr>
+      <tr><td><strong>Cost by directory</strong></td><td>Horizontal bars, highest spend first, for the selected window</td></tr>
+      <tr><td><strong>Total cost tree</strong></td><td>Expandable tool → model breakdown with proportional bars</td></tr>
+      <tr><td><strong>All directories</strong></td><td>Selected-window spend joined to delivery evidence, per directory</td></tr>
+      <tr><td><strong>Skill attribution</strong></td><td>Cost per skill and per invocation, tagged <code>exact</code> or <code>attributed</code> so heuristics are never mistaken for measurement</td></tr>
+      <tr><td><strong>Conversation composition</strong></td><td>Estimated split of code vs. files read vs. logs vs. chat</td></tr>
+      <tr><td><strong>Pair-loop runs</strong></td><td>Per handoff run: rounds, coder spend, reviewer spend, total, outcome, PR</td></tr>
+      <tr><td><strong>GitHub deep dive</strong></td><td>PRs fetched, comment-heavy PRs, docs PRs, deleted-file PRs, plus developer and repository breakdowns</td></tr>
+      <tr><td><strong>Activity without counters</strong></td><td>Cursor and Antigravity sessions listed for coverage — explicitly never entering token cost</td></tr>
+      <tr><td><strong>Recommendations</strong></td><td>Ranked by estimated opportunity, each with the observed signal, a conservative what-if model, and the expected effect on agent autonomy</td></tr>
+      <tr><td><strong>Provenance strip</strong></td><td>Pricing coverage, outcome-join coverage, source counts, date range</td></tr>
+      <tr><td><strong>Budgets</strong></td><td>Optional daily and weekly limits driving dashboard and shell alerts</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:30px">How delivery is counted</h3>
+  <div class="cards g3">
+    <div class="glass card">
+      <h3>Merged PRs, deduplicated</h3>
+      <p>Squash-merge subjects like <code>Title (#42)</code> and real merge commits both count, then the union is deduplicated. A bare <code>fix: resolve #100</code> inside an ordinary commit is <em>not</em> miscounted as a merged PR.</p>
+    </div>
+    <div class="glass card">
+      <h3>Git first, filesystem second</h3>
+      <p>Git supplies commits, PRs, releases, files, insertions and deletions. A directory that is not a work tree falls back to a filesystem-mtime estimate — and that estimate is explicitly labelled as one.</p>
+    </div>
+    <div class="glass card">
+      <h3>Never a misleading zero</h3>
+      <p>Directories whose tool exposes no token counters show <code>—</code> for cost, never <code>$0</code>. An absent measurement and a measured zero are different facts.</p>
+    </div>
+  </div>
+
+  <div class="note good">
+    <p><strong>Fully offline.</strong> Everything is computed from local files and served on a local URL. Nothing is uploaded. It auto-refreshes every 30 seconds once started, and shell startup never starts it.</p>
+  </div>
+
+  <div class="note warn">
+    <p><strong>What is deliberately not claimed.</strong> Delivery unit costs use attributed spend only and always show their coverage. Dollar figures are list-price estimates from local counters — subscriptions, credits, regional pricing and provider-side billing adjustments are not reconstructed, so this is not your invoice. And delivery activity is not ROI: revenue, retention and customer outcomes stay unmeasured rather than approximated.</p>
+  </div>
+</section>
+
+<!-- ==================== PACKS ==================== -->
+<section id="packs" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Opt-in</div>
+    <h2>Skill packs</h2>
+    <p class="lede">Some skills only matter to some projects, so they do not ship by default. Nothing installs until you ask.</p>
+  </div>
+
+  <div class="note bad">
+    <p><strong>Use the <code>/pack</code> skill, not the CLI.</strong> There is no <code>100xprism pack</code> subcommand. Run these inside your AI tool.</p>
+  </div>
+
+  <pre><code>/pack                    <span class="c-cmt"># every pack, install state, and anything detected here</span>
+/pack detect             <span class="c-cmt"># only what matches the current project</span>
+/pack add databricks     <span class="c-cmt"># install a pack</span>
+/pack remove databricks  <span class="c-cmt"># reverse only what 100xprism installed</span></code></pre>
+
+  <p>Packs are ownership-tracked per install — <code>/pack remove</code> only removes what it added, never a plugin or command you enabled yourself. Where the vendor ships a CLI, that path is preferred; otherwise 100xPrism installs directly per platform.</p>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Pack</th><th>Contents</th><th>Detected by</th><th>Install path</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>databricks</strong></td>
+        <td>30+ skills — Unity Catalog, Asset Bundles, Lakeflow, model serving, vector search</td>
+        <td><code>databricks.yml</code> · <code>DATABRICKS_HOST</code> · <code>databricks-</code> in <code>requirements.txt</code> or <code>pyproject.toml</code></td>
+        <td>Prefers <code>databricks aitools install</code>; falls back to per-platform marketplace install</td>
+      </tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:.88rem;color:var(--muted)">Databricks is currently the only pack.</p>
+</section>
+
+<!-- ==================== CHANGES ==================== -->
+<section id="changes" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Upgrading</div>
+    <h2>Deprecations &amp; removals</h2>
+    <p class="lede">What recent releases took away, and what to do about it. Full detail in the <a href="https://github.com/rajitsaha/100xprism/blob/main/CHANGELOG.md">changelog</a>.</p>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Version</th><th>Removed or changed</th><th>Migration</th></tr></thead>
+    <tbody>
+      <tr><td><strong>3.1</strong></td><td><code>commit</code>, <code>push</code>, <code>branch</code> dropped from <code>tier: core</code> — no longer resident in Cursor's context</td><td>None. Still slash commands; gate enforcement now comes from the <code>gate-on-commit</code> hook rather than prompt residency</td></tr>
+      <tr><td><strong>3.1</strong></td><td>Specialist modules leave the always-on skill index on your first <code>update</code></td><td>Automatic and announced once. Undo with <code>100xprism optimize --skills=all</code>; skip with <code>100xprism update --no-slim</code></td></tr>
+      <tr><td><strong>3.1</strong></td><td>Project config moves out of <code>CLAUDE.md</code> into <code>.claude/100xprism.yml</code></td><td>None required — modules read the new file first and fall back to <code>CLAUDE.md</code>, so existing repos keep working</td></tr>
+      <tr><td><strong>3.1</strong></td><td>New <code>CLAUDE.md</code> scaffolds use a router table instead of commented config blocks</td><td>Newly scaffolded projects only; existing files are never rewritten</td></tr>
+      <tr><td><strong>3.0.1</strong></td><td>Nine modules re-tiered <code>core</code> → <code>on-demand</code> (Cursor context down 61%)</td><td>None. No content changed; no effect on Claude Code, Codex or slash commands</td></tr>
+      <tr><td><strong>3.0.0</strong></td><td><strong>Windsurf, Copilot, Gemini and Antigravity adapters deleted</strong></td><td>Automatic. Generated files are backed up to <code>~/.100xprism/removed-artifacts/&lt;timestamp&gt;/</code> before removal. Use Claude Code, Cursor, Codex or Pi</td></tr>
+      <tr><td><strong>3.0.0</strong></td><td><code>emit-concat</code> subcommand, <code>render_concat</code>, <code>render_index_only</code></td><td>Internal API — use <code>emit-cursor</code>, <code>emit-codex</code> or <code>emit-claude-code</code></td></tr>
+      <tr><td><strong>3.0.0</strong></td><td>Instruction-file discovery narrowed to <code>CLAUDE.md</code>, <code>AGENTS.md</code>, <code>.cursorrules</code></td><td>Move any config out of <code>.windsurfrules</code>, <code>GEMINI.md</code> or <code>copilot-instructions.md</code></td></tr>
+      <tr><td><strong>2.4.9</strong></td><td>11 orphaned module reference files</td><td>None — they were unreachable from any <code>SKILL.md</code></td></tr>
+      <tr><td><strong>2.4.9</strong></td><td>Dashboard and update-check no longer auto-start from shell startup</td><td>Start explicitly: <code>100xprism tokens</code>, or <code>100xprism install --dashboard</code></td></tr>
+      <tr><td><strong>2.4.x</strong></td><td><code>systems-architect</code> merged into <code>enterprise-design</code>; <code>conversion-copy</code> merged into <code>copywriting</code></td><td>Use the surviving module; <code>update</code> prunes the old skill and its alias</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note warn">
+    <p><strong>Removal deletes files inside your projects — and nothing is removed without a backup.</strong> Every deletion is copied to <code>~/.100xprism/removed-artifacts/&lt;timestamp&gt;/&lt;full-project-path&gt;/</code> first and removed only once that copy succeeds, and only if the file carries the <code>Generated by 100xprism</code> header in its first ten lines. A hand-written file of the same name is left alone. <strong>If you edited a generated file, it is still removed</strong> — but the backup exists, and these files are normally committed, so deletions show up in <code>git status</code> for review.</p>
+  </div>
+</section>
+
+<!-- ==================== CI TRAPS ==================== -->
+<section id="traps" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Field notes</div>
+    <h2>Common CI traps</h2>
+    <p class="lede">Three failure modes the gate is built to catch, because each one costs an afternoon the first time.</p>
+  </div>
+
+  <div class="cards g3">
+    <div class="glass card">
+      <h3>1 · npm 404 inside Docker</h3>
+      <p>A Docker build that installs your own package from the registry fails with a 404 until that version is actually published. The fix is to copy source into the build context rather than depending on a published artifact during CI.</p>
+    </div>
+    <div class="glass card">
+      <h3>2 · <code>useState(false)</code> vs. Playwright</h3>
+      <p>An entry animation that starts at <code>opacity-0</code> and flips on mount leaves the element technically present but never <em>visible</em> to Playwright, so <code>toBeVisible()</code> times out. Assert on the post-animation state, or disable animation under test.</p>
+    </div>
+    <div class="glass card">
+      <h3>3 · Integration tests silently excluded</h3>
+      <p>A test command scoped to one directory quietly drops the integration suite — green CI, untested integration path. Run both explicitly rather than relying on a glob that looks complete.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== HELP ==================== -->
+<section id="help" class="rv">
+  <div class="sec-head">
+    <div class="eyebrow">Support</div>
+    <h2>Troubleshooting</h2>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td><code>command not found: 100xprism</code></td><td>Reinstall or reshim your package manager — <code>npm install -g 100xprism &amp;&amp; mise reshim node</code> if you use mise</td></tr>
+      <tr><td>Slash command not recognised in Claude Code</td><td>Restart the session — modules load at startup</td></tr>
+      <tr><td>Modules not updating after <code>100xprism update</code></td><td>Restart your Claude Code session to pick up new modules</td></tr>
+      <tr><td><code>source: no such file: ~/100xprism/shell/aliases.sh</code></td><td>Legacy shell startup entry — run <code>100xprism uninstall</code>, or remove the <code>source</code> line from your rc file</td></tr>
+      <tr><td><code>SessionStart:startup</code> hook error</td><td>Legacy Claude startup hook — run <code>100xprism install</code>, or remove the 100xprism <code>SessionStart</code> hook from <code>~/.claude/settings.json</code></td></tr>
+      <tr><td>Codex skill not appearing</td><td>Restart Codex, run <code>/skills</code>, and verify <code>.agents/skills/&lt;slug&gt;/SKILL.md</code> exists</td></tr>
+      <tr><td>Codex hook not running</td><td>Run <code>/hooks</code> in Codex and trust the generated hook definition</td></tr>
+      <tr><td><code>/gate</code> hangs on the Docker check</td><td>Docker Desktop must be running, or set <code>SKIP_DOCKER=1</code></td></tr>
+      <tr><td>Claude Code plugin not activating</td><td>Check <code>~/.claude/settings.json</code> → <code>enabledPlugins</code>, then restart</td></tr>
+      <tr><td>Codex plugin not activating</td><td>Open Codex <code>/plugins</code>. Claude Code plugins are not Codex plugins.</td></tr>
+      <tr><td><code>/db</code> says “No engine file found”</td><td>Your <code>engine:</code> value is not one of the seven supported engines. See the <a href="#support">database matrix</a>.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:34px">Frequently asked questions</h3>
+  <div class="cards g2">
+    <div class="glass card"><h3>Does this work without an AI coding tool?</h3><p>No. Modules are instructions for AI tools. Without an AI reading them, they are just markdown.</p></div>
+    <div class="glass card"><h3>Can I use only some modules?</h3><p>Yes — modules are independent. Run only the slash commands you need; auto-trigger skills activate only when relevant.</p></div>
+    <div class="glass card"><h3>Will this slow down my workflow?</h3><p>The gate adds checks before commits. Most runs finish in under two minutes, and catching issues locally beats debugging production.</p></div>
+    <div class="glass card"><h3>Does it send my data anywhere?</h3><p>No. Both dashboards are fully offline, reading local files and serving a local URL.</p></div>
+    <div class="glass card"><h3>How do I add a database engine?</h3><p>Add a file to <code>modules/db/db-engines/&lt;engine&gt;.md</code> following an existing engine's pattern, then run <code>100xprism update</code>.</p></div>
+    <div class="glass card"><h3>How do I contribute a module?</h3><p>Create <code>modules/&lt;slug&gt;/SKILL.md</code> with <code>name</code>, <code>description</code>, <code>category</code> and <code>tier</code> frontmatter, run <code>100xprism update</code>, and open a PR.</p></div>
+    <div class="glass card"><h3>How do I contribute an adapter?</h3><p>Create <code>adapters/&lt;tool&gt;.sh</code>, call <code>adapters/lib/modules.py</code> with your tool name, add it to <code>install.sh</code>, and open a PR.</p></div>
+    <div class="glass card"><h3>Is it free?</h3><p>Yes — MIT licensed.</p></div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>Built by <a href="https://www.linkedin.com/in/rajsaha/">Rajit Saha</a> · MIT licensed · This page is the documentation</p>
+    <div class="flinks">
+      <a href="https://github.com/rajitsaha/100xprism">GitHub</a>
+      <a href="https://www.npmjs.com/package/100xprism">npm</a>
+      <a href="https://github.com/rajitsaha/100xprism/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/rajitsaha/100xprism/issues">Issues</a>
+      <a href="https://github.com/rajitsaha/100xprism/releases/latest">Releases</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // reveal on scroll
+  var rv = document.querySelectorAll('.rv');
+  if (reduce || !('IntersectionObserver' in window)) {
+    rv.forEach(function(el){ el.classList.add('in'); });
+    document.querySelectorAll('[data-anim]').forEach(function(el){ el.classList.add('lit'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin:'0px 0px -8% 0px', threshold:0.06 });
+    rv.forEach(function(el){ io.observe(el); });
+
+    // start diagram animation only while on screen
+    var ao = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ e.target.classList.toggle('lit', e.isIntersecting); });
+    }, { threshold:0.18 });
+    document.querySelectorAll('[data-anim]').forEach(function(el){ ao.observe(el); });
+  }
+
+  // active nav link
+  var links = Array.prototype.slice.call(document.querySelectorAll('.navlinks a'));
+  var map = {};
+  links.forEach(function(a){
+    var t = document.querySelector(a.getAttribute('href'));
+    if (t) map[t.id] = a;
+  });
+  if ('IntersectionObserver' in window) {
+    var so = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('on'); });
+          if (map[e.target.id]) map[e.target.id].classList.add('on');
+        }
+      });
+    }, { rootMargin:'-18% 0px -72% 0px' });
+    Object.keys(map).forEach(function(id){
+      var s = document.getElementById(id); if (s) so.observe(s);
+    });
+  }
+})();
+</script>
 </body>
 </html>
