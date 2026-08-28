@@ -86,6 +86,26 @@ Every `/commit` and `/push` runs a 5-point gate — tests, security, build, Dock
 
 ---
 
+## Optional vendor skill packs
+
+Some skills only matter to some projects, so they don't ship by default. `/pack`
+installs them on request instead:
+
+```bash
+100xprism pack               # list every pack, install state, and anything detected here
+100xprism pack detect        # only what matches the current project
+100xprism pack install databricks
+100xprism pack uninstall databricks
+```
+
+Packs are ownership-tracked per install — `100xprism pack uninstall` only removes
+what it added, never a plugin or command you enabled yourself. Where the vendor
+ships a CLI (e.g. `databricks aitools install`), that's preferred; otherwise
+100xPrism installs directly per platform. First pack: **Databricks** (30+ skills —
+Unity Catalog, Asset Bundles, Lakeflow, model serving, vector search).
+
+---
+
 ## Token, delivery & value economics
 
 For a while, the goal was singular: make spec-driven, agentic development as **autonomous** as possible — let the agent plan, build, gate, and ship with less and less human steering.
