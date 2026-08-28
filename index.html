@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>100xPrism — Token &amp; value economics for AI coding: cost vs value, fully offline</title>
-  <meta name="description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini and Antigravity — showing cost vs value. One config, 7 tools, quality gates. MIT, fully offline." />
-  <meta name="keywords" content="100xprism, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, Antigravity, cost vs value AI, one config for AI coding tools, cross-tool AI workflows, quality gates, agentic coding, offline AI dashboard" />
+  <meta name="description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing cost vs value. One config, 4 tools, quality gates. MIT, fully offline." />
+  <meta name="keywords" content="100xprism, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Pi, cost vs value AI, one config for AI coding tools, cross-tool AI workflows, quality gates, agentic coding, offline AI dashboard" />
   <link rel="canonical" href="https://rajitsaha.github.io/100xprism/" />
   <meta property="og:title" content="100xPrism" />
-  <meta property="og:description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini and Antigravity — showing what each session cost in tokens next to what it shipped. Fully offline." />
+  <meta property="og:description" content="100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing what each session cost in tokens next to what it shipped. Fully offline." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://rajitsaha.github.io/100xprism/" />
   <meta property="og:image" content="https://raw.githubusercontent.com/rajitsaha/100xprism/main/assets/100xprism-hero.svg" />
@@ -22,7 +22,7 @@
     "alternateName": "100xPrism",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "macOS, Linux, Windows (WSL)",
-    "description": "100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini and Antigravity — showing what each session cost in tokens next to what it shipped. One config, 7 tools, quality gates. Fully offline.",
+    "description": "100xPrism auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi — showing what each session cost in tokens next to what it shipped. One config, 4 tools, quality gates. Fully offline.",
     "url": "https://rajitsaha.github.io/100xprism/",
     "downloadUrl": "https://www.npmjs.com/package/100xprism",
     "codeRepository": "https://github.com/rajitsaha/100xprism",
@@ -41,7 +41,7 @@
         "name": "What is 100xPrism?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, and Antigravity. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side."
+          "text": "100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, and Pi. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side."
         }
       },
       {
@@ -65,7 +65,7 @@
         "name": "Which AI coding tools does it support?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, and Antigravity — 7 tools in total. The one-config system keeps all of them in sync from a single source of truth."
+          "text": "Claude Code, Cursor, Codex, and Pi — 4 tools in total. The one-config system keeps all of them in sync from a single source of truth."
         }
       },
       {
@@ -511,7 +511,7 @@
     <!-- ══════════════════════════════════════ WHAT IS 100xPRISM ════════════════════════════════ -->
     <section>
       <h2>What is 100xPrism?</h2>
-      <p class="section-intro">100xPrism is a fully-offline, machine-wide developer toolkit that auto-discovers every AI coding session across Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, and Antigravity. It measures what each session cost in tokens and what it actually delivered — commits, pull requests, files changed — so you can see <span class="cost-label">cost</span> and <span class="value-label">value</span> side by side, automatically, without uploading anything to any server.</p>
+      <p class="section-intro">100xPrism is a fully-offline, machine-wide developer toolkit that auto-discovers every AI coding session across Claude Code, Cursor, Codex, and Pi. It measures what each session cost in tokens and what it actually delivered — commits, pull requests, files changed — so you can see <span class="cost-label">cost</span> and <span class="value-label">value</span> side by side, automatically, without uploading anything to any server.</p>
       <p class="quote-line">"Not 'can it ship', but 'what did it cost, and what was it worth' — and that's everybody's responsibility, not one person's job."</p>
     </section>
 
@@ -520,7 +520,7 @@
       <h2>The Token &amp; Value Dashboard</h2>
       <p class="section-intro">Run <code class="inline-code">100x-tokens</code> or <code class="inline-code">100x-value</code>. A daemon auto-starts and the dashboard opens in your browser — no setup required.</p>
       <ul>
-        <li><b>Auto-discovery</b> — reads Claude Code transcripts and does a machine-wide scan for agent files (<code class="inline-code">CLAUDE.md</code>, <code class="inline-code">AGENTS.md</code>, <code class="inline-code">GEMINI.md</code>, <code class="inline-code">.cursorrules</code>) to find every directory you build in.</li>
+        <li><b>Auto-discovery</b> — reads Claude Code transcripts and does a machine-wide scan for agent files (<code class="inline-code">CLAUDE.md</code>, <code class="inline-code">AGENTS.md</code>, <code class="inline-code">.cursorrules</code>) to find every directory you build in.</li>
         <li><b>Tool-agnostic value measurement</b> — reads git history for commits, PRs, and files changed, with a filesystem fallback for directories not in git.</li>
         <li><b>Four charts</b> — leverage scatter (<span class="value-label">value</span> vs <span class="cost-label">cost</span>), cost over time, token-purpose split (input/output/cache), cost by directory.</li>
         <li><b>AI one-line summaries</b> per project — a quick characterisation of what the session delivered.</li>
@@ -532,10 +532,10 @@
     <!-- ══════════════════════════════════════ ONE CONFIG ═══════════════════════════════════════ -->
     <section>
       <h2>One Config, Every Tool</h2>
-      <p class="section-intro">The quality-gates and configuration story: 66 modules authored once, emitted natively for 7 tools.</p>
+      <p class="section-intro">The quality-gates and configuration story: 68 modules authored once, emitted natively for 4 tools.</p>
       <div class="grid">
         <div class="card">
-          <h3>66 modules</h3>
+          <h3>68 modules</h3>
           <p>Skills, hooks, and rules authored once, emitted natively for every AI coding tool you use.</p>
         </div>
         <div class="card">
@@ -543,8 +543,8 @@
           <p>Lint, test, security, and Docker checks gate every commit and push automatically.</p>
         </div>
         <div class="card">
-          <h3>7 tools, one config</h3>
-          <p>Claude Code, Cursor, Codex, Windsurf, Copilot, Gemini, Antigravity — stay in sync.</p>
+          <h3>4 tools, one config</h3>
+          <p>Claude Code, Cursor, Codex, Pi — stay in sync.</p>
         </div>
         <div class="card">
           <h3>Stays current</h3>
@@ -577,7 +577,7 @@ source ~/.zshrc   # or ~/.bashrc</code></pre>
 
       <div class="faq-item">
         <h3>What is 100xPrism?</h3>
-        <p>100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, and Antigravity. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side.</p>
+        <p>100xPrism is a machine-wide, fully-offline developer toolkit that auto-discovers every AI coding session you run across Claude Code, Cursor, Codex, and Pi. It shows what each session cost in tokens next to what it shipped, so you can see cost and value side by side.</p>
       </div>
 
       <div class="faq-item">
@@ -592,7 +592,7 @@ source ~/.zshrc   # or ~/.bashrc</code></pre>
 
       <div class="faq-item">
         <h3>Which AI coding tools does it support?</h3>
-        <p>Claude Code, Cursor, Codex, Windsurf, GitHub Copilot, Gemini CLI, and Antigravity — 7 tools in total. The one-config system keeps all of them in sync from a single source of truth.</p>
+        <p>Claude Code, Cursor, Codex, and Pi — 4 tools in total. The one-config system keeps all of them in sync from a single source of truth.</p>
       </div>
 
       <div class="faq-item">
