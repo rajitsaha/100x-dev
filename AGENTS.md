@@ -1,6 +1,11 @@
 # AGENTS.md
 
-Contributor contract for AI coding agents working on this repo. Users see `README.md` and `docs/USAGE.md`; this file is for agents editing the repo itself.
+Contributor contract for AI coding agents working on this repo. Users see `README.md` and the docs site (<https://rajitsaha.github.io/100xprism/>); this file is for agents editing the repo itself.
+
+> **Documentation lives on the site, not in the repo.** `index.html` on the
+> `gh-pages` branch is the single documentation hub. Do not add `docs/*.md`,
+> `ROADMAP.md`, or per-directory READMEs — update the site instead, and keep
+> `README.md` short.
 
 ## What this repo is
 
@@ -88,12 +93,11 @@ npm run check
 - **The consumer `CLAUDE.md` scaffold is duplicated.** It lives in both `adapters/claude-code.sh` (`install_project`) and `lib/adapters/windows.js` (`scaffoldClaudeMd`). Change one, change the other — `test/windows-adapters.test.js` only guards the JS copy.
 - **Keep `retention_of` / `profiles_of` / `detect_profiles` in sync** between `adapters/lib/modules.py` and `lib/adapters/windows.js`. A parity test in `test/retention-profiles.test.js` compares both across every real module, so drift fails CI rather than shipping.
 - **Machine-readable project config belongs in `.claude/100xprism.yml`, not `CLAUDE.md`** — the instruction file is re-sent every turn. Modules read the yml first and fall back to the instruction file, so old repos keep working. Its keys must stay flush-left: `/db` and friends match them with an anchored `grep`.
-- **Don't bump the version manually.** Use `/release` or follow `docs/USAGE.md` — `package.json`, `VERSION`, and the git tag must move together.
+- **Don't bump the version manually.** Use `/release` — `package.json`, `VERSION`, and the git tag must move together.
 - **Don't commit `.DS_Store` or `.playwright-mcp/`** (already in `.gitignore`, but worth knowing).
 - **Marketing assets in `assets/`** are generated from the HTML files in the same dir via Playwright. If you change the HTML, regenerate the PNG.
 
 ## Where to look
 
-- `docs/USAGE.md` — user-facing usage (install, init, per-tool behavior)
-- `docs/v2-refactor.md` — why `modules/` replaced the old `workflows/` + `skills/` split
+- `index.html` on the `gh-pages` branch — the documentation hub; user-facing behaviour is documented there and nowhere else
 - `adapters/lib/modules.py` — the parser; if frontmatter changes, this is the file to update

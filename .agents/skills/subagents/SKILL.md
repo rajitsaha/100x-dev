@@ -53,7 +53,7 @@ installable artifact — not just advice:
 - **Enable it:** re-run the installer and turn on the *permission-router* hook (it ships
   off by default), or run `python3 ~/100xprism/adapters/lib/modules.py emit-hooks` with
   `HOOK_ROUTER=1`.
-- See `~/100xprism/hooks/README.md` and the hooks docs:
+- See `~/100xprism/hooks/hooks.manifest.json` and the hooks docs:
   <https://docs.claude.com/en/docs/claude-code/hooks>
 
 ## Fan-out ladder (how to parallelize)

@@ -205,9 +205,10 @@ def check_readme_counts(counts: dict[str, int]) -> None:
 
 def check_current_doc_count_drift(counts: dict[str, int]) -> None:
     """Fail on stale count mentions in current, non-historical project docs."""
+    # User-facing docs live on the gh-pages branch, which this checkout does not
+    # carry — only repo-resident files can be drift-checked here.
     files = [
         "AGENTS.md",
-        "docs/USAGE.md",
         "install.sh",
         "package.json",
     ]
