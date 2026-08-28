@@ -10,9 +10,10 @@ Each module is the **single source of truth**. Adapters generate the right forma
 
 | Delivery | Tools | How modules arrive |
 |:---------|:------|:-------------------|
-| **Global install** | Claude Code | Each module → `~/.claude/skills/<slug>/SKILL.md`, plus slash command aliases in `~/.claude/commands/` |
-| **Per-project (multi-file)** | Cursor | One file per module → `.cursor/rules/<slug>.mdc` (auto-trigger via description) |
-| **Per-project (Codex-native)** | Codex | Compact `AGENTS.md` + repo skills in `.agents/skills/` + hooks in `.codex/hooks.json` |
+| **Global install** | Claude Code | Must-have skills + one resolver under `~/.claude/skills/`; `/100x` loads routed modules |
+| **Per-project (multi-file)** | Cursor | Must-have `.cursor/rules/*.mdc` + one resolver; wider profiles are opt-in |
+| **Per-project (Codex-native)** | Codex | Compact `AGENTS.md` + must-have repo skills + catalog; hooks are opt-in |
+| **Pi package** | Pi | Must-have `.pi/skills/` + resolver; gate/secret extensions ship but remain opt-in |
 
 > Windsurf, Copilot, Gemini, and Antigravity were supported through v2.x via a single concatenated instruction file. That surface was removed in v3.0.0 — see the release notes.
 
@@ -34,9 +35,9 @@ npm install -g 100xprism && 100xprism install
 
 The installer:
 0. Cleans legacy startup hooks, stale command links, and any old owned dashboard process
-1. Emits all 68 modules to `~/.claude/skills/`
-2. Creates slash command aliases in `~/.claude/commands/` for the modules whose command name differs from the skill name (`/fix`, `/grill`, `/context`, `/query`, `/update-claude`) — every other module is invoked as `/<skill-name>` directly
-3. Merges 14 Claude Code plugins into `~/.claude/settings.json`
+1. Emits must-have modules plus one `100x-resolver` to `~/.claude/skills/`; other modules remain available from the on-demand catalog
+2. Creates one generic `/100x <workflow>` route instead of keeping every optional slash alias resident; `--skills=profile|all` widens the index reversibly
+3. Merges 2 Claude Code core plugins (GitHub + security guidance) into `~/.claude/settings.json`; profile recommendations and manual integrations remain opt-in
 4. Leaves shell startup files untouched; optional aliases are available with `source ~/100xprism/shell/aliases.sh`
 5. Copies 4 project templates to `~/100x-templates/`
 6. Optionally installs enforcing hooks (gate-on-commit, secret-scan)
@@ -51,7 +52,7 @@ cd my-project && 100xprism init
 
 This generates the right instruction files for each enabled tool (`.cursor/rules/`, `AGENTS.md`, `.agents/skills/`, `.codex/hooks.json`). **Commit the generated files** so teammates get the same modules on clone.
 
-For Codex, `AGENTS.md` stays compact and the full 100xprism modules are emitted as repo-scoped skills under `.agents/skills/`. Use `$gate`, `$commit`, `$test`, or `/skills` in Codex to invoke them explicitly. Generated Codex hooks live in `.codex/hooks.json`; review and trust them with `/hooks` before relying on enforcement.
+For Codex, `AGENTS.md` stays compact, must-have modules are repo-scoped skills, and other bodies live in `.agents/100xprism-catalog/`. Set `PRISM_HOOKS=1` while emitting to generate hook groups, then review and trust them with `/hooks`.
 
 It also scaffolds a `CLAUDE.md` with placeholders for database, cloud, production URLs, and security exceptions — see [Project configuration](#project-configuration).
 
@@ -78,7 +79,7 @@ Open Claude Code in your project and try:
 `update` does the following:
 1. Pulls the latest code from `origin/main`
 2. Backs up `~/.claude/commands/` to `~/.claude/commands.bak.<timestamp>`
-3. Re-emits all modules to `~/.claude/skills/` and `~/.claude/commands/`, and **prunes** any skill or slash-command alias 100xprism previously installed that no longer exists (e.g. a merged/renamed module) — your own hand-authored skills and commands are never touched
+3. Re-emits the selected retention mode (must by default), refreshes the resolver/catalog, and **prunes** only stale generated skills or aliases — your own hand-authored skills and commands are never touched
 4. Reconciles plugins in `~/.claude/settings.json`: **adds** newly-declared plugins and **removes** ones 100xprism previously installed but has since dropped, without changing plugins you enabled or disabled yourself
 5. Runs `claude plugin update` for each plugin (updates across all scopes)
 6. Syncs any installed hooks to their latest versions
@@ -86,7 +87,7 @@ Open Claude Code in your project and try:
 
 After updating, **restart your Claude Code session** to load the new modules and plugins.
 
-> **Tip:** Plugins (superpowers, claude-mem, hookify, etc.) receive independent updates. Running `update --plugins-only` refreshes them without re-pulling the repo.
+> **Tip:** Only the two core plugins are managed by default. Recommended/manual plugins remain user-owned opt-ins and are not silently installed.
 
 Run `100xprism check` when you want to check for an update.
 
@@ -247,6 +248,30 @@ Codex hooks are generated into `.codex/hooks.json`:
 - `secret-scan` blocks obvious hard-coded credentials in writes.
 
 Open `/hooks` in Codex to inspect and trust generated hooks. Claude Code plugins from `plugins/plugins.json` do not install into Codex; use Codex `/plugins` for Codex-native plugins and app/MCP integrations.
+
+### In Pi
+
+Pi indexes every discovered skill description, so 100xprism **defaults to must-only** plus one `100x-resolver` instead of installing all 68. Explicit project profiles widen that set; `profiles: ["all"]` installs all 68.
+
+```bash
+# Global / user package (runs npm prepare → emit-pi-package)
+pi install git:github.com/rajitsaha/100xprism
+
+# Per-project filtered skills
+cd my-project && 100xprism init   # choose Pi
+# or: python3 ~/100xprism/adapters/lib/modules.py emit-pi .
+```
+
+Then:
+
+```
+/skill:gate      # load the gate skill
+/skill:commit
+```
+
+One generic `/100x <workflow>` prompt loads routed skills without indexing every alias. Gate/secret and retention extension files ship under `pi/extensions/`, but package auto-loading is disabled by default so hooks remain an explicit opt-in.
+
+Claude Code plugins in `plugins/plugins.json` are **not** installed into Pi. Widen the skill index with `.100xprism.json` `"profiles": ["all"]` only if you explicitly want all 68 modules.
 
 ### In Cursor
 

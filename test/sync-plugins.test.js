@@ -15,6 +15,19 @@ const path = require('node:path')
 const REPO = path.resolve(__dirname, '..')
 const SCRIPT = path.join(REPO, 'adapters', 'lib', 'sync_plugins.py')
 
+test('shipped plugin policy keeps a small core and routes optional plugins out of the default set', () => {
+  const policy = JSON.parse(fs.readFileSync(path.join(REPO, 'plugins', 'plugins.json'), 'utf8'))
+  assert.deepEqual(policy.plugins, [
+    'github@claude-plugins-official',
+    'security-guidance@claude-code-plugins',
+  ])
+  assert.ok(Array.isArray(policy.manual))
+  assert.ok(policy.manual.includes('superpowers@claude-plugins-official'))
+  assert.ok(policy.recommended.web.includes('playwright@claude-plugins-official'))
+  assert.equal(new Set([...policy.plugins, ...policy.manual]).size,
+    policy.plugins.length + policy.manual.length, 'core and manual groups must not overlap')
+})
+
 function setup(settings) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), '100x-sp-'))
   const settingsFile = path.join(dir, 'settings.json')
@@ -50,9 +63,10 @@ test('first run removes nothing; a later drop removes the managed plugin', () =>
 })
 
 test('never removes a plugin the user enabled themselves', () => {
-  // user-only plugin is enabled but never appears in plugins.json
-  const ctx = setup({ enabledPlugins: { 'user-only@m': true } })
-  sync(ctx, ['github@x'])                      // seed run
-  const enabled = sync(ctx, ['github@x'])     // second run
-  assert.equal(enabled['user-only@m'], true, 'user-managed plugin preserved')
+  // A desired plugin that predates ownership must not be claimed on first sync.
+  const ctx = setup({ enabledPlugins: { 'github@x': true, 'user-only@m': true } })
+  sync(ctx, ['github@x'])
+  const enabled = sync(ctx, [])
+  assert.equal(enabled['github@x'], true, 'pre-enabled desired plugin preserved after policy drop')
+  assert.equal(enabled['user-only@m'], true, 'unrelated user-managed plugin preserved')
 })

@@ -38,6 +38,17 @@ _run_codex() {
   echo -e "  ${YELLOW}→ In Codex, run /hooks to review and trust generated hooks.${NC}"
 }
 
+# _run_pi <project_path>
+# Pi indexes every discovered skill description, so retention is ON by default.
+_run_pi() {
+  local project_path="$1"
+  echo ""
+  echo "Generating .pi/ for Pi (retention on by default)..."
+  python3 "$MODULES_PY" emit-pi "$project_path"
+  _track_project "$project_path"
+  echo -e "  ${GREEN}→ Generated .pi/skills/ in $project_path ✓${NC}"
+}
+
 _track_project() {
   local project_path="$1"
   local _tracked_file="$HOME/.100xprism/tracked-projects"

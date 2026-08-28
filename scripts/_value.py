@@ -16,13 +16,14 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from collections import defaultdict
 
 HOME = os.path.expanduser("~")
 PROJECTS_DIR = os.path.join(HOME, ".claude", "projects")
 
 STORE_DIR = os.path.join(HOME, ".100xprism")
 STORE_PATH = os.path.join(STORE_DIR, "value.json")
-STORE_VERSION = 3
+STORE_VERSION = 4
 
 def mangle_path(abs_path):
     """The ~/.claude/projects transcript-dir name for a path: every
@@ -214,26 +215,49 @@ def git_value(repo, start, end):
     try:
         if _git(repo, "rev-parse", "--is-inside-work-tree").returncode != 0:
             return None
-        args = ["log", "--no-merges", "--pretty=%s"]
+        args = ["log", "--no-merges", "--date=short", "--pretty=%ad%x09%s"]
         if start:
             args.append(f"--since={start} 00:00:00")
         if end:
             args.append(f"--until={end} 23:59:59")
-        subjects = [s for s in _git(repo, *args).stdout.splitlines() if s]
+        dated_subjects = []
+        commits_by_day = defaultdict(lambda: {"commits": 0, "prs": set()})
+        for line in _git(repo, *args).stdout.splitlines():
+            if "\t" not in line:
+                continue
+            day, subject = line.split("\t", 1)
+            if not day or not subject:
+                continue
+            dated_subjects.append((day, subject))
+            commits_by_day[day]["commits"] += 1
+            match = _PR_RE.search(subject)
+            if match:
+                commits_by_day[day]["prs"].add(_PR_NUM_RE.search(match.group()).group(1))
+        subjects = [subject for _, subject in dated_subjects]
         # files / insertions / deletions over the same window
-        nargs = ["log", "--no-merges", "--numstat", "--pretty=tformat:"]
+        nargs = ["log", "--no-merges", "--numstat", "--date=short",
+                 "--pretty=format:COMMIT %ad"]
         if start:
             nargs.append(f"--since={start} 00:00:00")
         if end:
             nargs.append(f"--until={end} 23:59:59")
         files, ins, dele = set(), 0, 0
+        files_by_day = defaultdict(lambda: {"files": set(), "insertions": 0, "deletions": 0})
+        current_day = None
         for ln in _git(repo, *nargs).stdout.splitlines():
+            if ln.startswith("COMMIT "):
+                current_day = ln[7:].strip() or None
+                continue
             parts = ln.split("\t")
             if len(parts) == 3:
                 a, d, path = parts
                 files.add(path)
                 ins += int(a) if a.isdigit() else 0
                 dele += int(d) if d.isdigit() else 0
+                if current_day:
+                    files_by_day[current_day]["files"].add(path)
+                    files_by_day[current_day]["insertions"] += int(a) if a.isdigit() else 0
+                    files_by_day[current_day]["deletions"] += int(d) if d.isdigit() else 0
         # Squash-merge subjects look like "Title (#42)" (GitHub's squash-and-merge
         # button convention) — require the parens via _PR_RE before extracting the
         # number, so a plain issue reference like "fix: resolve #100 for real"
@@ -243,6 +267,42 @@ def git_value(repo, start, end):
         merge_prs = _merged_prs(repo, start, end)
         merged_pr_numbers = squash_prs | merge_prs
         releases = _release_tags(repo, start, end)
+        merge_args = ["log", "--merges", "--date=short", "--pretty=%ad%x09%s"]
+        if start:
+            merge_args.append(f"--since={start} 00:00:00")
+        if end:
+            merge_args.append(f"--until={end} 23:59:59")
+        merge_prs_by_day = defaultdict(set)
+        for line in _git(repo, *merge_args).stdout.splitlines():
+            if "\t" not in line:
+                continue
+            day, subject = line.split("\t", 1)
+            match = _PR_NUM_RE.search(subject)
+            if day and match:
+                merge_prs_by_day[day].add(match.group(1))
+
+        release_by_day = defaultdict(list)
+        release_rows = _git(
+            repo, "for-each-ref", "refs/tags", "--sort=-creatordate",
+            "--format=%(creatordate:short) %(refname:short)").stdout.splitlines()
+        for line in release_rows:
+            day, _, name = line.partition(" ")
+            if not day or not name or (start and day < start) or (end and day > end):
+                continue
+            release_by_day[day].append(name)
+
+        by_day = {}
+        for day in set(commits_by_day) | set(files_by_day) | set(merge_prs_by_day) | set(release_by_day):
+            commit_day = commits_by_day.get(day, {"commits": 0, "prs": set()})
+            file_day = files_by_day.get(day, {"files": set(), "insertions": 0, "deletions": 0})
+            by_day[day] = {
+                "commits": commit_day["commits"],
+                "prs": len(commit_day["prs"] | merge_prs_by_day.get(day, set())),
+                "releases": release_by_day.get(day, []),
+                "files": len(file_day["files"]),
+                "insertions": file_day["insertions"],
+                "deletions": file_day["deletions"],
+            }
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
     return {
@@ -251,6 +311,7 @@ def git_value(repo, start, end):
         "files": len(files), "insertions": ins, "deletions": dele,
         "subjects": subjects[:5],
         "releases": releases,
+        "by_day": by_day,
     }
 
 
@@ -288,7 +349,7 @@ def fs_value(directory, start, end):
 def _empty_value():
     return {"kind": "none", "commits": 0, "prs": 0, "files": 0,
             "insertions": 0, "deletions": 0, "subjects": [], "fs_files": 0,
-            "releases": [], "summary": None}
+            "releases": [], "by_day": {}, "summary": None}
 
 
 def dir_value(real_dir, label, tool, start, end):

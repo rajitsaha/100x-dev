@@ -31,7 +31,7 @@ TOOL = "claude-code"
 HOME = os.path.expanduser("~")
 SOURCE_DIR = os.path.join(HOME, ".claude", "projects")
 CACHE_FILE = os.path.join(HOME, ".claude", ".token-dashboard-cache.json")
-CACHE_VERSION = 4  # bump -> re-parse all transcripts (attribution fields added)
+CACHE_VERSION = 5  # bump -> re-parse all transcripts (windowed attribution added)
 FULL_SCAN_SECONDS = 1800
 HOT_FILE_SECONDS = 86400
 _MEM_PAYLOAD = None
@@ -49,6 +49,11 @@ def _add(dst, i, o, cr, cw):
     dst["output"] += o
     dst["cache_read"] += cr
     dst["cache_write"] += cw
+
+
+def _lines(path):
+    with open(path, errors="ignore") as fh:
+        yield from fh
 
 
 COMP_CATS = ["prompts", "model_output", "code_authored", "tool_calls",
@@ -118,6 +123,11 @@ def parse_file(path):
     by_day = defaultdict(_empty)
     by_model = defaultdict(_empty)
     by_day_model = defaultdict(lambda: defaultdict(_empty))
+    by_skill_model = defaultdict(lambda: defaultdict(_empty))
+    by_skill_day_model = defaultdict(lambda: defaultdict(lambda: defaultdict(_empty)))
+    skill_invocations_by_day = defaultdict(lambda: defaultdict(int))
+    comp_by_day = defaultdict(lambda: defaultdict(int))
+    main_subagent_by_day = defaultdict(lambda: {"main": _empty(), "subagent": _empty()})
     comp = defaultdict(int)
     tool_names = {}
     msgs = 0
@@ -129,6 +139,7 @@ def parse_file(path):
     by_skill = defaultdict(_empty)
     skill_invocations = defaultdict(int)
     skill_exact = set()
+    first_fixed_day = None
     # Boundary-heuristic state: the last `<command-name>` marker seen carries
     # forward across lines (no explicit "end" marker exists), until a new
     # marker or a real attributionSkill supersedes it. Real attributionSkill
@@ -137,7 +148,7 @@ def parse_file(path):
     current_marker_segment = None
     prev_attr_skill = None
 
-    for line in open(path, errors="ignore"):
+    for line in _lines(path):
         try:
             o = json.loads(line)
         except Exception:
@@ -146,10 +157,15 @@ def parse_file(path):
             continue
         if session_id is None:
             session_id = o.get("sessionId") or o.get("session_id")
+        day = (o.get("timestamp") or "")[:10] or "unknown"
         m = o.get("message")
         if isinstance(m, dict):
             role = m.get("role") or o.get("type") or ""
-            _classify(role, m.get("content"), comp, tool_names)
+            message_comp = defaultdict(int)
+            _classify(role, m.get("content"), message_comp, tool_names)
+            for category, chars in message_comp.items():
+                comp[category] += chars
+                comp_by_day[day][category] += chars
             text = _extract_text(m.get("content"))
             cmd = _COMMAND_RE.search(text) if text else None
             current_skill_marker = cmd.group(1) if cmd else None
@@ -161,9 +177,11 @@ def parse_file(path):
 
         exact_skill = o.get("attributionSkill")
         attr_skill = exact_skill or current_marker_segment
+        new_skill_invocation = bool(attr_skill and attr_skill != prev_attr_skill)
         if attr_skill:
-            if attr_skill != prev_attr_skill:
+            if new_skill_invocation:
                 skill_invocations[attr_skill] += 1
+                skill_invocations_by_day[day][attr_skill] += 1
             if exact_skill:
                 skill_exact.add(attr_skill)
         prev_attr_skill = attr_skill
@@ -184,30 +202,43 @@ def parse_file(path):
         _add(totals, i, ot, cr, cw)
         model = (m.get("model") if isinstance(m, dict) else None) or "unknown"
         _add(by_model[model], i, ot, cr, cw)
-        day = (o.get("timestamp") or "")[:10] or "unknown"
         _add(by_day[day], i, ot, cr, cw)
         _add(by_day_model[day][model], i, ot, cr, cw)
         if first_fixed is None and (i + cr + cw) > 0:
             first_fixed = i + cr + cw
+            first_fixed_day = day
         if o.get("isSidechain"):
             _add(subagent_tokens, i, ot, cr, cw)
+            _add(main_subagent_by_day[day]["subagent"], i, ot, cr, cw)
         else:
             _add(main_tokens, i, ot, cr, cw)
+            _add(main_subagent_by_day[day]["main"], i, ot, cr, cw)
         if attr_skill:
             _add(by_skill[attr_skill], i, ot, cr, cw)
+            _add(by_skill_model[attr_skill][model], i, ot, cr, cw)
+            _add(by_skill_day_model[day][attr_skill][model], i, ot, cr, cw)
 
     return {
         "totals": totals,
         "by_day": dict(by_day),
         "by_model": dict(by_model),
         "by_day_model": {d: dict(models) for d, models in by_day_model.items()},
+        "by_skill_model": {skill: dict(models) for skill, models in by_skill_model.items()},
+        "by_skill_day_model": {
+            day: {skill: dict(models) for skill, models in skills.items()}
+            for day, skills in by_skill_day_model.items()
+        },
+        "skill_invocations_by_day": {day: dict(skills) for day, skills in skill_invocations_by_day.items()},
         "comp": {k: comp.get(k, 0) for k in COMP_CATS},
+        "comp_by_day": {day: dict(categories) for day, categories in comp_by_day.items()},
         "msgs": msgs,
         "turns": turns,
         "first_fixed": first_fixed or 0,
         "session_id": session_id,
         "main_tokens": main_tokens,
         "subagent_tokens": subagent_tokens,
+        "first_fixed_day": first_fixed_day,
+        "main_subagent_by_day": {day: dict(buckets) for day, buckets in main_subagent_by_day.items()},
         "by_skill": dict(by_skill),
         "skill_invocations": dict(skill_invocations),
         "skill_exact": sorted(skill_exact),

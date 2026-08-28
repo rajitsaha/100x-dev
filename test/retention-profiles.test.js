@@ -3,9 +3,9 @@
 // Covers the routed-index work: retention classes, per-project profiles, the
 // generated resolver catalog, and `100xprism slim`.
 //
-// The load-bearing property throughout is that FILTERING IS OPT-IN — an emit into
-// a directory with no `.100xprism.json` and no env override must produce byte-for-byte
-// what it produced before any of this existed. Several tests assert exactly that.
+// The load-bearing property throughout is that fresh installs are lean: no project
+// config means must-have modules + one resolver. Explicit `profile`/`all` modes are
+// reversible widening controls.
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -110,14 +110,15 @@ test('detectProfiles agrees across python and node', () => {
 
 // ── opt-in guarantee ─────────────────────────────────────────────────────────
 
-test('emit-cursor with no project config emits every module (unchanged behaviour)', () => {
+test('emit-cursor with no project config emits must-have modules plus one resolver', () => {
   const p = tmp()
   py(['emit-cursor', p])
-  const sourceCount = fs.readdirSync(path.join(REPO, 'modules'))
-    .filter(n => fs.existsSync(path.join(REPO, 'modules', n, 'SKILL.md'))).length
-  assert.equal(countRules(p), sourceCount, 'no config ⇒ no filtering')
-  assert.ok(!fs.existsSync(path.join(p, '.cursor', '100xprism-catalog')), 'no catalog dir')
-  assert.ok(!fs.existsSync(path.join(p, '.cursor', 'rules', '100x-resolver.mdc')))
+  const rules = fs.readdirSync(path.join(p, '.cursor', 'rules')).filter(f => f.endsWith('.mdc'))
+  assert.ok(rules.includes('gate.mdc'))
+  assert.ok(rules.includes('100x-resolver.mdc'))
+  assert.ok(!rules.includes('copywriting.mdc'))
+  assert.ok(rules.length < 20, `lean default should stay small, got ${rules.length}`)
+  assert.ok(fs.existsSync(path.join(p, '.cursor', '100xprism-catalog', 'copywriting', 'SKILL.md')))
 })
 
 test('emit-cursor honours a project config and parks the rest in the catalog', () => {
@@ -154,17 +155,14 @@ test('PRISM_PROFILES overrides the project config', () => {
   assert.equal(countRules(p), sourceCount, 'env "all" wins over a narrow config')
 })
 
-test('an empty profiles array is treated as unset, not as "filter to nothing"', () => {
-  // "profiles": [] must behave like no config at all in both languages — a bare
-  // falsy check (`if (!cfg)`) is not enough in JS, since an empty array is truthy.
+test('an empty profiles array keeps the lean must-only default', () => {
   const p = tmp()
   fs.writeFileSync(path.join(p, '.100xprism.json'), JSON.stringify({ profiles: [] }))
-  assert.equal(win.activeProfiles(p), null, 'JS: empty array ⇒ unfiltered')
+  assert.deepEqual(win.activeProfiles(p), [], 'JS: empty array ⇒ must-only')
 
   py(['emit-cursor', p])
-  const sourceCount = fs.readdirSync(path.join(REPO, 'modules'))
-    .filter(n => fs.existsSync(path.join(REPO, 'modules', n, 'SKILL.md'))).length
-  assert.equal(countRules(p), sourceCount, 'python: empty array ⇒ unfiltered')
+  assert.ok(countRules(p) < 20, 'python: empty array ⇒ lean default')
+  assert.ok(fs.existsSync(path.join(p, '.cursor', 'rules', '100x-resolver.mdc')))
 })
 
 // ── resolver ─────────────────────────────────────────────────────────────────
@@ -233,20 +231,27 @@ test('emit-claude-code: PRISM_SKILLS=profile routes the catalog out of the index
   assert.ok(resolver.includes(body), 'resolver points at the absolute parked path')
 })
 
-test('emit-claude-code: default mode is unchanged, and re-emitting is reversible', () => {
+test('emit-claude-code: default mode is must-only, and widening is reversible', () => {
   const home = tmp('100x-home2-')
   py(['emit-claude-code'], { HOME: home })
   const skills = path.join(home, '.claude', 'skills')
-  const full = fs.readdirSync(skills).filter(n => fs.statSync(path.join(skills, n)).isDirectory())
-  assert.ok(full.includes('copywriting'), 'default installs everything')
-  assert.ok(!full.includes('100x-resolver'), 'no resolver when nothing is routed')
+  const lean = fs.readdirSync(skills).filter(n => fs.statSync(path.join(skills, n)).isDirectory())
+  assert.ok(!lean.includes('copywriting'), 'default routes non-must modules')
+  assert.ok(lean.includes('100x-resolver'), 'default includes one resolver')
+  assert.ok(lean.length < 20, `default index should stay small, got ${lean.length}`)
+  const generic = fs.readFileSync(path.join(home, '.claude', 'commands', '100x.md'), 'utf8')
+  assert.match(generic, /100x-resolver/)
+  assert.match(generic, /\$ARGUMENTS/)
+  assert.ok(!fs.existsSync(path.join(home, '.claude', 'commands', 'fix.md')),
+    'routed modules must not keep individual aliases resident')
 
-  // Slim it, then restore — the index must come back intact, with no orphans.
-  py(['emit-claude-code'], { HOME: home, PRISM_SKILLS: 'must' })
-  assert.ok(!fs.existsSync(path.join(skills, 'copywriting')))
+  // Widen it, then restore — both transitions must leave no generated orphans.
   py(['emit-claude-code'], { HOME: home, PRISM_SKILLS: 'all' })
+  assert.ok(fs.existsSync(path.join(skills, 'copywriting')))
+  assert.ok(!fs.existsSync(path.join(skills, '100x-resolver')))
+  py(['emit-claude-code'], { HOME: home, PRISM_SKILLS: 'must' })
   const restored = fs.readdirSync(skills).filter(n => fs.statSync(path.join(skills, n)).isDirectory())
-  assert.deepEqual(restored.sort(), full.sort(), 'round-trip restores the exact index')
+  assert.deepEqual(restored.sort(), lean.sort(), 'round-trip restores the exact lean index')
 })
 
 test('emit-claude-code: a user-authored skill survives every mode transition', () => {
@@ -260,12 +265,12 @@ test('emit-claude-code: a user-authored skill survives every mode transition', (
   }
 })
 
-test('an unknown PRISM_SKILLS value falls back to the safe end', () => {
+test('an unknown PRISM_SKILLS value falls back to the lean safe end', () => {
   assert.equal(win.splitByMode([], 'all').catalog.length, 0)
   const prev = process.env.PRISM_SKILLS
   process.env.PRISM_SKILLS = 'wat'
   try {
-    assert.equal(win.userSkillsMode(), 'all')
+    assert.equal(win.userSkillsMode(), 'must')
   } finally {
     if (prev === undefined) delete process.env.PRISM_SKILLS
     else process.env.PRISM_SKILLS = prev
@@ -275,6 +280,7 @@ test('an unknown PRISM_SKILLS value falls back to the safe end', () => {
 // ── slim ─────────────────────────────────────────────────────────────────────
 
 test('slim resolves an install dir it can actually run from', () => {
+  assert.equal(slim.DEFAULT_MODE, 'must')
   const dir = slim.resolveInstallDir()
   assert.ok(fs.existsSync(path.join(dir, 'adapters', 'lib', 'modules.py')))
 })
@@ -343,4 +349,18 @@ test('slim writes a reversible project config', () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(p, '.100xprism.json'), 'utf8'))
   assert.deepEqual(cfg.profiles, ['core', 'code'])
   assert.match(cfg._comment, /all/, 'the config explains how to undo itself')
+})
+
+test('slim treats an empty generated profile list as widenable', () => {
+  const p = tmp()
+  fs.writeFileSync(path.join(p, '.100xprism.json'), JSON.stringify({ profiles: [] }))
+  const lines = []
+  const original = console.log
+  console.log = message => lines.push(String(message))
+  try {
+    slim.slimProject(p, { dryRun: true, mode: 'all' })
+  } finally {
+    console.log = original
+  }
+  assert.match(lines.join('\\n'), /would set profiles → all/)
 })

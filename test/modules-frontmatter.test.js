@@ -38,12 +38,12 @@ function py(...args) {
 }
 
 // emit-claude-code writes to $HOME/.claude/{skills,commands}; run it against a temp HOME.
-function emitClaudeCode() {
+function emitClaudeCode(mode = 'must') {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-home-'))
   execFileSync('python3', [MODULES_PY, 'emit-claude-code'], {
     cwd: REPO,
     encoding: 'utf8',
-    env: { ...process.env, HOME: home },
+    env: { ...process.env, HOME: home, PRISM_SKILLS: mode },
   })
   return home
 }
@@ -120,7 +120,7 @@ test('codex index surfaces the tier hint for a routed core module', () => {
 })
 
 test('slash-command aliases: only renamed commands, carrying routing frontmatter', () => {
-  const home = emitClaudeCode()
+  const home = emitClaudeCode('all')
   const commandsDir = path.join(home, '.claude', 'commands')
   const cmd = (name) => fs.readFileSync(path.join(commandsDir, `${name}.md`), 'utf8')
 
@@ -147,6 +147,7 @@ test('slash-command aliases: only renamed commands, carrying routing frontmatter
 
 test('cursor .mdc maps tier to alwaysApply', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), '100x-cursor-tier-'))
+  fs.writeFileSync(path.join(tmp, '.100xprism.json'), JSON.stringify({ profiles: ['all'] }))
   py('emit-cursor', tmp)
   const mdc = (slug) => fs.readFileSync(path.join(tmp, '.cursor', 'rules', `${slug}.mdc`), 'utf8')
   assert.match(mdc('gate'), /^alwaysApply: true$/m, 'core module should always apply')

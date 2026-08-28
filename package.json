@@ -1,11 +1,14 @@
 {
   "name": "100xprism",
   "version": "3.1.0",
-  "description": "68 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, and Codex.",
+  "description": "68 cross-tool modules (workflows + skills). Quality gates on every commit. Works with Claude Code, Cursor, Codex, and Pi.",
   "scripts": {
     "preuninstall": "node ./lib/uninstall.js --remove-live-links",
+    "prepare": "python3 adapters/lib/modules.py emit-pi-package",
     "test": "node --test",
-    "check": "node --test && python3 scripts/meta-check.py && HOME=$(mktemp -d) ./adapters/claude-code.sh"
+    "test:python": "python3 -m unittest scripts/test_token_report.py scripts/test_codex_adapter.py scripts/test_claude_code_adapter.py scripts/test_activity_adapters.py scripts/test_pi_adapter.py scripts/test_pair_loop_start.py scripts/test_pair_loop_review.py scripts/test_pair_loop_summary.py scripts/test_reviewer.py scripts/test_value.py",
+    "context:check": "node scripts/context-footprint.js",
+    "check": "python3 adapters/lib/modules.py emit-pi-package && node --test && npm run test:python && node scripts/context-footprint.js && python3 scripts/meta-check.py && HOME=$(mktemp -d) ./adapters/claude-code.sh"
   },
   "bin": {
     "100xprism": "bin/100xprism.js",
@@ -16,15 +19,22 @@
     "lib/",
     "modules/",
     "packs/",
+    "pi/",
     "plugins/",
     "templates/",
     "shell/",
+    "scripts/",
+    "config/",
     "adapters/",
+    "hooks/",
     "get.sh",
     "install.sh",
     "install-project.sh",
     "update.sh",
-    "VERSION"
+    "VERSION",
+    "!scripts/test_*.py",
+    "!**/__pycache__/**",
+    "!**/*.pyc"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -33,10 +43,21 @@
     "claude-code",
     "cursor",
     "codex",
+    "pi",
+    "pi-package",
     "ai-coding",
     "developer-workflow",
     "slash-commands"
   ],
+  "pi": {
+    "extensions": [],
+    "skills": [
+      "./pi/skills"
+    ],
+    "prompts": [
+      "./pi/prompts"
+    ]
+  },
   "license": "MIT",
   "repository": {
     "type": "git",

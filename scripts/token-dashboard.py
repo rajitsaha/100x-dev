@@ -52,15 +52,13 @@ import _summaries  # noqa: E402
 import pricing  # noqa: E402
 import adapters.claude_code as claude_code  # noqa: E402
 import adapters.codex as codex  # noqa: E402
-import adapters.cursor as cursor  # noqa: E402
-import adapters.antigravity as antigravity  # noqa: E402
+from adapters.registry import collectors as usage_collectors  # noqa: E402
 import run_manifest  # noqa: E402
 import _budget  # noqa: E402
 import _suggest  # noqa: E402
 import _config  # noqa: E402
 
 HOME = os.path.expanduser("~")
-PROJECTS_DIR = claude_code.SOURCE_DIR
 REFRESH_SECONDS = 30  # auto-rebuild cadence; mtime/size cache makes a no-op pass cheap
 PID_FILE = os.path.join(HOME, ".100xprism", "token-dashboard.pid")
 GITHUB_CACHE_FILE = os.path.join(HOME, ".100xprism", "github-pr-insights.json")
@@ -127,6 +125,27 @@ def _delivery_economics(total_cost, directories):
     }
 
 
+def _delivery_by_day(directories):
+    """Aggregate git outcomes and attributed token spend by calendar day."""
+    empty = {"commits": 0, "prs": 0, "releases": 0, "files": 0,
+             "insertions": 0, "deletions": 0, "attributed_spend": 0.0}
+    by_day = defaultdict(lambda: dict(empty))
+    for row in directories:
+        value = row.get("value") or {}
+        if value.get("kind") != "git":
+            continue
+        for day, cost in (row.get("day_cost") or {}).items():
+            by_day[day]["attributed_spend"] += cost
+        for day, outcomes in (value.get("by_day") or {}).items():
+            target = by_day[day]
+            for key in ("commits", "prs", "files", "insertions", "deletions"):
+                target[key] += outcomes.get(key, 0) or 0
+            target["releases"] += len(outcomes.get("releases") or [])
+    return {day: {key: round(value, 4) if key == "attributed_spend" else value
+                  for key, value in totals.items()}
+            for day, totals in by_day.items()}
+
+
 COMP_CATS = claude_code.COMP_CATS
 COMP_LABELS = claude_code.COMP_LABELS
 
@@ -137,11 +156,13 @@ def build(verbose=True):
     """Scan every adapter (incremental via each adapter's own cache) and return
     the full dataset."""
     discovered, dir_index = _value.cached_scan()
-    cc_summaries = claude_code.scan(verbose=verbose, dir_index=dir_index)
-    cx_summaries = codex.scan(verbose=verbose)
-    cursor_summaries = cursor.scan(verbose=verbose, dir_index=dir_index)
-    antigravity_summaries = antigravity.scan(verbose=verbose)
-    all_summaries = cc_summaries + cx_summaries + cursor_summaries + antigravity_summaries
+    all_summaries = []
+    for collector in usage_collectors():
+        kwargs = {"dir_index": dir_index} if collector.tool in ("claude-code", "cursor") else {}
+        try:
+            all_summaries.extend(collector.scan(verbose=verbose, **kwargs))
+        except Exception as exc:
+            print(f"warning: {collector.tool} collector failed: {exc}", file=sys.stderr)
 
     totals = _empty()
     by_project = defaultdict(_empty)
@@ -150,14 +171,25 @@ def build(verbose=True):
     by_day_model_global = defaultdict(lambda: defaultdict(_empty))
     by_tool_model_day = defaultdict(lambda: defaultdict(lambda: defaultdict(_empty)))
     by_model = defaultdict(_empty)
+    by_model_day_tokens = defaultdict(lambda: defaultdict(_empty))
     comp_chars = defaultdict(int)
+    comp_chars_by_day = defaultdict(lambda: defaultdict(int))
     sessions = 0
     fixed_samples = []
     total_msgs = 0
     by_session = []
     by_skill_agg = defaultdict(lambda: {"cost": 0.0, "invocations": 0, "exact": False})
+    skill_by_day = defaultdict(lambda: defaultdict(lambda: {
+        "cost": 0.0, "invocations": 0, "exact": False,
+        "tools": set(), "projects": set(), "models": defaultdict(float),
+    }))
+    skill_dimensions = defaultdict(lambda: {
+        "tools": set(), "projects": set(), "models": defaultdict(float),
+    })
+    bloat_by_day = defaultdict(list)
     main_cost_total = 0.0
     subagent_cost_total = 0.0
+    main_subagent_cost_by_day = defaultdict(lambda: {"main": 0.0, "subagent": 0.0})
 
     for s in all_summaries:
         t = s["totals"]
@@ -174,13 +206,21 @@ def build(verbose=True):
                      d["input"], d["output"], d["cache_read"], d["cache_write"])
         for mdl, d in s.get("by_model", {}).items():
             _add(by_model[mdl], d["input"], d["output"], d["cache_read"], d["cache_write"])
+        for day, models in s.get("by_day_model", {}).items():
+            for model, d in models.items():
+                _add(by_model_day_tokens[day][model], d["input"], d["output"], d["cache_read"], d["cache_write"])
         for cat, n in s.get("comp", {}).items():
             comp_chars[cat] += n
+        for day, categories in s.get("comp_by_day", {}).items():
+            for category, n in categories.items():
+                comp_chars_by_day[day][category] += n
         if s.get("turns"):
             sessions += 1
             total_msgs += s.get("msgs", 0)
         if s.get("first_fixed"):
             fixed_samples.append(s["first_fixed"])
+            if s.get("first_fixed_day"):
+                bloat_by_day[s["first_fixed_day"]].append(s["first_fixed"])
 
         file_cost, _ = pricing.cost_by_model(s.get("by_model", {}))
         total_file_tokens = sum(t.values())
@@ -191,20 +231,65 @@ def build(verbose=True):
                 "models": sorted(s.get("by_model", {}).keys()),
                 "model_costs": {model: round(pricing.cost_of(tok, model), 4)
                                 for model, tok in s.get("by_model", {}).items()},
+                "day_cost": {
+                    day: round(pricing.cost_by_model(models)[0], 4)
+                    for day, models in s.get("by_day_model", {}).items()
+                    if day != "unknown"
+                },
             })
         if total_file_tokens:
             main_frac = sum(s.get("main_tokens", _empty()).values()) / total_file_tokens
             sub_frac = sum(s.get("subagent_tokens", _empty()).values()) / total_file_tokens
             main_cost_total += file_cost * main_frac
             subagent_cost_total += file_cost * sub_frac
+        for day, buckets in s.get("main_subagent_by_day", {}).items():
+            day_model_cost = pricing.cost_by_model(s.get("by_day_model", {}).get(day, {}))[0]
+            day_tokens = sum(sum(bucket.values()) for bucket in buckets.values())
+            if day_tokens:
+                for role, bucket in buckets.items():
+                    main_subagent_cost_by_day[day][role] += day_model_cost * sum(bucket.values()) / day_tokens
         for skill, tok in s.get("by_skill", {}).items():
-            frac = sum(tok.values()) / total_file_tokens if total_file_tokens else 0
             entry = by_skill_agg[skill]
-            entry["cost"] += file_cost * frac
             if skill in s.get("skill_exact", []):
                 entry["exact"] = True
+            # Prefer model-specific allocation below.  The older aggregate
+            # fraction is retained only for summaries produced before the
+            # skill/model dimensions were added.
+            if skill not in s.get("by_skill_model", {}):
+                frac = sum(tok.values()) / total_file_tokens if total_file_tokens else 0
+                entry["cost"] += file_cost * frac
         for skill, n in s.get("skill_invocations", {}).items():
             by_skill_agg[skill]["invocations"] += n
+        for skill, models in s.get("by_skill_model", {}).items():
+            dimensions = skill_dimensions[skill]
+            dimensions["tools"].add(s.get("tool") or "unknown")
+            dimensions["projects"].add(s.get("project") or "?")
+            for model, tokens in models.items():
+                model_total = sum(s.get("by_model", {}).get(model, {}).values())
+                model_cost = pricing.cost_of(s.get("by_model", {}).get(model, {}), model)
+                allocated = (model_cost * sum(tokens.values()) / model_total
+                             if model_total else 0)
+                dimensions["models"][model] += allocated
+                by_skill_agg[skill]["cost"] += allocated
+        for day, skills in s.get("by_skill_day_model", {}).items():
+            for skill, models in skills.items():
+                day_entry = skill_by_day[day][skill]
+                day_entry["tools"].add(s.get("tool") or "unknown")
+                day_entry["projects"].add(s.get("project") or "?")
+                if skill in s.get("skill_exact", []):
+                    day_entry["exact"] = True
+                for model, tokens in models.items():
+                    model_total = sum(s.get("by_day_model", {}).get(day, {}).get(model, {}).values())
+                    model_cost = pricing.cost_of(s.get("by_day_model", {}).get(day, {}).get(model, {}), model)
+                    allocated = (model_cost * sum(tokens.values()) / model_total
+                                 if model_total else pricing.cost_of(tokens, model))
+                    day_entry["cost"] += allocated
+                    day_entry["models"][model] += allocated
+        for day, skills in s.get("skill_invocations_by_day", {}).items():
+            for skill, n in skills.items():
+                skill_by_day[day][skill]["invocations"] += n
+        for skill in s.get("skill_exact", []):
+            skill_dimensions[skill]["exact"] = True
 
     fixed_samples.sort()
     n = len(fixed_samples)
@@ -276,6 +361,7 @@ def build(verbose=True):
         window_by_label, tool_by_label,
         discovered=discovered, realdir_by_label=realdir_by_label,
         dir_index=dir_index)
+    delivery_by_day = _delivery_by_day(directories)
 
     comp_tokens = {k: comp_chars.get(k, 0) // 4 for k in COMP_CATS}
     comp_sum = sum(comp_tokens.values()) or 1
@@ -284,15 +370,30 @@ def build(verbose=True):
          for k in COMP_CATS if comp_tokens[k]),
         key=lambda r: -r[1],
     )
+    composition_by_day = {
+        day: {category: chars // 4 for category, chars in categories.items()}
+        for day, categories in comp_chars_by_day.items()
+    }
 
-    cutoff = time.time() - 30 * 86400
-    by_session = sorted((s for s in by_session if s["mtime"] >= cutoff),
-                         key=lambda r: -r["cost"])[:50]
-    by_skill = sorted(
-        ({"skill": k, "cost": round(v["cost"], 4), "invocations": v["invocations"],
-          "exact": v["exact"]} for k, v in by_skill_agg.items()),
-        key=lambda r: -r["cost"],
-    )
+    skill_rows = []
+    for skill, entry in by_skill_agg.items():
+        dimensions = skill_dimensions[skill]
+        skill_rows.append({
+            "skill": skill,
+            "cost": round(entry["cost"], 4),
+            "invocations": entry["invocations"],
+            "exact": entry["exact"],
+            "tools": sorted(dimensions["tools"]),
+            "projects": sorted(dimensions["projects"]),
+            "models": [
+                {"model": model, "cost": round(cost, 4)}
+                for model, cost in sorted(dimensions["models"].items(), key=lambda item: -item[1])
+            ],
+        })
+    skill_rows.sort(key=lambda row: -row["cost"])
+
+    by_session = sorted(by_session, key=lambda r: -r["cost"])
+    by_skill = skill_rows
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     today_cost = pricing.cost_by_model(by_day_model_global.get(today_str, {}))[0]
@@ -311,16 +412,24 @@ def build(verbose=True):
 
     dated_days = sorted(day for day in by_day_model_global if day != "unknown")
     source_counts = defaultdict(int)
+    source_counts_by_day = defaultdict(lambda: defaultdict(int))
     activity_sources = defaultdict(lambda: {"sessions": 0, "messages": 0,
                                              "artifacts": 0, "projects": set()})
+    activity_by_day = defaultdict(lambda: defaultdict(int))
     activity_sessions = []
     for s in all_summaries:
         if sum(s.get("totals", {}).values()):
-            source_counts[s.get("tool", "unknown")] += 1
+            tool = s.get("tool", "unknown")
+            source_counts[tool] += 1
+            for day in s.get("by_day", {}):
+                if day != "unknown":
+                    source_counts_by_day[day][tool] += 1
         if s.get("activity_only"):
             tool = s.get("tool", "unknown")
             activity = s.get("activity") or {}
             entry = activity_sources[tool]
+            if activity.get("day"):
+                activity_by_day[activity["day"]][tool] += 1
             entry["sessions"] += 1
             entry["messages"] += activity.get("messages") or 0
             entry["artifacts"] += activity.get("artifacts") or 0
@@ -371,9 +480,12 @@ def build(verbose=True):
                         "month": round(month_cost, 2), "lifetime": round(total_cost, 2)},
         "economics": economics,
         "delivery_economics": delivery_economics,
+        "delivery_by_day": delivery_by_day,
         "data_quality": {
             "usage_sources": dict(sorted(source_counts.items())),
+            "usage_sources_by_day": {day: dict(tools) for day, tools in source_counts_by_day.items()},
             "activity_sources": activity_summary,
+            "activity_by_day": {day: dict(tools) for day, tools in activity_by_day.items()},
             "value_sources": dict(sorted(value_sources.items())),
             "pricing_coverage_pct": round(100 - fallback_pct, 1),
             "outcome_cost_coverage_pct": outcome_coverage,
@@ -381,13 +493,18 @@ def build(verbose=True):
                        "end": dated_days[-1] if dated_days else None},
         },
         "bloat": {"median": int(median_fixed), "avg": int(avg_fixed), "samples": n},
+        "bloat_by_day": dict(bloat_by_day),
         "composition": composition,
+        "composition_by_day": composition_by_day,
         "by_project": sorted(
             ([k, v, round(pricing.cost_of(v), 2)] for k, v in by_project.items()),
             key=lambda r: -(r[1]["input"] + r[1]["cache_read"] + r[1]["cache_write"]),
         )[:25],
         "by_day": sorted(([k, v] for k, v in by_day.items() if k != "unknown")),
         "by_day_model_cost": by_day_model_cost,
+        "by_day_model_tokens": {
+            day: dict(models) for day, models in by_model_day_tokens.items()
+        },
         "by_day_purpose_cost": by_day_purpose_cost,
         "tool_model_day_cost": tool_model_day_cost,
         "tool_model_day_tokens": tool_model_day_tokens,
@@ -399,8 +516,29 @@ def build(verbose=True):
         "directories": directories,
         "by_session": by_session,
         "by_skill": by_skill,
+        "skill_by_day": {
+            day: {
+                skill: {
+                    "cost": round(value["cost"], 4),
+                    "invocations": value["invocations"],
+                    "exact": value["exact"],
+                    "tools": sorted(value["tools"]),
+                    "projects": sorted(value["projects"]),
+                    "models": [
+                        {"model": model, "cost": round(cost, 4)}
+                        for model, cost in sorted(value["models"].items(), key=lambda item: -item[1])
+                    ],
+                }
+                for skill, value in skills.items()
+            }
+            for day, skills in skill_by_day.items()
+        },
         "main_subagent_split": {"main_cost": round(main_cost_total, 2),
                                  "subagent_cost": round(subagent_cost_total, 2)},
+        "main_subagent_by_day": {
+            day: {role: round(cost, 4) for role, cost in buckets.items()}
+            for day, buckets in main_subagent_cost_by_day.items()
+        },
         "budget": budget,
         "handoff_runs": handoff_runs,
         "activity": {"by_tool": activity_summary,
@@ -427,6 +565,7 @@ def _build_handoff_runs(all_summaries):
             final_findings = reviewer_rounds[-1].get("findings") if reviewer_rounds else None
             rows.append({
                 "run_id": manifest["run_id"], "task": manifest.get("task", ""),
+                "day": next((r.get("started", "")[:10] for r in manifest.get("rounds", []) if r.get("started")), None),
                 "rounds": manifest["outcome"].get("rounds", 0),
                 "coder_cost": cost["coder"], "reviewer_cost": cost["reviewer"],
                 "total_cost": cost["total"], "outcome": manifest["outcome"].get("verdict"),
@@ -873,7 +1012,8 @@ def assemble_directories(mangled_by_label, tokens_by_label, by_project_day_cost,
             value["cost_per_pr"] = round(cost / value["prs"], 2)
         rows.append({
             "dir": real, "label": label, "tool": tool,
-            "cost": cost, "tokens": tokens_by_label.get(label, _empty()),
+            "cost": cost, "day_cost": daycost,
+            "tokens": tokens_by_label.get(label, _empty()),
             "window": {"start": start, "end": end}, "value": value,
         })
     if value_store_dirty[0]:
@@ -1085,7 +1225,8 @@ function selectedProjectCost(d,label,current){
  return observed?total:null;
 }
 function projectRowsForWindow(d,current,includeUnpriced=false){
- const rows=(d.directories||[]).map(row=>({...row,window_cost:selectedProjectCost(d,row.label,current)}));
+ const anchorDays=meteredDays(d);
+ const rows=(d.directories||[]).map(row=>({...row,window_cost:selectedProjectCost(d,row.label,current),window_value:selectedRowValue(row,current,anchorDays)}));
  return rows.filter(row=>includeUnpriced||row.window_cost!=null)
    .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||a.label.localeCompare(b.label));
 }
@@ -1105,6 +1246,46 @@ function sumWindowPurposeCost(d,current){
  }
  return out;
 }
+const COMP_LABELS={prompts:'your prompts',model_output:'model output (prose)',code_authored:'code written (edits)',tool_calls:'tool calls',files_read:'code / files read',logs:'command output / logs',other_results:'other tool results'};
+function selectedComposition(d,current){
+ const raw=d.composition_by_day||{}, days=Object.keys(raw).sort(), totals={};
+ for(const day of days){if(!dayInWindow(day,current,days))continue;for(const[k,v] of Object.entries(raw[day]||{}))totals[k]=(totals[k]||0)+(+v||0);}
+ const total=Object.values(totals).reduce((a,v)=>a+v,0)||1;
+ const rows=Object.entries(totals).map(([k,v])=>[COMP_LABELS[k]||k,v,Math.round(100*v/total*10)/10]).sort((a,b)=>b[1]-a[1]);
+ return rows.length?rows:(current==='all'?(d.composition||[]):[]);
+}
+function selectedBloat(d,current){
+ const raw=d.bloat_by_day||{}, days=Object.keys(raw).sort(), values=[];
+ for(const day of days)if(dayInWindow(day,current,days))values.push(...(raw[day]||[]).map(Number).filter(Number.isFinite));
+ if(!values.length)return current==='all'?(d.bloat||{median:0,avg:0,samples:0}):{median:0,avg:0,samples:0};
+ values.sort((a,b)=>a-b);
+ return {median:values[Math.floor(values.length/2)]||0,avg:values.reduce((a,v)=>a+v,0)/values.length,samples:values.length};
+}
+function selectedDelivery(d,current){
+ const raw=d.delivery_by_day||{}, days=Object.keys(raw).sort(), anchorDays=meteredDays(d);
+ const outcomes={commits:0,prs:0,releases:0,files:0,insertions:0,deletions:0};
+ let attributed=0;
+ for(const day of days){
+  if(!dayInWindow(day,current,anchorDays))continue;
+  const row=raw[day]||{};
+  for(const key of Object.keys(outcomes))outcomes[key]+=(+row[key]||0);
+  attributed+=(+row.attributed_spend||0);
+ }
+ const total=sumWindowDaily(d.by_day_model_cost||{},current);
+ const coverage=total?100*attributed/total:0;
+ return {spend:{total,attributed,unattributed:Math.max(0,total-attributed),coverage_pct:Math.round(coverage*10)/10},outcomes,delivery_unit_cost:{
+  per_commit:outcomes.commits?Math.round(attributed/outcomes.commits*100)/100:null,
+  per_pr:outcomes.prs?Math.round(attributed/outcomes.prs*100)/100:null,
+  per_release:outcomes.releases?Math.round(attributed/outcomes.releases*100)/100:null
+ },business_value:(d.delivery_economics||{}).business_value||{label:'Not measured',reason:'Git delivery signals do not establish business or human value.'}};
+}
+function selectedRowValue(row,current,anchorDays){
+ const value=row.value||{}, raw=value.by_day||{}, days=Object.keys(raw).sort();
+ if(!days.length)return value;
+ const out={commits:0,prs:0,releases:[],files:0,insertions:0,deletions:0};
+ for(const day of days){if(!dayInWindow(day,current,anchorDays||days))continue;const v=raw[day]||{};for(const key of ['commits','prs','files','insertions','deletions'])out[key]+=(+v[key]||0);out.releases.push(...(v.releases||[]));}
+ return {...value,...out};
+}
 function sideTabs(current){
  return `<aside class=side-panel aria-label="Dashboard sections"><div class=side-title>Dashboard</div>`+
    TABS.map(([id,label,note])=>`<button class="tabbtn ${id===current?'active':''}" data-tab="${esc(id)}" onclick="showTab('${esc(id)}')"><span>${esc(label)}<small>${esc(note)}</small></span></button>`).join('')+
@@ -1119,16 +1300,16 @@ function showTab(id){
 function pane(id,content,current){return `<div class="tabpane ${id===current?'active':''}" id="${tabId(id)}">${content}</div>`;}
 function svgEl(w,h,inner,label){return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${esc(label)}" style="max-width:100%">${inner}</svg>`;}
 function deliveryScoreboard(d,current){
- const rows=projectRowsForWindow(d,current).filter(r=>r.value&&r.value.kind==='git'&&(r.window_cost||r.value.commits||r.value.prs))
-   .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||(b.value.prs||0)-(a.value.prs||0)||(b.value.commits||0)-(a.value.commits||0))
+ const rows=projectRowsForWindow(d,current).filter(r=>r.window_value&&r.window_value.kind==='git'&&(r.window_cost||r.window_value.commits||r.window_value.prs))
+   .sort((a,b)=>(b.window_cost||0)-(a.window_cost||0)||(b.window_value.prs||0)-(a.window_value.prs||0)||(b.window_value.commits||0)-(a.window_value.commits||0))
    .slice(0,8);
  if(!rows.length) return emptyState('No git outcomes joined to token-bearing directories in the selected window yet.');
  const maxCost=Math.max(...rows.map(r=>r.window_cost||0),1);
- const maxOut=Math.max(...rows.map(r=>(r.value.prs||0)*3+(r.value.commits||0)),1);
- let h='<p class=muted style="margin-top:0">Read this row by row: spend follows the global selected time window. Delivery is local git evidence from the directory source scope until exact per-window PR/commit attribution is added. Lower delivery cost is directional, not business ROI.</p>';
+ const maxOut=Math.max(...rows.map(r=>(r.window_value.prs||0)*3+(r.window_value.commits||0)),1);
+ let h='<p class=muted style="margin-top:0">Read this row by row: spend and git delivery follow the global selected time window. Lower delivery cost is directional, not business ROI.</p>';
  h+='<table><tr><th>directory</th><th>spend</th><th>observable delivery</th><th>churn</th><th>delivery unit cost</th></tr>';
  for(const r of rows){
-  const v=r.value||{}, outcomes=(v.prs||0)*3+(v.commits||0);
+  const v=r.window_value||{}, outcomes=(v.prs||0)*3+(v.commits||0);
   const costW=100*(r.window_cost||0)/maxCost, outW=100*outcomes/maxOut;
   const shipped=`${v.prs||0} PRs · ${v.commits||0} commits · ${v.files||0} files`;
   const unit=v.prs?`$${(r.window_cost/v.prs).toFixed(2)} / PR`:v.commits?`$${(r.window_cost/v.commits).toFixed(2)} / commit`:'—';
@@ -1165,25 +1346,44 @@ function purposeSplit(t){
    const r=`<rect x="${x}" y="0" width="${w}" height="${H}" fill="${c}" data-tip="${esc(k)}: ${esc(fmt(v))} (${pct}%)"/>`; x+=w; return r;}).join('');
  return svgEl(W,H,segs,'Share of tokens by purpose: cache read, cache write, input, output');
 }
-function compValue(d,needle){
- const rows=d.composition||[]; const row=rows.find(r=>r[0].toLowerCase().includes(needle));
+function compValue(d,needle,current){
+ const rows=selectedComposition(d,current); const row=rows.find(r=>r[0].toLowerCase().includes(needle));
  return row?{label:row[0],tokens:row[1],pct:row[2]}:{label:needle,tokens:0,pct:0};
 }
-function workMix(d){
- const code=compValue(d,'code written'), read=compValue(d,'files read'), chat=compValue(d,'model output'), logs=compValue(d,'logs');
+function workMix(d,current){
+ const code=compValue(d,'code written',current), read=compValue(d,'files read',current), chat=compValue(d,'model output',current), logs=compValue(d,'logs',current);
  const items=[['Code authored',code,'var(--in)'],['Files/docs read',read,'var(--m2)'],['Model/chat prose',chat,'var(--out)'],['Terminal logs',logs,'var(--cw)']];
  return `<div class=insights>${items.map(([name,row,col])=>`<div class=insight><div class=lbl><i class=dot style=background:${col}></i>${esc(name)}</div><div class=big>${fmt(row.tokens)}</div><div class=caption>${row.pct||0}% of estimated conversation text volume</div></div>`).join('')}</div>`;
 }
 function outcomeFlow(d,current){
- const de=d.delivery_economics||{}, spend=de.spend||{}, outcomes=de.outcomes||{}, unit=de.delivery_unit_cost||{}, value=de.business_value||{};
- const selectedSpend=sumWindowDaily(d.by_day_model_cost||{},current), coverage=spend.coverage_pct||0;
+ const selectedSpend=sumWindowDaily(d.by_day_model_cost||{},current), de=selectedDelivery(d,current), spend=de.spend||{}, outcomes=de.outcomes||{}, unit=de.delivery_unit_cost||{}, value=de.business_value||{};
  return `<div class=economics-flow aria-label="AI economics measurement chain">
    <div class="economics-stage cost"><div class=stage-title>1 · Token economics</div><div class=stage-value>${money2(selectedSpend)}</div><div class=muted>selected-window list-price spend</div></div>
-   <div class="economics-stage delivery"><div class=stage-title>2 · Observable delivery</div><div class=stage-value>${fmt(outcomes.prs||0)} PRs · ${fmt(outcomes.commits||0)} commits</div><div class=muted>${money2(spend.attributed)} attributed spend · source-scope outcomes</div><div class=coverage aria-label="${coverage}% of spend joined to git outcomes"><span style="width:${Math.min(100,coverage)}%"></span></div><div class=muted>${coverage}% attribution coverage · ${money2(unit.per_pr)} delivery cost / PR</div></div>
+   <div class="economics-stage delivery"><div class=stage-title>2 · Observable delivery</div><div class=stage-value>${fmt(outcomes.prs||0)} PRs · ${fmt(outcomes.commits||0)} commits</div><div class=muted>${money2(spend.attributed)} attributed spend · selected-window outcomes</div><div class=coverage aria-label="${spend.coverage_pct||0}% of spend joined to git outcomes"><span style="width:${Math.min(100,spend.coverage_pct||0)}%"></span></div><div class=muted>${spend.coverage_pct||0}% attribution coverage · ${money2(unit.per_pr)} delivery cost / PR</div></div>
    <div class="economics-stage value"><div class=stage-title>3 · Business value</div><div class=stage-value>${esc(value.label||'Not measured')}</div><div class=muted>${esc(value.reason||'Delivery activity is not ROI.')}</div></div>
  </div>`;
 }
-function githubPanel(github){
+function scopedGithub(github,current,d){
+ const g=github||{}; if(!g.fetched||current==='all')return g;
+ const days=meteredDays(d), rows=(g.pr_rows||[]).filter(row=>{
+  const date=(row.merged_at||row.updated_at||row.created_at||'').slice(0,10);
+  return date&&dayInWindow(date,current,days);
+ });
+ const summary={prs:rows.length,merged:0,open:0,closed:0,comment_heavy:0,docs_prs:0,deleted_file_prs:0,additions:0,deletions:0};
+ const repos={}, developers={};
+ for(const row of rows){
+  const merged=!!row.merged; summary.merged+=merged?1:0; summary.open+=row.state==='open'?1:0; summary.closed+=row.state==='closed'&&!merged?1:0;
+  summary.comment_heavy+=row.comments!=null&&row.comments>=5?1:0; summary.docs_prs+=row.docs_files?1:0; summary.deleted_file_prs+=row.deleted_files?1:0;
+  summary.additions+=row.additions||0; summary.deletions+=row.deletions||0;
+  const repo=repos[row.repo]||(repos[row.repo]={repo:row.repo,label:row.repo,prs:0,merged:0,comment_heavy:0,docs_prs:0,deleted_file_prs:0,additions:0,deletions:0});
+  repo.prs++; repo.merged+=merged?1:0; repo.comment_heavy+=row.comments!=null&&row.comments>=5?1:0; repo.docs_prs+=row.docs_files?1:0; repo.deleted_file_prs+=row.deleted_files?1:0; repo.additions+=row.additions||0; repo.deletions+=row.deletions||0;
+  const author=row.author||'unknown'; const dev=developers[author]||(developers[author]={developer:author,prs:0,merged:0,open:0,closed:0,comments:0,comment_heavy:0,docs_prs:0,deleted_file_prs:0,additions:0,deletions:0});
+  dev.prs++; dev.merged+=merged?1:0; dev.open+=row.state==='open'?1:0; dev.closed+=row.state==='closed'&&!merged?1:0; dev.comments+=row.comments||0; dev.comment_heavy+=row.comments!=null&&row.comments>=5?1:0; dev.docs_prs+=row.docs_files?1:0; dev.deleted_file_prs+=row.deleted_files?1:0; dev.additions+=row.additions||0; dev.deletions+=row.deletions||0;
+ }
+ return {...g,summary,pr_rows:rows,repo_rows:Object.values(repos).sort((a,b)=>b.prs-a.prs),developer_rows:Object.values(developers).sort((a,b)=>b.prs-a.prs||b.comments-a.comments),top_commented:rows.filter(row=>row.comments!=null).sort((a,b)=>(b.comments||0)-(a.comments||0)).slice(0,10),message:`${g.message||''} Selected window: ${windowDef(current)[1]}.`};
+}
+function githubPanel(github,current,d){
+ github=scopedGithub(github,current,d);
  const g=github||{}, repos=g.repos||[], s=g.summary||{};
  let rows=repos.slice(0,8).map(r=>{const remote=r.remote.replace('git@github.com:','github.com/').replace('https://github.com/','github.com/');
    return `<tr><td>${esc(r.label)}</td><td class=muted>${esc(remote)}</td></tr>`;}).join('');
@@ -1272,29 +1472,57 @@ function budgetBar(block,label){
  return `<div style="margin:6px 0"><div class=muted style="font-size:11px;margin-bottom:2px">${esc(label)}: $${block.spend.toFixed(0)} / $${block.limit.toFixed(0)}</div>
    <div class=meter style="height:10px"><b style="width:${pct}%;background:${col}"></b></div></div>`;
 }
-function sessionsTable(rows){
- if(!rows.length) return emptyState('No sessions in the last 30 days.');
+function sessionsTable(rows,current,d){
+ const days=meteredDays(d), scoped=(rows||[]).map(row=>{
+  const dayCost=row.day_cost||{}, dated=Object.keys(dayCost).sort();
+  const windowCost=dated.length?Object.entries(dayCost).reduce((sum,[day,cost])=>sum+(dayInWindow(day,current,days)?+cost||0:0),0):row.cost;
+  return {...row,window_cost:windowCost,window_days:dated};
+ }).filter(row=>row.window_days.length?row.window_cost>0:!row.mtime||dayInWindow(new Date(row.mtime*1000).toISOString().slice(0,10),current,days)).sort((a,b)=>b.window_cost-a.window_cost);
+ if(!scoped.length) return emptyState(`No sessions in the selected window (${windowDef(current)[1]}).`);
  let h='<table><tr><th>session</th><th>project</th><th>tool</th><th>msgs</th><th>cost</th></tr>';
- for(const r of rows.slice(0,20)){
+ for(const r of scoped.slice(0,20)){
   h+=`<tr><td class=muted>${esc(r.session_id.slice(0,8))}</td><td>${esc(r.project)}</td>`+
-     `<td>${toolBadge(r.tool)}</td><td class=n>${r.msgs}</td><td class=money>$${r.cost.toFixed(2)}</td></tr>`;
+     `<td>${toolBadge(r.tool)}</td><td class=n>${r.msgs}</td><td class=money>$${r.window_cost.toFixed(2)}</td></tr>`;
  }
  return h+'</table>';
 }
-function skillsTable(rows){
+function selectedSkills(d,current){
+ const raw=d.skill_by_day||{}, days=Object.keys(raw).sort(), base=Object.fromEntries((d.by_skill||[]).map(row=>[row.skill,row]));
+ const totals={};
+ for(const day of days){if(!dayInWindow(day,current,days))continue;for(const[skill,value]of Object.entries(raw[day]||{})){
+  const row=totals[skill]||(totals[skill]={cost:0,invocations:0,exact:false,tools:new Set(),projects:new Set(),models:{}});
+  row.cost+=(+value.cost||0); row.invocations+=(+value.invocations||0); row.exact=row.exact||!!value.exact;
+  (value.tools||[]).forEach(tool=>row.tools.add(tool)); (value.projects||[]).forEach(project=>row.projects.add(project));
+  (value.models||[]).forEach(model=>row.models[model.model]=(row.models[model.model]||0)+(+model.cost||0));
+ }}
+ if(!Object.keys(totals).length)return current==='all'?(d.by_skill||[]):[];
+ return Object.entries(totals).map(([skill,value])=>({...base[skill],skill,cost:value.cost,invocations:value.invocations,exact:value.exact,
+  tools:[...value.tools].sort(),projects:[...value.projects].sort(),models:Object.entries(value.models).map(([model,cost])=>({model,cost})).sort((a,b)=>b.cost-a.cost)})).sort((a,b)=>b.cost-a.cost);
+}
+function listLabel(values,limit=2){
+ const items=(values||[]).filter(Boolean); if(!items.length)return '—';
+ return items.length<=limit?items.join(', '):`${items.slice(0,limit).join(', ')} +${items.length-limit} more`;
+}
+function skillsTable(rows,current,d){
+ rows=selectedSkills(d,current);
  if(!rows.length) return emptyState('No skill attribution yet.');
- let h='<table><tr><th>skill</th><th>invocations</th><th>cost</th><th>$/invocation</th><th></th></tr>';
+ let h='<table><tr><th>skill</th><th>agent</th><th>directory</th><th>model</th><th>invocations</th><th>cost</th><th>$/invocation</th><th></th></tr>';
  for(const r of rows.slice(0,20)){
   const perInv=r.cost/(r.invocations||1);
-  h+=`<tr><td>${esc(r.skill)}</td><td class=n>${r.invocations}</td><td class=money>$${r.cost.toFixed(2)}</td>`+
+  const agents=(r.tools||[]).map(toolBadge).join(' · '), modelEntries=(r.models||[]).map(model=>({label:modelDisplay(model.model).label,tip:modelDisplay(model.model).tip})), models=modelEntries.map(model=>model.label);
+  h+=`<tr><td>${esc(r.skill)}</td><td title="${esc((r.tools||[]).join(', '))}">${agents||'—'}</td>`+
+     `<td title="${esc((r.projects||[]).join(', '))}">${esc(listLabel(r.projects))}</td>`+
+     `<td title="${esc(modelEntries.map(model=>model.tip).join('\n'))}">${esc(listLabel(models))}</td>`+
+     `<td class=n>${r.invocations}</td><td class=money>$${r.cost.toFixed(2)}</td>`+
      `<td class=money>$${perInv.toFixed(3)}</td><td>${r.exact?'<span class=badge title="exact — native Claude Code attribution">exact</span>':'<span class=badge title="attributed — heuristic segmentation">attr.</span>'}</td></tr>`;
  }
  return h+'</table>';
 }
-function handoffTable(rows){
- if(!rows.length) return '';
+function handoffTable(rows,current,d){
+ const days=meteredDays(d), scoped=(rows||[]).filter(row=>!row.day||dayInWindow(row.day,current,days));
+ if(!scoped.length) return '';
  let h='<h2>Pair-loop handoff runs</h2><table><tr><th>run</th><th>rounds</th><th>coder $</th><th>reviewer $</th><th>total $</th><th>outcome</th><th>PR</th></tr>';
- for(const r of rows){
+ for(const r of scoped){
   h+=`<tr><td class=muted>${esc(r.task||r.run_id)}</td><td class=n>${r.rounds}</td>`+
      `<td class=money>$${r.coder_cost.toFixed(2)}</td><td class=money>$${r.reviewer_cost.toFixed(2)}</td>`+
      `<td class=money>$${r.total_cost.toFixed(2)}</td><td>${esc(r.outcome||'—')}</td>`+
@@ -1575,14 +1803,14 @@ function recommendationPanel(d){
  const current=activeWindow();
  const t=sumWindowTokens(d,current), total=(t.input||0)+(t.output||0)+(t.cache_read||0)+(t.cache_write||0);
  const cachePct=total?Math.round(100*((t.cache_read||0)+(t.cache_write||0))/total):0;
- const b=d.bloat||{}, bloatPct=b.median?((b.median/200000)*100).toFixed(1):'0.0';
+ const b=selectedBloat(d,current), bloatPct=b.median?((b.median/200000)*100).toFixed(1):'0.0';
  const pricingCoverage=(d.data_quality||{}).pricing_coverage_pct||0;
  const selectedSpend=sumWindowDaily(d.by_day_model_cost||{},current);
  const selectedLabel=windowDef(current)[1];
  const lifetimeSpend=(d.period_cost||{}).lifetime||d.total_cost||selectedSpend||0;
  const suggestionScale=current==='all'||!lifetimeSpend?1:Math.min(1,selectedSpend/lifetimeSpend);
  const spendRows=projectRowsForWindow(d,current).slice(0,5);
- const rows=spendRows.map(x=>`<tr><td>${esc(x.label)}</td><td class=money>${money2(x.window_cost)}</td><td>${toolBadge(x.tool)}</td><td class=muted>${x.value&&x.value.kind==='git'?`${x.value.commits||0} commits · ${x.value.prs||0} PRs <span class=muted>(source scope)</span>`:'local activity'}</td></tr>`).join('');
+ const rows=spendRows.map(x=>`<tr><td>${esc(x.label)}</td><td class=money>${money2(x.window_cost)}</td><td>${toolBadge(x.tool)}</td><td class=muted>${x.window_value&&x.window_value.kind==='git'?`${x.window_value.commits||0} commits · ${x.window_value.prs||0} PRs`:'local activity'}</td></tr>`).join('');
  let h=`<section><h2>Recommendations to optimize tokens</h2>
    <p class=muted style="margin-top:0">Start here. This panel separates token-optimization signals from delivery and GitHub analytics.</p>
    <div class=cards>
@@ -1595,7 +1823,7 @@ function recommendationPanel(d){
  </section>`;
  h+=toolModelCostTree(d,current);
  h+=suggestionsCard(d.suggestions||[],suggestionScale,selectedLabel)||'<section style="margin:24px 0"><h2>Recommended next actions</h2><p class=muted>No automated optimization suggestions crossed the current threshold for the selected window. Check the top spend directories below and the Diagnostics tab for startup bloat.</p></section>';
- h+=`<section style="margin:24px 0"><h2>Highest token spend areas <span class=muted style="text-transform:none;font-weight:400">— ${esc(selectedLabel)}</span></h2><p class=muted style="margin-top:0">Spend follows the global selected time window. Outcome text is source-scoped where exact per-window git attribution is not available yet.</p><div class=table-wrap><table><tr><th>directory</th><th>selected-window spend</th><th>tool</th><th>observed outcome</th></tr>${rows||'<tr><td colspan=4 class=muted>No directory spend found in the selected window.</td></tr>'}</table></div></section>`;
+ h+=`<section style="margin:24px 0"><h2>Highest token spend areas <span class=muted style="text-transform:none;font-weight:400">— ${esc(selectedLabel)}</span></h2><p class=muted style="margin-top:0">Spend and observed git outcomes follow the global selected time window.</p><div class=table-wrap><table><tr><th>directory</th><th>selected-window spend</th><th>tool</th><th>observed outcome</th></tr>${rows||'<tr><td colspan=4 class=muted>No directory spend found in the selected window.</td></tr>'}</table></div></section>`;
  return h;
 }
 function stackedByModel(d){
@@ -1612,6 +1840,19 @@ function stackedByModel(d){
  const leg=series.map((m,i)=>{const md=m==='Other'?{label:'Other',tip:'Other lower-cost models'}:modelDisplay(m);return `<span data-tip="${esc(md.tip)}"><i class=dot style="background:${colors[i]}"></i>${esc(md.label)}</span>`;}).join('');
  return svgEl(W,H,bars+ticks,'Daily estimated list-price cost stacked by model for the selected time window')+`<div class=legend>${leg}</div>`;
 }
+function selectedModelTotals(d,current){
+ const raw=d.by_day_model_tokens||{}, days=Object.keys(raw).sort(), totals={};
+ for(const day of days){if(!dayInWindow(day,current,days))continue;for(const[model,tokens]of Object.entries(raw[day]||{})){
+  const row=totals[model]||(totals[model]={input:0,output:0,cache_read:0,cache_write:0});
+  for(const key of Object.keys(row))row[key]+=(+(tokens||{})[key]||0);
+ }}
+ return Object.entries(totals).sort((a,b)=>-(a[1].input+a[1].output+a[1].cache_read+a[1].cache_write)+(b[1].input+b[1].output+b[1].cache_read+b[1].cache_write));
+}
+function selectedMainSubagent(d,current){
+ const raw=d.main_subagent_by_day||{}, days=Object.keys(raw).sort(), out={main:0,subagent:0};
+ for(const day of days)if(dayInWindow(day,current,days))for(const role of Object.keys(out)){const bucket=(raw[day]||{})[role]||{};for(const value of Object.values(bucket))out[role]+=+value||0;}
+ return out;
+}
 function toolBadge(t){
  const m={'claude-code':'CC','codex':'CX','cursor':'CU','antigravity':'AG'};
  const raw=String(t||'unknown');
@@ -1619,14 +1860,16 @@ function toolBadge(t){
  const label=parts.map(p=>m[p]||p.replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?').join(' + ');
  return `<span class=badge title="${esc(raw)}">${esc(label)}</span>`;
 }
-function activityTable(activity){const rows=(activity||{}).sessions||[], byTool=(activity||{}).by_tool||{}; if(!rows.length)return '';
- const summary=Object.entries(byTool).map(([tool,v])=>`${tool}: ${v.sessions} sessions · ${v.projects} projects${v.messages?' · '+v.messages+' messages':''}${v.artifacts?' · '+v.artifacts+' artifacts':''}`).join(' | ');
+function activityTable(activity,current,d){const rows=(activity||{}).sessions||[], byTool=(activity||{}).by_tool||{}, days=meteredDays(d);
+ const scoped=rows.filter(row=>!row.day||dayInWindow(row.day,current,days)); if(!scoped.length)return '';
+ const scopedByTool={}; for(const row of scoped){const v=scopedByTool[row.tool]||(scopedByTool[row.tool]={sessions:0,messages:0,artifacts:0,projects:new Set()});v.sessions++;v.messages+=row.messages||0;v.artifacts+=row.artifacts||0;v.projects.add(row.project||'unknown');}
+ const summary=Object.entries(scopedByTool).map(([tool,v])=>`${tool}: ${v.sessions} sessions · ${v.projects.size} projects${v.messages?' · '+v.messages+' messages':''}${v.artifacts?' · '+v.artifacts+' artifacts':''}`).join(' | ');
  let h=`<section style="margin:24px 0"><h2>Activity coverage without token counters</h2><p class=muted>${esc(summary)}. These sources improve project/session coverage but never enter token cost.</p><div class=table-wrap><table><tr><th>date</th><th>tool</th><th>project</th><th>session</th><th>messages</th><th>artifacts</th></tr>`;
- for(const r of rows.slice(0,30)){h+=`<tr><td>${esc(r.day||'—')}</td><td>${toolBadge(r.tool)}</td><td>${esc(r.project||'unmapped')}</td><td class=muted>${esc((r.session_id||'').slice(0,8))}</td><td>${r.messages==null?'—':r.messages}</td><td>${r.artifacts==null?'—':r.artifacts}</td></tr>`;}
+ for(const r of scoped.slice(0,30)){h+=`<tr><td>${esc(r.day||'—')}</td><td>${toolBadge(r.tool)}</td><td>${esc(r.project||'unmapped')}</td><td class=muted>${esc((r.session_id||'').slice(0,8))}</td><td>${r.messages==null?'—':r.messages}</td><td>${r.artifacts==null?'—':r.artifacts}</td></tr>`;}
  return h+'</table></div></section>';}
 function dirsTable(d,current){
  const rows=projectRowsForWindow(d,current,true);
- let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— selected-window spend × source-scope delivery evidence</span></h2>`;
+ let h=`<h2>All directories <span class=muted style="text-transform:none;font-weight:400">— selected-window spend × delivery evidence</span></h2>`;
  h+=`<details class=howto><summary>How this is calculated</summary>
    <ul>
      <li><b style="color:var(--cost)">Cost</b> is computed from exact local token counters per model using standard API list prices. It is not a subscription invoice; unknown models are visibly marked through pricing coverage.</li>
@@ -1636,7 +1879,7 @@ function dirsTable(d,current){
    </ul></details>`;
  h+=`<div class=table-wrap><table><tr><th>directory</th><th>tool</th><th>selected-window $</th><th>observable delivery</th><th>outcome scope</th><th>+ / -</th><th>delivery unit cost</th></tr>`;
  for(const d of rows){
-  const v=d.value||{}; const removed=!d.dir;
+  const v=d.window_value||d.value||{}; const removed=!d.dir;
   const shipped = removed ? '<span class=muted>(removed)</span>'
     : v.kind==='git' ? esc(`${v.commits||0} commits${v.prs?'·'+v.prs+' PRs':''}`)
     : v.kind==='fs' ? esc(`${v.fs_files} files`) : '—';
@@ -1656,9 +1899,11 @@ async function load(){render(await (await fetch('/api/data')).json());}
 async function refresh(){document.getElementById('app').innerHTML='<p class=muted>Rescanning…</p>';render(await (await fetch('/api/refresh')).json());}
 function money(c){return c==null?'<span class=muted>—</span>':'$'+(+c).toLocaleString(undefined,{maximumFractionDigits:0});}
 function money2(c){return c==null?'<span class=muted>—</span>':'$'+(+c).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
-function qualityStrip(d){const q=d.data_quality||{},u=q.usage_sources||{},a=q.activity_sources||{},v=q.value_sources||{},w=q.window||{};
- const activity=Object.entries(a).map(([k,x])=>`${esc(k)} ${x.sessions}`).join(' · ');
- return `<div class=quality aria-label="Data provenance"><span><b>${Object.entries(u).map(([k,n])=>`${esc(k)} ${n}`).join(' · ')||'No metered sources'}</b> records with provider token counters</span><span><b>${activity||'No activity-only sources'}</b> activity sessions without counters</span><span><b>${q.pricing_coverage_pct||0}%</b> tokens matched to a named price</span><span><b>${q.outcome_cost_coverage_pct||0}%</b> spend joined to git outcomes</span><span><b>${v.git||0} git · ${v.fs||0} filesystem</b> outcome sources</span><span>${w.start?`${esc(w.start)} → ${esc(w.end)}`:'No dated usage'}</span></div>`;}
+function qualityStrip(d,current){const q=d.data_quality||{},v=q.value_sources||{},w=q.window||{},days=meteredDays(d),u={},a={};
+ for(const[day,tools]of Object.entries(q.usage_sources_by_day||{}))if(dayInWindow(day,current,days))for(const[tool,n]of Object.entries(tools))u[tool]=(u[tool]||0)+n;
+ for(const[day,tools]of Object.entries(q.activity_by_day||{}))if(dayInWindow(day,current,days))for(const[tool,n]of Object.entries(tools))a[tool]=(a[tool]||0)+n;
+ const usage=Object.entries(u).map(([k,n])=>`${esc(k)} ${n}`).join(' · '), activity=Object.entries(a).map(([k,n])=>`${esc(k)} ${n}`).join(' · '), delivery=selectedDelivery(d,current);
+ return `<div class=quality aria-label="Data provenance"><span><b>${usage||'No metered sources'}</b> selected-window records with provider token counters</span><span><b>${activity||'No activity-only sources'}</b> selected-window activity sessions without counters</span><span><b>${q.pricing_coverage_pct||0}%</b> tokens matched to a named price</span><span><b>${delivery.spend.coverage_pct||0}%</b> selected-window spend joined to git outcomes</span><span><b>${v.git||0} git · ${v.fs||0} filesystem</b> available outcome sources</span><span>${w.start?`${esc(w.start)} → ${esc(w.end)}`:'No dated usage'}</span></div>`;}
 function render(d){
  if(d.loading){
   document.getElementById('meta').textContent=`building local dataset · ${d.generated||''}`;
@@ -1673,24 +1918,24 @@ function render(d){
  const winPurposeCost=sumWindowPurposeCost(d,win);
  const card=(lbl,val,note,col)=>`<div class=card><div class=lbl>${col?`<i class=dot style=background:${col}></i>`:''}${lbl}</div>
    <div class=val>${val}</div><div class=note>${note||''}</div></div>`;
- const W=200000, mw=Math.min(100,100*d.bloat.median/W);
+ const W=200000, scopedBloat=selectedBloat(d,win), mw=Math.min(100,100*scopedBloat.median/W);
  const current=activeTab();
- const de=d.delivery_economics||{}, deSpend=de.spend||{}, deOutcomes=de.outcomes||{}, deUnit=de.delivery_unit_cost||{};
+ const de=selectedDelivery(d,win), deSpend=de.spend||{}, deOutcomes=de.outcomes||{}, deUnit=de.delivery_unit_cost||{};
  const overview=`<div class=hero>
    <h2>Token cost → observable delivery → business value</h2>
    <p>This dashboard measures the first two layers separately. Token counters establish estimated cost; Git establishes delivery evidence. Business or human value remains explicitly unmeasured until an outcome source is connected.</p>
    ${outcomeFlow(d,win)}
    <div class=chips><span class=chip>no cloud upload</span><span class=chip>list-price estimate</span><span class=chip>observable delivery</span><span class=chip>no synthetic value score</span></div>
   </div>
- ${workMix(d)}
+ ${workMix(d,win)}
  <div class=cards>
    ${card(`${esc(winLabel)} spend`,money2(winSpend),'selected-window list-price spend','var(--cost)')}
    ${card('selected tokens',fmt((t.input||0)+(t.output||0)+(t.cache_read||0)+(t.cache_write||0)),'provider counters in selected window','var(--in)')}
-   ${card('attributed spend',money2(deSpend.attributed),`${deSpend.coverage_pct||0}% of all-time spend joined to git`,'var(--value)')}
+   ${card('attributed spend',money2(deSpend.attributed),`${deSpend.coverage_pct||0}% of selected-window spend joined to git`,'var(--value)')}
    ${card('delivery cost / PR',money2(deUnit.per_pr),`${deOutcomes.prs||0} observed PRs · attributed spend only`,'var(--value)')}
    ${card('delivery cost / commit',money2(deUnit.per_commit),`${deOutcomes.commits||0} commits · not business ROI`,'var(--value)')}
    ${card('business value','Not measured','connect an outcome source before claiming ROI','var(--muted)')}
-  </div>${qualityStrip(d)}`;
+  </div>${qualityStrip(d,win)}`;
  const budget=`<section style="margin-bottom:24px"><h2>Budget</h2>
    ${d.budget.daily.limit==null&&d.budget.weekly.limit==null
      ? '<p class=muted>No budget configured — add "budget" to ~/.100xprism/config.json.</p>'
@@ -1698,25 +1943,27 @@ function render(d){
    <p class=muted style="margin-top:8px">Pricing catalog checked ${esc((d.pricing||{}).as_of||'unknown')}. ${d.fallback_pct?`${d.fallback_pct}% of tokens use conservative fallback pricing.`:'All model tokens matched a named rate.'} Subscription plans and provider credits are not reconstructed.</p>
  </section>`;
  const delivery=`<div class=cards2>
-   <section><h2>Directory delivery scoreboard <span class=muted style="text-transform:none;font-weight:400">— selected-window spend, source-scope delivery, churn</span></h2>${deliveryScoreboard(d,win)}</section>
+   <section><h2>Directory delivery scoreboard <span class=muted style="text-transform:none;font-weight:400">— selected-window spend, delivery, churn</span></h2>${deliveryScoreboard(d,win)}</section>
    <section><h2>Cost by directory <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${costByDir(d,win)}</section>
    <section class=wide><h2>Daily list-price cost by model</h2>${stackedByModel(d)}</section>
    <section><h2>Dollar spend by token purpose <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${donut(winPurposeCost)}${legend()}</section>
    <section><h2>Token volume by purpose <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2>${purposeSplit(t)}${legend()}</section>
  </div>${dirsTable(d,win)}`;
- const sessions=handoffTable(d.handoff_runs||[])+activityTable(d.activity)+
-  `<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— top 50 by cost, last 30 days</span></h2>${sessionsTable(d.by_session||[])}`;
- const skills=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— "exact" from Claude Code's native attribution, "attr." from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[])}
-   <h2>Main vs subagent</h2><p>main $${(d.main_subagent_split.main_cost||0).toFixed(2)} · subagent $${(d.main_subagent_split.subagent_cost||0).toFixed(2)}</p>`;
+ const sessions=handoffTable(d.handoff_runs||[],win,d)+activityTable(d.activity,win,d)+
+  `<h2>Sessions <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)} · top 20 by cost</span></h2>${sessionsTable(d.by_session||[],win,d)}`;
+ const scopedMainSubagent=selectedMainSubagent(d,win);
+ const skills=`<h2>By skill <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)} · exact from Claude Code's native attribution, attr. from command-marker segmentation</span></h2>${skillsTable(d.by_skill||[],win,d)}
+   <h2>Main vs subagent <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2><p>main ${money2(scopedMainSubagent.main)} · subagent ${money2(scopedMainSubagent.subagent)}</p>`;
  let diagnostics=`<h2>Startup bloat — fixed context re-sent every turn</h2>
    <div class=meter><b style="width:${mw}%;background:${mw>30?'var(--cw)':'var(--cr)'}"></b>
-   <em>median ${fmt(d.bloat.median)} of 200K window (${(d.bloat.median/W*100).toFixed(1)}%)</em></div>
-   <p class=muted style=margin-top:8px>avg ${fmt(d.bloat.avg)} · lower is better. This is system prompt + tool/skill/agent descriptions + SessionStart injections, read on every turn.</p>`;
- if(d.composition&&d.composition.length){
+   <em>median ${fmt(scopedBloat.median)} of 200K window (${(scopedBloat.median/W*100).toFixed(1)}%)</em></div>
+   <p class=muted style=margin-top:8px>avg ${fmt(scopedBloat.avg)} · ${esc(winLabel)}. This is system prompt + tool/skill/agent descriptions + SessionStart injections, read on every turn.</p>`;
+ const scopedComposition=selectedComposition(d,win);
+ if(scopedComposition&&scopedComposition.length){
   const CC=['#58a6ff','#f778ba','#3fb950','#d29922','#a371f7','#ff7b72','#8b949e'];
-  const ct=d.composition.reduce((a,r)=>a+r[1],0)||1;
+  const ct=scopedComposition.reduce((a,r)=>a+r[1],0)||1;
   let segs='',rows='';
-  d.composition.forEach((r,i)=>{const col=CC[i%CC.length];
+  scopedComposition.forEach((r,i)=>{const col=CC[i%CC.length];
    segs+=`<span style="width:${100*r[1]/ct}%;background:${col}"></span>`;
    rows+=`<tr><td><i class=dot style=background:${col}></i>${esc(r[0])}</td><td>${fmt(r[1])}</td><td>${r[2]}%</td></tr>`;});
   diagnostics+=`<h2>Content composition <span class=muted style="text-transform:none;font-weight:400">— estimate, char-based (not billed tokens)</span></h2>
@@ -1724,13 +1971,14 @@ function render(d){
    <table><tr><th>content type</th><th>est. tokens</th><th>share</th></tr>${rows}</table>
    <p class=muted style=margin-top:8px>The API bills per-turn aggregates, so this approximates where your conversation <em>text volume</em> goes (chars÷4): code written, files read, command output/logs, model prose, prompts. Directional, not exact.</p>`;
  }
- diagnostics+=`<h2>By model</h2><table><tr><th>model</th><th>mix</th><th>cache read</th><th>output</th></tr>`;
- for(const[name,v]of d.by_model){diagnostics+=`<tr><td>${esc(name)}</td><td>${bar(v)}</td>
+ const scopedModels=selectedModelTotals(d,win);
+ diagnostics+=`<h2>By model <span class=muted style="text-transform:none;font-weight:400">— ${esc(winLabel)}</span></h2><table><tr><th>model</th><th>mix</th><th>cache read</th><th>output</th></tr>`;
+ for(const[name,v]of scopedModels){diagnostics+=`<tr><td>${esc(name)}</td><td>${bar(v)}</td>
    <td>${fmt(v.cache_read)}</td><td>${fmt(v.output)}</td></tr>`;}
  diagnostics+='</table>';
- const days=d.by_day.slice(-30);
- diagnostics+=`<h2>Last ${days.length} active days</h2><table><tr><th>day</th><th>mix</th><th>read</th><th>out</th></tr>`;
- for(const[day,v]of days.reverse()){diagnostics+=`<tr><td>${esc(day)}</td><td>${bar(v)}</td>
+ const allDiagnosticDays=(d.by_day||[]).map(row=>row[0]).sort(), days=(d.by_day||[]).filter(row=>dayInWindow(row[0],win,allDiagnosticDays)).slice(-30).reverse();
+ diagnostics+=`<h2>${esc(winLabel)} active days</h2><table><tr><th>day</th><th>mix</th><th>read</th><th>out</th></tr>`;
+ for(const[day,v]of days){diagnostics+=`<tr><td>${esc(day)}</td><td>${bar(v)}</td>
    <td>${fmt(v.cache_read)}</td><td>${fmt(v.output)}</td></tr>`;}
  diagnostics+='</table>';
  const h=`<div class=dashboard-shell>${sideTabs(current)}<main>
@@ -1738,7 +1986,7 @@ function render(d){
    ${pane('recommendations',recommendationPanel(d),current)}
    ${pane('overview',overview+budget,current)}
    ${pane('delivery',delivery,current)}
-   ${pane('github',githubPanel(d.github),current)}
+   ${pane('github',githubPanel(d.github,win,d),current)}
    ${pane('sessions',sessions,current)}
    ${pane('skills',skills,current)}
    ${pane('diagnostics',diagnostics,current)}
@@ -2043,8 +2291,13 @@ def main():
             print(line)
         return
 
-    if not os.path.isdir(PROJECTS_DIR):
-        print(f"No transcripts found at {PROJECTS_DIR}", file=sys.stderr)
+    available_sources = [
+        collector.source
+        for collector in usage_collectors()
+        if os.path.isdir(getattr(collector.module, "SOURCE_DIR", ""))
+    ]
+    if not available_sources:
+        print("No supported local AI-tool transcripts found", file=sys.stderr)
         sys.exit(1)
 
     url = f"http://127.0.0.1:{args.port}"

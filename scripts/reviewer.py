@@ -86,6 +86,16 @@ _VENDORS = {
         "read_only": ["--mode", "ask"],
         "model_flag": "--model",
     },
+    "pi": {
+        # Read-only via tool allowlist (no write/edit/bash).
+        "base": ["pi", "-p"],
+        "read_only": [
+            "--no-skills", "--no-extensions", "--no-session",
+            "--tools", "read,grep,find,ls",
+        ],
+        "model_flag": "--model",
+        "provider_flag": "--provider",
+    },
 }
 
 _SUPPORTED_TOOLS = tuple(_VENDORS)
@@ -114,16 +124,20 @@ def _installed(tool):
     return spec is not None and _which(spec["base"][0]) is not None
 
 
-def command_for(tool, model=None):
-    """Argv for `tool`, read-only, optionally pinned to `model`.
+def command_for(tool, model=None, provider=None):
+    """Argv for `tool`, read-only, optionally pinned to provider/model.
 
-    Read-only is unconditional. The model flag is appended only when a model is
-    given, so the cross-vendor path keeps each CLI's configured default.
+    Read-only is unconditional. Provider/model flags are appended only when
+    given. Pi uses both; other vendors ignore provider.
     """
     spec = _VENDORS.get(tool)
     if spec is None:
         raise ValueError(f"unsupported reviewer tool: {tool!r}")
     cmd = list(spec["base"]) + list(spec["read_only"])
+    if provider and spec.get("provider_flag"):
+        if not isinstance(provider, str) or not provider.strip():
+            raise ValueError(f"invalid provider for {tool!r}: {provider!r}")
+        cmd += [spec["provider_flag"], provider.strip()]
     if model:
         cmd += [spec["model_flag"], model]
     return cmd
@@ -167,7 +181,7 @@ def select_fallback(preferred, coder=None, available=None):
 
 
 def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=None,
-           require_cli=True, coder=None):
+           require_cli=True, coder=None, provider=None, model=None):
     """Invoke `tool` as the reviewer.
 
     If `tool`'s CLI is missing from PATH, `select_fallback` picks the most
@@ -175,13 +189,8 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
     Pass `coder` so it can avoid the coder's own vendor; without it, all
     non-preferred vendors look equally good.
 
-    A same-vendor fallback is pinned to `fallback_models[vendor]` when one is
-    configured. That pin reduces the chance the reviewer runs the coder's own
-    model; it does not rule it out — this function doesn't compare the two.
-    pair-loop.py's cmd_review() does, from session transcripts, and refuses an
-    APPROVED verdict on a match (#93). Without any pin, a same-vendor fallback
-    is a same-model self-review, worth roughly nothing as a second opinion.
-    See the module docstring.
+    `provider` / `model` pin Pi (and model-flag vendors). On CLI fallback, the
+    configured model pin is replaced by `fallback_models[actual_tool]` when set.
 
     Raises ValueError immediately for an unsupported tool name, regardless of
     PATH state — without this upfront check, an unsupported name that also
@@ -202,14 +211,11 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
         raise ValueError(f"unsupported reviewer tool: {tool!r}")
 
     run_command = run_command or _default_run_command
-    # Coerce rather than trust: config.json is user-editable and _config.py's
-    # contract is that malformed input never raises. A scalar here (e.g.
-    # `"fallback_models": "sonnet"`) would otherwise blow up on .get() at the
-    # exact moment the fallback is needed.
     if not isinstance(fallback_models, dict):
         fallback_models = {}
     actual_tool = tool
-    model = None
+    pinned_model = model
+    pinned_provider = provider
     fallback_used = False
 
     if require_cli and not _installed(tool):
@@ -222,15 +228,12 @@ def invoke(tool, prompt, cwd, timeout=600, run_command=None, fallback_models=Non
                 f"~/.100xprism/config.json to a vendor you have."
             )
         fallback_used = True
-        model = fallback_models.get(actual_tool)
-        # Leaf-type guard: the container was checked above, but a value like
-        # {"claude": {"name": "sonnet"}} would reach command_for() and land a
-        # dict in argv, where subprocess raises TypeError. Only a non-empty
-        # string is a usable model id.
-        if not isinstance(model, str) or not model.strip():
-            model = None
+        pinned_provider = None  # other vendors don't use provider_flag the same way
+        pinned_model = fallback_models.get(actual_tool)
+        if not isinstance(pinned_model, str) or not pinned_model.strip():
+            pinned_model = None
 
-    cmd = command_for(actual_tool, model)
+    cmd = command_for(actual_tool, model=pinned_model, provider=pinned_provider)
     output = run_command(cmd, prompt, cwd, timeout)
     return ReviewResult(output=output, session_id=None, fallback_used=fallback_used,
-                        model=model, tool=actual_tool)
+                        model=pinned_model, tool=actual_tool)

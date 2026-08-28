@@ -27,6 +27,7 @@ import _config  # noqa: E402
 import _budget  # noqa: E402
 import adapters.claude_code as claude_code  # noqa: E402
 import adapters.codex as codex  # noqa: E402
+import adapters.pi as pi  # noqa: E402
 
 
 def _git_dirty(cwd):
@@ -41,6 +42,28 @@ def _current_branch(cwd):
     return r.stdout.strip() or "HEAD"
 
 
+def _effective_per_run_usd(cfg):
+    """Default $5 when coder is pi and the user has not set a cap."""
+    per_run = (cfg.get("budget") or {}).get("per_run_usd")
+    if per_run is None and (cfg.get("pair_loop") or {}).get("coder") == "pi":
+        return 5
+    return per_run
+
+
+def _pi_independence_error(config):
+    if config.get("coder") != "pi" or config.get("reviewer") != "pi":
+        return None
+    coder_provider = config.get("coder_provider")
+    reviewer_provider = config.get("reviewer_provider")
+    if not coder_provider or not reviewer_provider or coder_provider == reviewer_provider:
+        return "Pi coder and reviewer require two explicitly configured different providers"
+    coder_model = config.get("coder_model")
+    reviewer_model = config.get("reviewer_model")
+    if coder_model and reviewer_model and coder_model == reviewer_model:
+        return "Pi coder and reviewer must not use the same model"
+    return None
+
+
 def cmd_start(args):
     cwd = os.path.abspath(args.cwd or ".")
     # The dirty-tree check must run before any manifest/HANDOFF.md side effects
@@ -49,23 +72,34 @@ def cmd_start(args):
         print("error: working tree is dirty — commit or stash before starting a pair-loop run",
               file=sys.stderr)
         sys.exit(1)
-    cfg = _config.load_config()["pair_loop"]
+    full = _config.load_config()
+    cfg = full["pair_loop"]
+    independence_error = _pi_independence_error(cfg)
+    if independence_error:
+        print(f"error: {independence_error}", file=sys.stderr)
+        sys.exit(1)
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     branch = _current_branch(cwd)
     manifest = run_manifest.new_manifest(run_id, args.task, cwd, branch,
                                           cfg["coder"], cfg["reviewer"])
+    manifest["coder_provider"] = cfg.get("coder_provider")
+    manifest["reviewer_provider"] = cfg.get("reviewer_provider")
+    manifest["coder_model"] = cfg.get("coder_model")
+    manifest["reviewer_model"] = cfg.get("reviewer_model")
     run_manifest.save_manifest(manifest)
     handoff_path = os.path.join(cwd, handoff.HANDOFF_FILENAME)
     handoff.init_file(handoff_path, run_id, args.task, branch, cfg["coder"], cfg["reviewer"])
     print(json.dumps({"run_id": run_id, "manifest_path": run_manifest.manifest_path(run_id),
                       "handoff_path": handoff_path, "max_rounds": cfg["max_rounds"],
-                      "coder": cfg["coder"], "reviewer": cfg["reviewer"]}))
+                      "coder": cfg["coder"], "reviewer": cfg["reviewer"],
+                      "per_run_usd": _effective_per_run_usd(full)}))
 
 
 def cmd_budget_check(args):
     manifest = run_manifest.load_manifest(args.run)
-    per_run = _config.load_config()["budget"].get("per_run_usd")
-    summaries = claude_code.scan(verbose=False) + codex.scan(verbose=False)
+    full = _config.load_config()
+    per_run = _effective_per_run_usd(full)
+    summaries = claude_code.scan(verbose=False) + codex.scan(verbose=False) + pi.scan(verbose=False)
     cost = run_manifest.run_cost(manifest, summaries)
     _, level = _budget.status_for(cost["total"], per_run)
     print(json.dumps({"level": level, "spent": cost["total"], "limit": per_run}))
@@ -114,6 +148,33 @@ def _guess_current_codex_session(before_mtimes):
     return None
 
 
+def _guess_current_pi_session(before_mtimes):
+    """Newest Pi session jsonl that appeared/changed after `before_mtimes`."""
+    paths = glob.glob(os.path.join(pi.SOURCE_DIR, "**", "*.jsonl"), recursive=True)
+    newest, newest_mtime = None, 0
+    for p in paths:
+        try:
+            mt = os.path.getmtime(p)
+        except OSError:
+            continue
+        if mt > before_mtimes.get(p, 0) and mt > newest_mtime:
+            newest, newest_mtime = p, mt
+    if not newest:
+        return None
+    with open(newest, errors="ignore") as f:
+        for line in f:
+            try:
+                o = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(o, dict):
+                continue
+            sid = o.get("sessionId") or o.get("session_id") or o.get("id")
+            if sid:
+                return sid
+    return os.path.splitext(os.path.basename(newest))[0]
+
+
 def _dominant_model(by_model):
     """Best-effort dominant model for a transcript's by_model breakdown: the
     model with the most input+output tokens, excluding the 'unknown'
@@ -124,15 +185,11 @@ def _dominant_model(by_model):
     return max(candidates, key=lambda m: candidates[m].get("input", 0) + candidates[m].get("output", 0))
 
 
-def _resolve_session_model(tool, session_id, claude_summaries, codex_summaries):
+def _resolve_session_model(tool, session_id, claude_summaries, codex_summaries,
+                           pi_summaries=None):
     """Best-effort: the dominant model a given tool+session_id actually ran
-    with, from already-scanned transcript summaries (claude_code.scan() /
-    codex.scan()). None whenever the model can't be established — no adapter
-    for `tool` (cursor has none yet), no session_id recorded, or no matching
-    transcript found. Callers must treat None as 'unknown', never as 'safe to
-    assume different': see reviewer.py's independence-is-configured-not-
-    verified docstring for why a guess here would be worse than admitting the
-    gap.
+    with, from already-scanned transcript summaries. None whenever the model
+    can't be established.
     """
     if not session_id:
         return None
@@ -140,6 +197,8 @@ def _resolve_session_model(tool, session_id, claude_summaries, codex_summaries):
         summaries = claude_summaries
     elif tool == "codex":
         summaries = codex_summaries
+    elif tool == "pi":
+        summaries = pi_summaries or []
     else:
         return None
     for s in summaries:
@@ -164,6 +223,8 @@ def cmd_coder_done(args):
         # case; could misattribute if multiple Codex sessions are running
         # concurrently in the same directory.
         session_id = _guess_current_codex_session({})
+    elif manifest["coder"] == "pi":
+        session_id = _guess_current_pi_session({})
     else:
         session_id = None
     round_ = run_manifest.add_round(manifest, "coder", manifest["coder"], session_id=session_id)
@@ -258,16 +319,25 @@ def cmd_review(args):
     # override on exactly the machines it exists for.
     require_cli = not args.reviewer_cmd
 
+    reviewer_provider = manifest.get("reviewer_provider")
+    reviewer_model = manifest.get("reviewer_model")
+    independence_error = _pi_independence_error(manifest)
+    if independence_error:
+        print(f"error: {independence_error}", file=sys.stderr)
+        sys.exit(1)
+
     result = reviewer.invoke(manifest["reviewer"], prompt, cwd, run_command=run_command,
                              fallback_models=fallback_models, require_cli=require_cli,
-                             coder=manifest["coder"])
+                             coder=manifest["coder"],
+                             provider=reviewer_provider, model=reviewer_model)
     verdict = handoff.parse_verdict(result.output)
     if verdict is None:
         # one re-ask with a stricter prompt, then fall back to CHANGES_REQUESTED
         retry_prompt = prompt + "\n\nYour previous response had no parseable VERDICT line. Respond again, ending with exactly 'VERDICT: APPROVED' or 'VERDICT: CHANGES_REQUESTED'."
         result = reviewer.invoke(manifest["reviewer"], retry_prompt, cwd, run_command=run_command,
                                  fallback_models=fallback_models, require_cli=require_cli,
-                             coder=manifest["coder"])
+                             coder=manifest["coder"],
+                             provider=reviewer_provider, model=reviewer_model)
         verdict = handoff.parse_verdict(result.output)
     findings = handoff.parse_findings(result.output)
     if verdict is None:
@@ -303,6 +373,8 @@ def cmd_review(args):
         session_id = _guess_current_codex_session(codex_before)
     elif actual_tool == "claude":
         session_id = _guess_current_claude_session(cwd)
+    elif actual_tool == "pi":
+        session_id = _guess_current_pi_session({})
     else:
         session_id = None
 
@@ -321,10 +393,11 @@ def cmd_review(args):
         if coder_round is not None:
             claude_summaries = claude_code.scan(verbose=False)
             codex_summaries = codex.scan(verbose=False)
+            pi_summaries = pi.scan(verbose=False)
             coder_model = _resolve_session_model(coder_round.get("tool"), coder_round.get("session_id"),
-                                                 claude_summaries, codex_summaries)
+                                                 claude_summaries, codex_summaries, pi_summaries)
             reviewer_model = _resolve_session_model(actual_tool, session_id,
-                                                    claude_summaries, codex_summaries)
+                                                    claude_summaries, codex_summaries, pi_summaries)
             if coder_model and reviewer_model and coder_model == reviewer_model:
                 same_model_conflict = coder_model
                 manifest["reviewer_same_model_conflict"] = coder_model
