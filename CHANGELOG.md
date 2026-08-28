@@ -7,6 +7,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-28
+
+### Added
+
+- **`100xprism pack`** — external skill packs, ownership-tracked install/remove/sync for Claude Code, with a pack registry, schema validation, and a detection engine (Databricks is the first pack). Prefers the upstream vendor CLI where one exists and falls back to per-platform installers otherwise. Pack sync and detection are wired into `install`, `update`, and `uninstall`. (#103)
+- **Lean cross-tool token observability.** Lean must-have defaults with on-demand resolver routing across Claude Code, Cursor, Codex, and Pi; honest cross-tool token reporting with `exact` / `best-effort` / `activity-only` measurement labels instead of a single unqualified number. (#104)
+- **`audit` and `optimize`** subcommands, context-footprint budgets, and managed-only cleanup for plugins and hooks. (#104)
+- **Pi package support**, cache accounting, independent reviewer enforcement, and fail-closed security hooks. (#104)
+
+### Fixed
+
+- **Ownership state is tracked as an obligation *set*, not a ranked status.** A pack's installed components (commands, plugins, platform artifacts) are independent obligations — each can be owned, partially owned, or already removed — rather than a single linear status that could silently regress or resurrect completed removals. Removal is now driven from ownership, not from a status label, so `uninstall` never discards removal state or re-issues a command that was already cleaned up. (#103)
+- Nested `owned` shapes (`owned.plugins`, per-platform values) are validated on both the JS (`uninstall.js`) and Python (`packs.py`) removal paths, including sparse/legacy state written by older installs. (#103)
+- Obligations render as human-readable text in user-facing output instead of a raw Python list `repr`. (#103)
+
 ## [3.1.0] - 2026-08-02
 
 ### Added
