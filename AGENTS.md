@@ -4,7 +4,7 @@ Contributor contract for AI coding agents working on this repo. Users see `READM
 
 ## What this repo is
 
-100xprism is a **distributor**, not an app. The product is `modules/` (68 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, Codex repo skills + `AGENTS.md`, and a **Pi package** (retention-filtered `.pi/skills/` + extensions). Users install via `npm i -g 100xprism` or `get.sh`. For Pi: `pi install git:github.com/rajitsaha/100xprism`.
+100xprism is a **distributor**, not an app. The product is `modules/` (68 SKILL.md files with YAML frontmatter). Adapters in `adapters/` render those modules into each AI tool's native format: Claude Code skills, Cursor `.mdc`, Codex repo skills + `AGENTS.md`, a **Pi package** (retention-filtered `.pi/skills/` + extensions), and Hermes/OpenClaw global skills. Users install via `npm i -g 100xprism` or `get.sh`. For Pi: `pi install git:github.com/rajitsaha/100xprism`.
 
 Every adapter uses progressive disclosure — descriptions in the always-on index, bodies loaded on demand. The single-file concat adapters (Windsurf/Copilot/Gemini/Antigravity) were removed in v3.0.0 precisely because they could not do this.
 
@@ -28,7 +28,7 @@ profiles: <core, code, data, …>      # optional — overrides the category def
 ---
 ```
 
-A module must work across **all 4 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter.
+A module must work across **all 5 adapters**. If you add tool-specific instructions, gate them inside the module body, not the frontmatter. Hermes has one extra constraint the others don't: its always-on index truncates `description:` past ~57 chars, so `adapters/lib/modules.py`'s `hermes_description()` re-derives a short one for that adapter only (override per-module with `hermes_description:` in frontmatter if the derived cut reads awkwardly) — the source module's `description:` is unaffected.
 
 ## Retention: what earns a permanent slot
 
@@ -69,6 +69,13 @@ in the default must mode (or whatever the current totals are — an alias is wri
 when the command name differs from the slug, e.g.
 `fix-bugs` → `/fix`; a same-name alias would double-list the module and pay its
 description twice). If the skill count drops unexpectedly, you broke a frontmatter parse.
+
+The Hermes adapter is a useful second smoke test specifically for description-budget
+issues, since it is the only adapter that truncates:
+
+```bash
+HOME=$(mktemp -d) ./adapters/hermes.sh
+```
 
 To smoke-test the routed index instead, set the mode explicitly:
 

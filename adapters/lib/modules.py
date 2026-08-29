@@ -10,6 +10,7 @@ Used by all adapters. Outputs JSON to stdout with one of these subcommands:
   emit-pi <project_dir>      — write retention-filtered .pi/skills (+ prompts, catalog)
   emit-pi-package            — write filtered pi/skills for `pi install` (repo root)
   emit-claude-code           — write ~/.claude/skills/<slug>/* + ~/.claude/commands/<slug>.md
+  emit-hermes                — write ~/.hermes/skills/100xprism/<slug>/SKILL.md (Hermes/OpenClaw)
   emit-hooks [--sync]        — idempotently merge first-party hooks into
                                ~/.claude/settings.json from hooks/hooks.manifest.json.
                                Each hook is enabled per its manifest `default`, overridable
@@ -139,6 +140,42 @@ def short_description(desc: str) -> str:
     return d
 
 
+# Hermes/OpenClaw renders only the first ~57 chars of a skill description in its
+# always-on system-prompt index (longer strings are silently truncated with '...',
+# destroying the trigger signal a model uses to decide whether to load the skill).
+# See adapters/lib/modules.py cmd_emit_hermes and docs/hermes-adapter.md for the
+# full rationale. A module can hand-tune this with `hermes_description:` in its
+# frontmatter when the derived truncation reads awkwardly.
+HERMES_DESC_MAX = 57
+
+
+def hermes_description(fm: dict, desc: str) -> str:
+    """One-sentence, <=57-char, trigger-first description for the Hermes index.
+
+    Precedence: explicit `hermes_description:` frontmatter override, else the
+    module's first sentence (short_description), hard-truncated at a word
+    boundary and re-punctuated if it still doesn't fit.
+    """
+    override = fm.get("hermes_description", "").strip()
+    if override:
+        d = override
+    else:
+        d = short_description(desc)
+
+    if not d.endswith("."):
+        d = d + "."
+    if len(d) <= HERMES_DESC_MAX:
+        return d
+
+    # Hard truncate at a word boundary inside the budget, minus room for the
+    # trailing period so the result never exceeds HERMES_DESC_MAX.
+    budget = HERMES_DESC_MAX - 1
+    truncated = d[:budget].rsplit(" ", 1)[0].rstrip(".,;: ")
+    if not truncated:
+        truncated = d[:budget].rstrip(".,;: ")
+    return truncated + "."
+
+
 def render_command_alias(fm: dict, slug: str, body: str) -> str:
     """Slash-command alias that mirrors the skill's routing/guardrails in frontmatter.
 
@@ -202,6 +239,7 @@ def list_modules() -> list[dict]:
             "model": fm.get("model", ""),
             "body": body,
             "dir": str(skill_md.parent),
+            "fm": fm,
         })
     out.sort(key=lambda m: (m["tier"] != "core", m["category"], m["slug"]))
     return out
@@ -991,6 +1029,129 @@ def cmd_emit_claude_code():
 HOOKS_DIR = REPO / "hooks"
 
 
+# ── Hermes / OpenClaw ────────────────────────────────────────────────────────
+# Hermes skills are global (like Claude Code's), living under
+# ~/.hermes/skills/<category>/<slug>/SKILL.md, with the description re-sent on
+# every turn and the body loaded on demand — the same progressive-disclosure
+# contract Claude Code and Codex use. All 100xprism modules are installed under
+# a single `100xprism/` category so pruning never touches a user's own skills
+# in other categories, and so users can see at a glance what 100xprism owns.
+HERMES_CATEGORY = "100xprism"
+
+
+def render_hermes_skill(m: dict) -> str:
+    """Re-serialize a module's SKILL.md with a Hermes-safe (<=57 char) description.
+
+    Hermes truncates any longer description in its always-on index, silently
+    destroying the trigger phrase a model uses to decide whether to load the
+    skill — so this is a real format difference, not cosmetic. Every other
+    frontmatter key is passed through unchanged; `hermes_description` (an
+    adapter-only override, if a module sets one) is consumed here and not
+    re-emitted, since it has no meaning to Hermes itself.
+    """
+    fm = dict(m["fm"])
+    original_description = fm.get("description", "")
+    fm["description"] = hermes_description(fm, original_description)
+    fm.pop("hermes_description", None)
+
+    lines = ["---"]
+    for k, v in fm.items():
+        lines.append(f"{k}: {v}")
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines) + "\n" + m["body"].lstrip("\n")
+
+
+def render_hermes_resolver(catalog: list[dict], path_template: str) -> str:
+    """Hermes variant of render_resolver — same catalog, budget-safe description."""
+    fm = {"hermes_description": RESOLVER_DESCRIPTION}
+    desc = hermes_description(fm, RESOLVER_DESCRIPTION)
+    return (
+        "---\n"
+        f"name: {RESOLVER_SLUG}\n"
+        f"description: {desc}\n"
+        "---\n\n"
+        f"# 100xprism catalog ({len(catalog)} modules)\n\n"
+        "These modules are deliberately not in the always-on skill index. Find the row "
+        "that matches the task, **read the file in its `Read` column**, then follow it as "
+        "you would any skill. If nothing matches, proceed without one.\n"
+        + render_catalog_table(catalog, path_template)
+    )
+
+
+def cmd_emit_hermes():
+    """Install modules as Hermes skills under ~/.hermes/skills/100xprism/.
+
+    Mirrors cmd_emit_claude_code's manifest/prune/resolver pattern: reconciling
+    (adds, updates, and removes only what 100xprism itself generated, guarded by
+    GENERATED_MARKER + a manifest), respects the same `100xprism slim` mode via
+    user_skills_mode(), and shares the same on-disk catalog body cache used by
+    the Claude Code resolver so `100xprism slim` behaves identically everywhere.
+    """
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    hermes_root = home / ".hermes" / "skills" / HERMES_CATEGORY
+    hermes_root.mkdir(parents=True, exist_ok=True)
+
+    prev = _read_manifest(hermes_root)
+    prev_skills = set(prev.get("skills", []))
+
+    mode = user_skills_mode()
+    installed, catalog = split_by_mode(list_modules(), mode)
+
+    current_slugs: list[str] = []
+    skill_count = 0
+    for m in installed:
+        slug = m["slug"]
+        target = hermes_root / slug
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True)
+        (target / "SKILL.md").write_text(render_hermes_skill(m))
+        (target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism from modules/<slug>/SKILL.md. Regenerate instead of editing here.\n"
+        )
+        current_slugs.append(slug)
+        skill_count += 1
+
+    # Shared with the Claude Code emitter — same catalog, same on-disk bodies,
+    # so slimming one tool and not the other still resolves to the same files.
+    catalog_dir = home / ".100xprism" / CATALOG_DIRNAME
+    _write_catalog_bodies(catalog, catalog_dir)
+    if catalog:
+        resolver_target = hermes_root / RESOLVER_SLUG
+        if resolver_target.exists():
+            shutil.rmtree(resolver_target)
+        resolver_target.mkdir(parents=True)
+        (resolver_target / "SKILL.md").write_text(
+            render_hermes_resolver(catalog, str(catalog_dir / "{slug}" / "SKILL.md"))
+        )
+        (resolver_target / GENERATED_MARKER).write_text(
+            "Generated by 100xprism. Regenerate instead of editing here.\n"
+        )
+        current_slugs.append(RESOLVER_SLUG)
+        skill_count += 1
+
+    cur_skill_set = set(current_slugs)
+    orphan_skills = (prev_skills | REMOVED_MODULES) - cur_skill_set
+    for child in hermes_root.iterdir():
+        if child.is_dir() and child.name not in cur_skill_set and (child / GENERATED_MARKER).exists():
+            orphan_skills.add(child.name)
+    pruned = 0
+    for slug in sorted(orphan_skills):
+        p = hermes_root / slug
+        if p.is_dir() and ((p / GENERATED_MARKER).exists() or slug in prev_skills or slug in REMOVED_MODULES):
+            shutil.rmtree(p)
+            pruned += 1
+
+    (hermes_root / MANIFEST_NAME).write_text(
+        json.dumps({"skills": sorted(current_slugs)}, indent=2) + "\n"
+    )
+
+    suffix = f" (pruned {pruned} stale skill(s))" if pruned else ""
+    catalog_note = f" + {len(catalog)} catalog module(s) behind {RESOLVER_SLUG}" if catalog else ""
+    print(f"wrote {skill_count} Hermes skills to {hermes_root}{catalog_note}{suffix}")
+
+
 def _hook_command(script: str) -> str:
     return f'python3 "{HOOKS_DIR / script}"'
 
@@ -1147,6 +1308,8 @@ def main(argv: list[str]):
         cmd_emit_pi_package()
     elif cmd == "emit-claude-code":
         cmd_emit_claude_code()
+    elif cmd == "emit-hermes":
+        cmd_emit_hermes()
     elif cmd == "emit-hooks":
         cmd_emit_hooks(sync="--sync" in argv[2:])
     else:

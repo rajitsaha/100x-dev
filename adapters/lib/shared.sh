@@ -11,6 +11,7 @@ MODULES_PY="$_LIB_DIR/modules.py"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # _run_cursor <project_path>
@@ -47,6 +48,31 @@ _run_pi() {
   python3 "$MODULES_PY" emit-pi "$project_path"
   _track_project "$project_path"
   echo -e "  ${GREEN}→ Generated .pi/skills/ in $project_path ✓${NC}"
+}
+
+# _hermes_installed
+# Detects whether this machine actually has Hermes/OpenClaw, so install/update
+# only ever create ~/.hermes/skills for users who use it — never for everyone.
+# A prior 100xprism run (~/.hermes/skills/100xprism/) also counts, so once a
+# user has opted in (or the hermes CLI later goes away) reconciliation keeps
+# working instead of orphaning the skills it wrote.
+_hermes_installed() {
+  [ -d "$HOME/.hermes" ] && return 0
+  command -v hermes >/dev/null 2>&1 && return 0
+  return 1
+}
+
+# _run_hermes
+# Hermes/OpenClaw skills are global (like Claude Code's), not per-project — one
+# ~/.hermes/skills/100xprism/<slug>/SKILL.md per module, reconciled on every run.
+# There is no per-project artifact to generate, so this does not call
+# _track_project the way the per-project adapters do.
+_run_hermes() {
+  echo ""
+  echo "Installing modules for Hermes/OpenClaw..."
+  python3 "$MODULES_PY" emit-hermes
+  echo -e "  ${GREEN}→ Modules installed to ~/.hermes/skills/${YELLOW}100xprism${GREEN}/ ✓${NC}"
+  echo -e "  ${CYAN}→ Restart Hermes (or start a new session) to load new/updated skills${NC}"
 }
 
 _track_project() {

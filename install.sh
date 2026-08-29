@@ -92,6 +92,14 @@ install_modules() {
     source "$REPO_DIR/adapters/claude-code.sh"
     install_global
   fi
+  # Hermes/OpenClaw is auto-detected, not a tool the user picks in select_tools:
+  # it's a global skill install with no interactive component of its own, so it
+  # runs silently alongside Claude Code whenever ~/.hermes (or the hermes CLI)
+  # is present, and is a no-op otherwise.
+  source "$REPO_DIR/adapters/lib/shared.sh"
+  if _hermes_installed; then
+    _run_hermes
+  fi
 }
 
 # ── Install plugins (Claude Code only) ──────────────────────────────────────

@@ -12,6 +12,7 @@ Commands:
   slim       Shrink the always-on context: keep must-have skills, route the rest
   optimize   Apply the lean context policy (slim compatibility successor)
   audit      Inventory standing context, plugins, hooks, and indexed skills
+  hermes     Install/refresh modules as Hermes/OpenClaw skills (auto-runs in install/update when Hermes is detected)
   tokens     Start/open the AI economics dashboard
   dashboard  Alias for tokens
   value      Print value report for a directory
@@ -44,6 +45,7 @@ switch (cmd) {
   case 'slim':    require('../lib/slim').run(args);    break
   case 'optimize': require('../lib/slim').run(args);    break
   case 'audit': require('../lib/audit').run(args); break
+  case 'hermes':  require('../lib/hermes').run();      break
   case 'tokens':
   case 'dashboard': require('../lib/tokens').runDashboard(args); break
   case 'value': require('../lib/tokens').runValue(args); break

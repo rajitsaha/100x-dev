@@ -87,6 +87,17 @@ sync_hooks() {
   python3 "$REPO_DIR/adapters/lib/modules.py" emit-hooks --sync 2>/dev/null || true
 }
 
+# Reconciles Hermes/OpenClaw skills (~/.hermes/skills/100xprism/) the same way
+# emit-claude-code reconciles ~/.claude/skills — adds new modules, updates
+# changed ones, prunes removed ones. Auto-detected and silent: never creates
+# ~/.hermes for a user who does not have Hermes installed.
+sync_hermes() {
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/adapters/lib/shared.sh"
+  _hermes_installed || return 0
+  _run_hermes
+}
+
 remove_session_update_hook() {
   [ -f "$SETTINGS_FILE" ] || return 0
   if command -v node >/dev/null 2>&1; then
@@ -234,6 +245,7 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   python3 "$REPO_DIR/adapters/lib/packs.py" sync --settings "$SETTINGS_FILE" || \
     echo -e "  ${YELLOW}→ Pack sync failed — run /pack to check pack state${NC}"
   sync_hooks
+  sync_hermes
   run_plugin_updates
   # Still reconcile projects: an earlier run may have pulled v3 and then failed
   # before pruning, and without this the migration would never be retried.
@@ -320,6 +332,9 @@ echo -e "  ${CYAN}→ Shell startup files are not modified. Run 100xprism uninst
 
 # Refresh any installed hooks so their wired commands stay current.
 sync_hooks
+
+# Reconcile Hermes/OpenClaw skills, if Hermes is present on this machine.
+sync_hermes
 
 # ── Update Claude plugins ─────────────────────────────────────────────────────
 run_plugin_updates

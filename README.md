@@ -10,7 +10,7 @@
 [![npm](https://img.shields.io/npm/v/100xprism?style=flat-square&color=red)](https://www.npmjs.com/package/100xprism)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-**One source of truth.** 68 modules generate native config for **Claude Code · Cursor · Codex · Pi**. Quality gates run on every commit.
+**One source of truth.** 68 modules generate native config for **Claude Code · Cursor · Codex · Pi · Hermes/OpenClaw**. Quality gates run on every commit.
 
 <img src="assets/100xprism-hero.svg" alt="100xPrism — one config, every AI coding tool · 2 plugins, 28 slash commands, 40 auto-trigger skills" width="100%" />
 
@@ -46,9 +46,14 @@ cd your-project && 100xprism init
 100xprism update --plugins-only     # refresh plugins only (repo already current)
 100xprism update --no-slim          # skip the one-time always-on index slim
 100xprism slim --dry-run            # preview what slimming would change
+100xprism hermes                    # install/refresh Hermes/OpenClaw skills on demand
 100xprism uninstall                 # stop dashboard + remove legacy shell-startup entries/symlinks
 npm install -g 100xprism@latest     # (optional) upgrade the launcher itself
 ```
+
+`install` and `update` auto-run the Hermes adapter whenever `~/.hermes` or the `hermes`
+CLI is detected — `100xprism hermes` is only needed if you installed Hermes after
+100xprism and don't want to wait for the next scheduled update.
 
 `install` and `update` are **fully reconciling**, not append-only — every run:
 - **adds** newly shipped skills, slash commands, and curated plugins,
@@ -290,6 +295,8 @@ After `100xprism slim`, most of these load through the generated `100x-resolver`
 | **Claude Code** | `~/.claude/skills/<slug>/` + slash command aliases | Yes — per description |
 | **Cursor** | `.cursor/rules/<slug>.mdc` (one file per module) | Yes — per description |
 | **Codex** | `AGENTS.md` + `.agents/skills/<slug>/` + `.codex/hooks.json` | Yes — repo skills |
+| **Pi** | `.pi/skills/<slug>/` (retention-filtered, per project) | Yes — per description |
+| **Hermes/OpenClaw** | `~/.hermes/skills/100xprism/<slug>/SKILL.md` (global, reconciling) | Yes — description re-derived to fit Hermes's ~57-char always-on budget |
 
 Every supported tool loads module bodies on demand rather than inlining them, so the always-on context stays small. `tier: core` marks the modules Cursor keeps resident (`alwaysApply: true`) — since v3.1 that is **`gate` alone**, because `gate` is the only one that must fire unprompted; `commit`, `push`, and `branch` are explicitly invoked and their gate enforcement is guaranteed by the `gate-on-commit` hook, not by prompt residency. Everything else is fetched when its description matches. Claude Code plugins remain Claude-specific; use Codex `/plugins` for Codex-native plugins.
 
