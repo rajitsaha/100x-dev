@@ -7,7 +7,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
-## [3.2.0] - 2026-08-28
+## [3.3.0] - 2026-08-29
+
+### Added
+
+- **Hermes/OpenClaw adapter** — first-class support for the Hermes Agent desktop app and OpenClaw framework. 68 modules emit native `~/.hermes/skills/100xprism/<slug>/SKILL.md` config with a strict ≤57-char description budget (enforced by `hermes_description()` guard, with frontmatter override). Auto-detected on install/update, never touches machines without Hermes. Mirrors the Claude Code adapter's reconciliation pattern: manifest-guarded add/update/prune, `PRISM_SKILLS`/`slim` support, resolver catalog for on-demand loading, user-skill isolation (only `100xprism/` category managed). New `100xprism hermes` CLI subcommand for manual sync.
+
+### Changed
+
+- **`AGENTS.md` / `README.md`** updated: module must now work across all 5 adapters (Claude Code · Cursor · Codex · Pi · Hermes/OpenClaw).
+- **Documentation site** (`gh-pages`): title/meta/JSON-LD/FAQ/emit-support table all list Hermes/OpenClaw as the 5th supported tool; token-observability table honestly marked "not yet supported" for Hermes.
 
 ### Added
 
