@@ -239,7 +239,6 @@ def list_modules() -> list[dict]:
             "model": fm.get("model", ""),
             "body": body,
             "dir": str(skill_md.parent),
-            "fm": fm,
         })
     out.sort(key=lambda m: (m["tier"] != "core", m["category"], m["slug"]))
     return out
@@ -1048,8 +1047,13 @@ def render_hermes_skill(m: dict) -> str:
     frontmatter key is passed through unchanged; `hermes_description` (an
     adapter-only override, if a module sets one) is consumed here and not
     re-emitted, since it has no meaning to Hermes itself.
+
+    Re-reads and re-splits the module's own SKILL.md rather than trusting a
+    pre-parsed frontmatter dict on `m`, so `list_modules()` and its `list`
+    JSON output (consumed by several tests) never have to carry an
+    adapter-internal field just for this one emitter.
     """
-    fm = dict(m["fm"])
+    fm, body = split_frontmatter((Path(m["dir"]) / "SKILL.md").read_text())
     original_description = fm.get("description", "")
     fm["description"] = hermes_description(fm, original_description)
     fm.pop("hermes_description", None)
@@ -1059,7 +1063,7 @@ def render_hermes_skill(m: dict) -> str:
         lines.append(f"{k}: {v}")
     lines.append("---")
     lines.append("")
-    return "\n".join(lines) + "\n" + m["body"].lstrip("\n")
+    return "\n".join(lines) + "\n" + body.lstrip("\n")
 
 
 def render_hermes_resolver(catalog: list[dict], path_template: str) -> str:
