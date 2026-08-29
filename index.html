@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>100xPrism — Documentation · one config for Claude Code, Cursor, Codex &amp; Pi</title>
+  <title>100xPrism — Documentation · one config for Claude Code, Cursor, Codex, Hermes/OpenClaw &amp; Pi</title>
   <meta name="description" content="The complete 100xPrism documentation hub: install, 28 slash commands, 40 auto-trigger skills, the full supported/unsupported matrix, context economics, and the offline token &amp; value dashboard." />
-  <meta name="keywords" content="100xprism, documentation, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Pi, one config for AI coding tools, quality gates, agentic coding, offline AI dashboard, supported features" />
+  <meta name="keywords" content="100xprism, documentation, AI coding cost, token economics, value economics, Claude Code, Cursor, Codex, Hermes, OpenClaw, Pi, one config for AI coding tools, quality gates, agentic coding, offline AI dashboard, supported features" />
   <link rel="canonical" href="https://rajitsaha.github.io/100xprism/" />
   <meta property="og:title" content="100xPrism — Documentation" />
-  <meta property="og:description" content="One source of truth. 68 modules generate native config for Claude Code, Cursor, Codex and Pi. Quality gates run on every commit. Complete docs, including exactly what is and isn't supported." />
+  <meta property="og:description" content="One source of truth. 68 modules generate native config for Claude Code, Cursor, Codex, Hermes/OpenClaw and Pi. Quality gates run on every commit. Complete docs, including exactly what is and isn't supported." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://rajitsaha.github.io/100xprism/" />
   <meta property="og:image" content="https://raw.githubusercontent.com/rajitsaha/100xprism/main/assets/100xprism-hero.svg" />
@@ -23,7 +23,7 @@
     "alternateName": "100xPrism",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "macOS, Linux, Windows (WSL)",
-    "description": "100xPrism keeps one source of truth for AI coding workflows and emits native config for Claude Code, Cursor, Codex and Pi. It enforces quality gates on every commit and measures token cost against observable delivery, fully offline.",
+    "description": "100xPrism keeps one source of truth for AI coding workflows and emits native config for Claude Code, Cursor, Codex, Hermes/OpenClaw and Pi. It enforces quality gates on every commit and measures token cost against observable delivery, fully offline.",
     "url": "https://rajitsaha.github.io/100xprism/",
     "downloadUrl": "https://www.npmjs.com/package/100xprism",
     "codeRepository": "https://github.com/rajitsaha/100xprism",
@@ -40,12 +40,12 @@
       {
         "@type": "Question",
         "name": "What is 100xPrism?",
-        "acceptedAnswer": { "@type": "Answer", "text": "100xPrism keeps one source of truth — 68 modules — and generates native configuration for Claude Code, Cursor, Codex and Pi. It enforces a five-point quality gate on every commit and ships a fully offline dashboard that measures token cost against observable engineering delivery." }
+        "acceptedAnswer": { "@type": "Answer", "text": "100xPrism keeps one source of truth — 68 modules — and generates native configuration for Claude Code, Cursor, Codex, Hermes/OpenClaw and Pi. It enforces a five-point quality gate on every commit and ships a fully offline dashboard that measures token cost against observable engineering delivery." }
       },
       {
         "@type": "Question",
         "name": "Which AI coding tools does 100xPrism support?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Four tools receive generated configuration: Claude Code, Cursor, Codex and Pi. Windsurf, GitHub Copilot, Gemini and Antigravity adapters were removed in v3.0.0 because they emitted a single concatenated file that sat in context on every turn. Antigravity is still read by the token dashboard as an activity-only source." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Five tools receive generated configuration: Claude Code, Cursor, Codex, Hermes/OpenClaw and Pi. Windsurf, GitHub Copilot, Gemini and Antigravity adapters were removed in v3.0.0 because they emitted a single concatenated file that sat in context on every turn. Antigravity is still read by the token dashboard as an activity-only source." }
       },
       {
         "@type": "Question",
@@ -448,7 +448,7 @@
     <div>
       <div class="pill"><b>v3.2</b> One source of truth · MIT · fully offline</div>
       <h1>Stop vibe coding.<br><span class="grad">Ship production-grade software.</span></h1>
-      <p class="sub"><strong>68 modules</strong> generate native config for Claude&nbsp;Code, Cursor, Codex and Pi. A five-point quality gate runs on every commit. An offline dashboard shows what each session cost next to what it shipped.</p>
+      <p class="sub"><strong>68 modules</strong> generate native config for Claude&nbsp;Code, Cursor, Codex, Hermes/OpenClaw and Pi. A five-point quality gate runs on every commit. An offline dashboard shows what each session cost next to what it shipped.</p>
       <div class="cta-row">
         <a class="btn btn-p" href="#install">Install →</a>
         <a class="btn btn-g" href="#support">What's supported?</a>
@@ -461,7 +461,7 @@
     <!-- ============ DIAGRAM 1 · FAN-OUT ============ -->
     <figure class="anim narrow" data-anim style="margin:0">
       <div class="svgbox">
-      <svg viewBox="0 22 460 268" role="img" aria-label="One source of 68 modules fans out to four supported tools: Claude Code, Cursor, Codex and Pi. Four removed adapters peel away.">
+      <svg viewBox="0 22 460 268" role="img" aria-label="One source of 68 modules fans out to five supported tools: Claude Code, Cursor, Codex, Hermes/OpenClaw and Pi (Hermes/OpenClaw not pictured below — see the support table). Four removed adapters peel away.">
         <defs>
           <linearGradient id="gb" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#38bdf8"/>
@@ -525,7 +525,7 @@
         </g>
       </svg>
       </div>
-      <figcaption>One source of truth → four native emit targets. Four adapters were removed in v3.0.0.</figcaption>
+      <figcaption>One source of truth → Claude Code, Cursor, Codex and Pi shown; Hermes/OpenClaw is a fifth native emit target (see the support table below). Four other adapters were removed in v3.0.0.</figcaption>
     </figure>
   </div>
 </header>
@@ -723,7 +723,7 @@ cp ~/100xprism/github-actions/release.yml .github/workflows/release.yml</code></
 
   <div class="cards g4" style="margin-bottom:8px">
     <div class="glass card"><span class="big">68</span><p>modules — 28 slash commands, 40 auto-trigger skills</p></div>
-    <div class="glass card"><span class="big">4</span><p>tools receive generated config</p></div>
+    <div class="glass card"><span class="big">5</span><p>tools receive generated config</p></div>
     <div class="glass card"><span class="big">7</span><p>database engines behind <code>/db</code></p></div>
     <div class="glass card"><span class="big">27</span><p>SaaS CLIs behind <code>/connect</code></p></div>
   </div>
@@ -738,6 +738,7 @@ cp ~/100xprism/github-actions/release.yml .github/workflows/release.yml</code></
         <tr><td><strong>Cursor</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>.cursor/rules/&lt;slug&gt;.mdc</code>, one file per module</td><td>Yes — per description</td></tr>
         <tr><td><strong>Codex</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>AGENTS.md</code> + <code>.agents/skills/&lt;slug&gt;/</code> + <code>.codex/hooks.json</code></td><td>Yes — repo skills</td></tr>
         <tr><td><strong>Pi</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>pi/skills/</code> + the <code>100xprism-catalog</code> package</td><td>Yes — per description</td></tr>
+        <tr><td><strong>Hermes/OpenClaw</strong></td><td><span class="st st-y">✓ Full</span></td><td><code>~/.hermes/skills/100xprism/&lt;slug&gt;/SKILL.md</code>, global &amp; reconciling</td><td>Yes — description re-derived to fit Hermes's ~57-char always-on budget</td></tr>
         <tr><td>Windsurf</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
         <tr><td>GitHub Copilot</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
         <tr><td>Gemini</td><td><span class="st st-n">✗ Removed</span></td><td>—</td><td>Deleted in v3.0.0</td></tr>
@@ -806,6 +807,7 @@ cp ~/100xprism/github-actions/release.yml .github/workflows/release.yml</code></
         <tr><td><strong>Cursor</strong></td><td><span class="st st-p">activity only</span></td><td><code>~/.cursor/projects/*/agent-transcripts/**/*.jsonl</code></td><td>Local transcripts expose no provider token counters</td></tr>
         <tr><td><strong>Antigravity</strong></td><td><span class="st st-p">activity only</span></td><td><code>~/.gemini/antigravity</code></td><td>Local protobuf schema exposes no provider token counters</td></tr>
         <tr><td><strong>Pi</strong></td><td><span class="st st-i">best effort</span></td><td><code>~/.pi/agent/sessions/**/*.jsonl</code></td><td>Session formats vary; only rows carrying native usage fields are metered</td></tr>
+        <tr><td><strong>Hermes/OpenClaw</strong></td><td><span class="st st-n">✗ Not yet supported</span></td><td>—</td><td>Skill emit is supported (see the emit table above); no token collector exists yet for Hermes session logs</td></tr>
         <tr><td>Cursor chats · <code>state.vscdb</code></td><td><span class="st st-n">✗ Out of scope</span></td><td>—</td><td>Outside the collector's scope by design</td></tr>
         <tr><td>Legacy transcript <code>.txt</code></td><td><span class="st st-n">✗ Out of scope</span></td><td>—</td><td>Outside the collector's scope by design</td></tr>
       </tbody>
