@@ -35,7 +35,10 @@ function readDescription(skillMdPath) {
 
 test('emit-hermes writes one skill per module, all within budget, none dropped', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), '100x-hermes-'))
-  const r = emit(home)
+  // PRISM_SKILLS=all: this test verifies full-catalog install + budget
+  // compliance, independent of whichever mode ships as the default (v3.2
+  // made 'must' the lean default; see user_skills_mode()).
+  const r = emit(home, { PRISM_SKILLS: 'all' })
   assert.equal(r.status, 0, r.stderr)
 
   const skills = skillsDir(home)
