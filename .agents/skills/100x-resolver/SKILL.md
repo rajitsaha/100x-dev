@@ -1,0 +1,96 @@
+---
+name: 100x-resolver
+description: Catalog of specialist 100xprism workflows kept out of the always-on index — marketing, SEO, CRO, copywriting, growth, pricing, sales, design, accessibility, motion, and data-visualization playbooks. Read this file's table to find the right one, then read that module's SKILL.md path before starting the work.
+category: docs
+tier: on-demand
+---
+
+# 100xprism catalog (56 modules)
+
+These modules are deliberately not in the always-on skill index. Find the row that matches the task, **read the file in its `Read` column**, then follow it as you would any skill. If nothing matches, proceed without one.
+
+### Quality
+
+| Module | Use it when | Read |
+|---|---|---|
+| `cloud-security` | Rigorous security and data privacy scan for cloud deployments | `.agents/100xprism-catalog/cloud-security/SKILL.md` |
+
+### Engineering
+
+| Module | Use it when | Read |
+|---|---|---|
+| `fix-bugs` | Autonomously fix bugs from any source — Slack threads, failing CI tests, docker logs, or a plain description | `.agents/100xprism-catalog/fix-bugs/SKILL.md` |
+| `grill-me` | Adversarial code review before a PR — Claude asks hard questions until you pass the test | `.agents/100xprism-catalog/grill-me/SKILL.md` |
+| `orchestrate` | Apply the Workflow Orchestration methodology for complex, multi-step tasks — plan-first approach, subagent strategy, self-improvement loo... | `.agents/100xprism-catalog/orchestrate/SKILL.md` |
+| `pack` | Install, list, or uninstall optional vendor skill packs not bundled by default — "add the Databricks pack", "what packs are available", "... | `.agents/100xprism-catalog/pack/SKILL.md` |
+| `spec` | Write a precise, implementation-ready spec before any code is written | `.agents/100xprism-catalog/spec/SKILL.md` |
+| `subagents` | Use subagents to throw more compute at hard problems, keep the main context window clean, and auto-approve safe permissions via hooks | `.agents/100xprism-catalog/subagents/SKILL.md` |
+| `techdebt` | Find and eliminate technical debt across the whole codebase — duplicated code, dead code, redundant abstractions | `.agents/100xprism-catalog/techdebt/SKILL.md` |
+| `terminal-setup` | Guide for optimal terminal and environment setup for Claude Code — Ghostty, statusline, tmux worktrees, voice dictation, and tab organiza... | `.agents/100xprism-catalog/terminal-setup/SKILL.md` |
+| `update-claude-md` | After any correction from the user, update CLAUDE.md with a rule to prevent the same mistake from recurring | `.agents/100xprism-catalog/update-claude-md/SKILL.md` |
+
+### Data
+
+| Module | Use it when | Read |
+|---|---|---|
+| `connect` | Connect, authenticate, and verify any SaaS CLI tool | `.agents/100xprism-catalog/connect/SKILL.md` |
+| `data-query` | Run analytics queries against any database using plain English — BigQuery (bq CLI), PostgreSQL, MySQL, SQLite, or any DB with a CLI/MCP/API | `.agents/100xprism-catalog/data-query/SKILL.md` |
+| `db` | Connect to any database — Cloud SQL, PostgreSQL, Snowflake, Databricks, Athena, Presto, or Oracle. | `.agents/100xprism-catalog/db/SKILL.md` |
+| `launch` | You are a release engineer | `.agents/100xprism-catalog/launch/SKILL.md` |
+
+### Design
+
+| Module | Use it when | Read |
+|---|---|---|
+| `a11y-auditor` | Act as a Senior Accessibility Engineer to audit a page, component, or design against WCAG 2.2 AA | `.agents/100xprism-catalog/a11y-auditor/SKILL.md` |
+| `data-viz` | Act as a Senior Data Visualization Designer for dashboards, analytics pages, and chart-driven UI built in Recharts / visx / D3 / Plotly —... | `.agents/100xprism-catalog/data-viz/SKILL.md` |
+| `enterprise-design` | Produce a comprehensive technical blueprint for a web product or SaaS, suitable for implementation in Figma Make, engineering sprints, an... | `.agents/100xprism-catalog/enterprise-design/SKILL.md` |
+| `figma-translator` | Translate any technical specification into five precise, self-contained Figma Make prompts ready to paste and generate | `.agents/100xprism-catalog/figma-translator/SKILL.md` |
+| `interaction-engineer` | Act as a Senior Frontend Systems Engineer to architect interactive modules — multi-step forms, pricing calculators, faceted search, dashb... | `.agents/100xprism-catalog/interaction-engineer/SKILL.md` |
+| `motion-designer` | Act as a Senior Motion Designer to specify and ship purposeful UI animation — micro-interactions, transitions, scroll-driven sequences, p... | `.agents/100xprism-catalog/motion-designer/SKILL.md` |
+| `visual-system-architect` | Act as a Global Design Director to produce a complete design system — color palette, typography scale, 8px grid, 30+ components, responsi... | `.agents/100xprism-catalog/visual-system-architect/SKILL.md` |
+
+### Docs
+
+| Module | Use it when | Read |
+|---|---|---|
+| `architect` | Architectural decision advisor for cloud, data, and SaaS distributed systems | `.agents/100xprism-catalog/architect/SKILL.md` |
+| `context-dump` | Sync 7 days of GitHub activity (commits, PRs, issues, reviews) into a structured context dump | `.agents/100xprism-catalog/context-dump/SKILL.md` |
+| `issue` | You are a senior engineering lead and product architect | `.agents/100xprism-catalog/issue/SKILL.md` |
+
+### Marketing
+
+| Module | Use it when | Read |
+|---|---|---|
+| `ab-test-setup` | When the user wants to plan, design, or implement an A/B test or experiment — "split test," "variant copy," "multivariate test," "hypothe... | `.agents/100xprism-catalog/ab-test-setup/SKILL.md` |
+| `ad-creative` | "When the user wants to generate, iterate, or scale ad creative — headlines, descriptions, primary text, full variations — for any paid p... | `.agents/100xprism-catalog/ad-creative/SKILL.md` |
+| `ai-seo` | "When the user wants content cited by LLMs or surfaced in AI-generated answers — 'AI SEO,' 'AEO,' 'GEO,' 'LLMO,' 'answer engine optimizat... | `.agents/100xprism-catalog/ai-seo/SKILL.md` |
+| `analytics-tracking` | When the user wants to set up, improve, or audit analytics tracking and measurement — "GA4," "conversion tracking," "event tracking," "UT... | `.agents/100xprism-catalog/analytics-tracking/SKILL.md` |
+| `churn-prevention` | "When the user wants to reduce churn or build retention systems — 'cancel flow,' 'save offer,' 'dunning,' 'failed payment recovery,' 'win... | `.agents/100xprism-catalog/churn-prevention/SKILL.md` |
+| `cold-email` | Write B2B cold emails and follow-up sequences that get replies — "cold outreach," "prospecting email," "outbound email," "SDR emails," "n... | `.agents/100xprism-catalog/cold-email/SKILL.md` |
+| `competitor-alternatives` | "When the user wants competitor comparison or alternative pages for SEO and sales enablement — 'alternative page,' 'vs page,' '[Product] ... | `.agents/100xprism-catalog/competitor-alternatives/SKILL.md` |
+| `content-strategy` | When the user wants to plan content strategy or decide what topics to cover — "what should I write about," "blog strategy," "topic cluste... | `.agents/100xprism-catalog/content-strategy/SKILL.md` |
+| `copy-editing` | "When the user wants to edit, review, or improve existing marketing copy — 'edit this copy,' 'proofread,' 'polish this,' 'tighten this up... | `.agents/100xprism-catalog/copy-editing/SKILL.md` |
+| `copywriting` | When the user wants to write, rewrite, or improve marketing copy for any page — homepage, landing, pricing, feature, about, or product pa... | `.agents/100xprism-catalog/copywriting/SKILL.md` |
+| `email-sequence` | When the user wants to create or optimize an email sequence, drip campaign, or lifecycle email program — "nurture sequence," "onboarding ... | `.agents/100xprism-catalog/email-sequence/SKILL.md` |
+| `form-cro` | When the user wants to optimize any form that is NOT signup/registration — lead capture, contact, demo request, application, survey, or c... | `.agents/100xprism-catalog/form-cro/SKILL.md` |
+| `free-tool-strategy` | When the user wants to plan or build a free tool for marketing — "engineering as marketing," "lead gen tool," "ROI calculator," "generato... | `.agents/100xprism-catalog/free-tool-strategy/SKILL.md` |
+| `launch-strategy` | "When the user wants to plan a product launch, feature announcement, or release strategy — 'Product Hunt,' 'go-to-market,' 'beta launch,'... | `.agents/100xprism-catalog/launch-strategy/SKILL.md` |
+| `marketing-ideas` | "When the user needs marketing ideas, inspiration, or growth strategies for their SaaS or software product — 'how to market,' 'ways to pr... | `.agents/100xprism-catalog/marketing-ideas/SKILL.md` |
+| `marketing-psychology` | "When the user wants to apply psychology, mental models, or behavioral science to marketing — 'cognitive bias,' 'persuasion,' 'why people... | `.agents/100xprism-catalog/marketing-psychology/SKILL.md` |
+| `onboarding-cro` | When the user wants to optimize post-signup onboarding, user activation, first-run experience, or time-to-value — "activation rate," "emp... | `.agents/100xprism-catalog/onboarding-cro/SKILL.md` |
+| `page-cro` | When the user wants to increase conversions on any marketing page — homepage, landing, pricing, feature, or blog; "CRO," "this page isn't... | `.agents/100xprism-catalog/page-cro/SKILL.md` |
+| `paid-ads` | "When the user wants help with paid advertising on Google Ads, Meta, LinkedIn, or Twitter/X — 'PPC,' 'paid media,' 'ROAS,' 'CPA,' 'retarg... | `.agents/100xprism-catalog/paid-ads/SKILL.md` |
+| `paywall-upgrade-cro` | When the user wants to create or optimize in-app paywalls, upgrade screens, upsell modals, or feature gates — "convert free to paid," "fr... | `.agents/100xprism-catalog/paywall-upgrade-cro/SKILL.md` |
+| `popup-cro` | When the user wants to create or optimize popups, modals, overlays, slide-ins, or banners for conversion — "exit intent," "lead capture p... | `.agents/100xprism-catalog/popup-cro/SKILL.md` |
+| `pricing-strategy` | "When the user wants help with pricing, packaging, or monetization — 'pricing tiers,' 'freemium,' 'value metric,' 'Van Westendorp,' 'will... | `.agents/100xprism-catalog/pricing-strategy/SKILL.md` |
+| `product-marketing-context` | "When the user wants to create or update their product marketing context document — 'positioning,' 'ICP,' 'ideal customer profile,' 'who ... | `.agents/100xprism-catalog/product-marketing-context/SKILL.md` |
+| `programmatic-seo` | When the user wants SEO pages generated at scale from templates plus a dataset — "programmatic SEO," "pSEO," "directory pages," "location... | `.agents/100xprism-catalog/programmatic-seo/SKILL.md` |
+| `referral-program` | "When the user wants to create, optimize, or analyze a referral, affiliate, or word-of-mouth program — 'ambassador,' 'viral loop,' 'refer... | `.agents/100xprism-catalog/referral-program/SKILL.md` |
+| `revops` | "When the user wants help with revenue operations or the marketing-to-sales handoff — 'RevOps,' 'lead scoring,' 'lead routing,' 'MQL,' 'S... | `.agents/100xprism-catalog/revops/SKILL.md` |
+| `sales-enablement` | "When the user wants sales collateral — 'pitch deck,' 'one-pager,' 'objection handling,' 'demo script,' 'talk track,' 'sales playbook,' '... | `.agents/100xprism-catalog/sales-enablement/SKILL.md` |
+| `schema-markup` | When the user wants to add, fix, or optimize schema markup / structured data — "JSON-LD," "rich snippets," "schema.org," "FAQ schema," "p... | `.agents/100xprism-catalog/schema-markup/SKILL.md` |
+| `seo-audit` | When the user wants to audit or diagnose SEO issues — "technical SEO," "why am I not ranking," "meta tags review," "my traffic dropped," ... | `.agents/100xprism-catalog/seo-audit/SKILL.md` |
+| `signup-flow-cro` | When the user wants to optimize signup, registration, account creation, or trial activation flows — "signup conversions," "registration f... | `.agents/100xprism-catalog/signup-flow-cro/SKILL.md` |
+| `site-architecture` | When the user wants to plan, map, or restructure a website's page hierarchy, navigation, URL structure, or internal linking — "sitemap," ... | `.agents/100xprism-catalog/site-architecture/SKILL.md` |
+| `social-content` | "When the user wants to create, schedule, or optimize social media content for LinkedIn, Twitter/X, Instagram, TikTok, or Facebook — 'Lin... | `.agents/100xprism-catalog/social-content/SKILL.md` |

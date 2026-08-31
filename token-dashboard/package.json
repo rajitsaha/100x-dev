@@ -1,0 +1,30 @@
+{
+  "name": "100xprism-token-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard for tracking 100xprism token usage across tools and sessions",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "init-db": "node init-database.js"
+  },
+  "keywords": [
+    "100xprism",
+    "token-tracking",
+    "dashboard",
+    "llm",
+    "costs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "sql.js": "^1.10.5",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

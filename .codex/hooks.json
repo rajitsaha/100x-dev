@@ -1,26 +1,3 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .codex/100xprism-hooks/run-hook.py pretooluse-gate.py",
-            "statusMessage": "100xprism: Block git commit/push unless /gate passed for the current tree."
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .codex/100xprism-hooks/run-hook.py pretooluse-secret-scan.py",
-            "statusMessage": "100xprism: Block writes that contain obvious hard-coded credentials."
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

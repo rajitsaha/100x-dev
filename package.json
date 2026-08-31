@@ -63,5 +63,8 @@
     "type": "git",
     "url": "git+https://github.com/rajitsaha/100xprism.git"
   },
-  "homepage": "https://github.com/rajitsaha/100xprism"
+  "homepage": "https://github.com/rajitsaha/100xprism",
+  "devDependencies": {
+    "100xprism": "^3.0.1"
+  }
 }
